@@ -1,0 +1,14 @@
+medidores:  
+  ct01co2_sensor:
+    id_device: 13
+    slave_id: 1
+    baudrate: 9600
+    bytesize: 8
+    parity: N
+    stopbits: 1
+    timeout: 1
+    registers:
+      - name: co2
+        address: 3
+        unit: 139
+        alias: co2
