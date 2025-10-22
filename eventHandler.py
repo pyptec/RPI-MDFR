@@ -11,7 +11,7 @@ def pyp_Conect():
     )
     # Datos base
     id_device = config.get('id_device')
-    g = config.get('g', id_device)
+    i = config.get('i', id_device)
 
     valores = []
     unidades = []
@@ -23,7 +23,7 @@ def pyp_Conect():
 
     params = {
         "t": util.get__time_utc(),
-        "g": g,
+        "i": i,
         "v": valores,
         "u": unidades
     }
