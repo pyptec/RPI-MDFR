@@ -1,6 +1,6 @@
 medidores:  
   ct01co2_sensor:
-    id_device: 13
+    id_device: 14
     slave_id: 1
     baudrate: 9600
     bytesize: 8
@@ -12,3 +12,7 @@ medidores:
         address: 3
         unit: 139
         alias: co2
+    control:
+      co2_ppm_low: 5000     # por debajo o igual a este valor → GAS ON, EXTRACTOR OFF
+      co2_ppm_high: 9000    # por encima o igual a este valor → GAS OFF, EXTRACTOR ON 
+      
