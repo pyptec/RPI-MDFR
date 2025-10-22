@@ -20,7 +20,7 @@ logging.basicConfig(
         logging.StreamHandler()  # Mostrar en la consola
     ]
 )
-ruta ="/home/pi/.scr/.scr/log_eventos.txt"
+ruta ="/home/pi/.scr/.scr/RPI-MDFR/log_eventos.txt"
 def log_event(message):
     try:
         with open(ruta, "a") as log_file:

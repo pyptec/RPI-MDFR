@@ -1,6 +1,6 @@
 medidores:  
   tht03r_sensor:
-    id_device: 12
+    id_device: 21
     slave_id: 4
     baudrate: 9600
     bytesize: 8

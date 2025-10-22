@@ -326,7 +326,7 @@ def main_loop():
     # Publicar el encendido del sistema
     util.logging.info("Sistema encendido.")
     # conexion a AWS
-    #conneced_meter = json.dumps(eventHandler.medidor_conectado())
+    conneced_meter = json.dumps(eventHandler.pyp_Conect())
     # mediciones de los medidores ME337 y el  sensor SHT20
     datos = obtener_datos_medidores_y_sensor()
     Temp.iniciar_wdt()

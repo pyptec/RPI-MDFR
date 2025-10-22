@@ -7,3 +7,4 @@ pyserial==3.5
 python-dotenv==1.0.1
 PyYAML==6.0.2
 RPi.GPIO==0.7.1
+python-dotenv==1.0.1
