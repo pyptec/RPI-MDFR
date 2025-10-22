@@ -335,7 +335,7 @@ def main_loop():
         mqtt_client = awsaccess.connect_to_mqtt()
         if mqtt_client:
                                         
-            #awsaccess.publish_mediciones(mqtt_client, conneced_meter)
+            awsaccess.publish_mediciones(mqtt_client, conneced_meter)
             awsaccess.publish_mediciones(mqtt_client, datos['sensor_CT01CO2'])
             awsaccess.disconnect_from_aws_iot(mqtt_client)# Mantener la conexión activa y recibir mensajes
             
