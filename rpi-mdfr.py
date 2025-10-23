@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 import os
-import minimalmodbus
-import serial
+#import minimalmodbus
+#import serial
 import time
 import json
 import util
