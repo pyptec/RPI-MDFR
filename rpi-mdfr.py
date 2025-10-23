@@ -123,6 +123,10 @@ def payload_event_THT03R(config):
     unidades = []
 
     try:
+        print("\n=== Iniciando lectura THT03R ===")
+        print(f"Puerto: {serialPort}")
+        print(f"Slave ID: {config['slave_id']}")
+        print(f"Baudios: {config['baudrate']}, Paridad: {config['parity']}, Timeout: {config['timeout']}\n")
         instrumento = minimalmodbus.Instrument(serialPort, config['slave_id'])
         instrumento.serial.baudrate = config['baudrate']
         instrumento.serial.bytesize = config['bytesize']
@@ -146,15 +150,19 @@ def payload_event_THT03R(config):
             fc = 3
             decimals = 1
             signed = False
-
+            print(f"→ Leyendo dirección {address} (función {fc}) ...")
+             
             val = instrumento.read_register(address, decimals, functioncode=fc, signed=signed)
-
+            print(f"   Valor leído bruto: {val}")
+            
             # Redondeo suave
             val = round(val, 1)
 
             valores.append(str(val))
             unidades.append(str(reg['unit']))
-
+            print(f"\nValores finales leídos: {valores}")
+            print(f"Unidades asociadas: {unidades}")
+            print("==============================\n")
         return {
             "d": [{
                 "t": util.get__time_utc(),
