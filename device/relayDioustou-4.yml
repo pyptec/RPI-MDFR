@@ -1,7 +1,7 @@
 medidores:
   dioustou_4r:
     id_device: 20
-    port: "/dev/ttyUSB0"   # AJUSTA si es distinto
+    port: "/dev/ttyS0"   # AJUSTA si es distinto
     slave_id: 2            # Recomendado (no uses 255)
     baudrate: 9600
     bytesize: 8

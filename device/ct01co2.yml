@@ -1,6 +1,7 @@
 medidores:  
   ct01co2_sensor:
     id_device: 22
+    port: "/dev/ttyS0"
     slave_id: 1
     baudrate: 9600
     bytesize: 8
@@ -10,6 +11,9 @@ medidores:
     registers:
       - name: co2
         address: 3
+        decimal: 0        # decimals = 0 → deja el valor tal cual (entero), decimals = 1 → divide el valor por 10, decimals = 2 → divide por 100
+        readWrite: "R"
+        scale: 1
         unit: 139
         alias: co2
     control:

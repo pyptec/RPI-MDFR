@@ -1,6 +1,7 @@
 medidores:  
   tht03r_sensor:
     id_device: 21
+    port: "/dev/ttyS0"
     slave_id: 4
     baudrate: 9600
     bytesize: 8
@@ -10,9 +11,15 @@ medidores:
     registers:
       - name: Temperature
         address: 0
+        decimal: 1        # decimals = 0 → deja el valor tal cual (entero), decimals = 1 → divide el valor por 10, decimals = 2 → divide por 100
+        readWrite: "R"
+        scale: 1
         unit: 1
         alias: Temp
       - name: Humidity
         address: 1
+        decimal: 1        # decimals = 0 → deja el valor tal cual (entero), decimals = 1 → divide el valor por 10, decimals = 2 → divide por 100
+        readWrite: "R"
+        scale: 1
         unit: 2
         alias: Humidity

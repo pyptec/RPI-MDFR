@@ -65,10 +65,12 @@ def leer_float32(instrumento, address):
 
 #-----------------------------------------------------------------------------------------------------------
 def payload_event_CT01CO2(config):
-    valores = []
-    unidades = []
+    valores, unidades = [], []
+    port = config.get('port', None)
+    if port is None:
+        port = serialPort
     try:
-        instrumento = minimalmodbus.Instrument(serialPort, config['slave_id'])
+        instrumento = minimalmodbus.Instrument(port, config['slave_id'])
         instrumento.serial.baudrate = config['baudrate']
         instrumento.serial.bytesize = config['bytesize']
         instrumento.serial.stopbits = config['stopbits']
@@ -119,15 +121,16 @@ def payload_event_THT03R(config):
     Lee temperatura y humedad del sensor THT03R (Modbus RTU).
     Compatible con tu YAML reducido (sin fc ni decimals definidos).
     """
-    valores = []
-    unidades = []
-
+    valores, unidades = [], []
+    port = config.get('port', None)
+    if port is None:
+        port = serialPort
     try:
         #print("\n=== Iniciando lectura THT03R ===")
         #print(f"Puerto: {serialPort}")
         #print(f"Slave ID: {config['slave_id']}")
         #print(f"Baudios: {config['baudrate']}, Paridad: {config['parity']}, Timeout: {config['timeout']}\n")
-        instrumento = minimalmodbus.Instrument(serialPort, config['slave_id'])
+        instrumento = minimalmodbus.Instrument(port, config['slave_id'])
         instrumento.serial.baudrate = config['baudrate']
         instrumento.serial.bytesize = config['bytesize']
         instrumento.serial.stopbits = config['stopbits']
@@ -149,7 +152,7 @@ def payload_event_THT03R(config):
             address = reg['address']
             # valores por defecto para este sensor
             fc = 3
-            decimals = 1
+            decimals = reg['decimal']
             signed = False
             #print(f"→ Leyendo dirección {address} (función {fc}) ...")
              
