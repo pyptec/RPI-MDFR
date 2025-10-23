@@ -252,6 +252,11 @@ def obtener_datos_medidores_y_sensor():
     Lee los sensores CT01CO2 y THT03R.
     Si alguno no responde, deja sus valores en None y lo registra en el log.
     Devuelve un diccionario donde cada valor es una cadena JSON.
+    - Devuelve objetos Python con:
+        {
+          'sensor_CT01CO2': { 'payload': {...}, 'meta': {...} },
+          'sensor_THT03R':  { 'payload': {...}, 'meta': {...} }
+        }
     """
     try:
         # === SENSOR 1 — CT01CO2 ===
@@ -281,6 +286,9 @@ def obtener_datos_medidores_y_sensor():
                 'tht03r_sensor'
             )
             medicion_THT03R = payload_event_THT03R(config_THT03R)
+            print("\n=== LECTURA SENSOR THT03R ===")
+            print("Contenido completo:", medicion_THT03R)
+            print("==============================\n")
             if medicion_THT03R is None:
                 util.logging.warning("Sensor THT03R no conectado o sin respuesta.")
                 medicion_THT03R = {
