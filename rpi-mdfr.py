@@ -107,7 +107,7 @@ def payload_event_CT01CO2(config):
 #-----------------------------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------------------------
-def payload_event_THT03R(config):
+def payload_event_modbus(config):
     """
     Lee temperatura y humedad del sensor THT03R (Modbus RTU) usando la configuración YAML.
     Espera en config:
@@ -277,7 +277,7 @@ def obtener_datos_medidores_y_sensor():
                 '/home/pi/.scr/.scr/RPI-MDFR/device/ct01co2.yml',
                 'ct01co2_sensor'
             )
-            medicion_CT01CO2 = payload_event_CT01CO2(config_CT01CO2)
+            medicion_CT01CO2 = payload_event_modbus(config_CT01CO2)
             if medicion_CT01CO2 is None:
                 util.logging.warning("Sensor CT01CO2 no conectado o sin respuesta.")
                 medicion_CT01CO2 = {
@@ -297,7 +297,7 @@ def obtener_datos_medidores_y_sensor():
                 '/home/pi/.scr/.scr/RPI-MDFR/device/tht03r.yml',
                 'tht03r_sensor'
             )
-            medicion_THT03R = payload_event_THT03R(config_THT03R)
+            medicion_THT03R = payload_event_modbus(config_THT03R)
             
             if medicion_THT03R is None:
                 util.logging.warning("Sensor THT03R no conectado o sin respuesta.")
