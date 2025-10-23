@@ -123,10 +123,10 @@ def payload_event_THT03R(config):
     unidades = []
 
     try:
-        print("\n=== Iniciando lectura THT03R ===")
-        print(f"Puerto: {serialPort}")
-        print(f"Slave ID: {config['slave_id']}")
-        print(f"Baudios: {config['baudrate']}, Paridad: {config['parity']}, Timeout: {config['timeout']}\n")
+        #print("\n=== Iniciando lectura THT03R ===")
+        #print(f"Puerto: {serialPort}")
+        #print(f"Slave ID: {config['slave_id']}")
+        #print(f"Baudios: {config['baudrate']}, Paridad: {config['parity']}, Timeout: {config['timeout']}\n")
         instrumento = minimalmodbus.Instrument(serialPort, config['slave_id'])
         instrumento.serial.baudrate = config['baudrate']
         instrumento.serial.bytesize = config['bytesize']
@@ -143,7 +143,7 @@ def payload_event_THT03R(config):
             'O': serial.PARITY_ODD
         }
         instrumento.serial.parity = parity_map.get(config['parity'].upper(), serial.PARITY_NONE)
-        instrumento.debug = True
+        #instrumento.debug = True
         # Leer cada registro del sensor
         for reg in config['registers']:
             address = reg['address']
@@ -151,19 +151,19 @@ def payload_event_THT03R(config):
             fc = 3
             decimals = 1
             signed = False
-            print(f"→ Leyendo dirección {address} (función {fc}) ...")
+            #print(f"→ Leyendo dirección {address} (función {fc}) ...")
              
             val = instrumento.read_register(address, decimals, functioncode=fc, signed=signed)
-            print(f"   Valor leído bruto: {val}")
+            #print(f"   Valor leído bruto: {val}")
             
             # Redondeo suave
             val = round(val, 1)
 
             valores.append(str(val))
             unidades.append(str(reg['unit']))
-            print(f"\nValores finales leídos: {valores}")
-            print(f"Unidades asociadas: {unidades}")
-            print("==============================\n")
+            #print(f"\nValores finales leídos: {valores}")
+            #print(f"Unidades asociadas: {unidades}")
+            #print("==============================\n")
         return {
             "d": [{
                 "t": util.get__time_utc(),
@@ -295,9 +295,7 @@ def obtener_datos_medidores_y_sensor():
                 'tht03r_sensor'
             )
             medicion_THT03R = payload_event_THT03R(config_THT03R)
-            print("\n=== LECTURA SENSOR THT03R ===")
-            print("Contenido completo:", medicion_THT03R)
-            print("==============================\n")
+            
             if medicion_THT03R is None:
                 util.logging.warning("Sensor THT03R no conectado o sin respuesta.")
                 medicion_THT03R = {
@@ -353,7 +351,7 @@ def main_loop():
         if mqtt_client:
                                         
             awsaccess.publish_mediciones(mqtt_client, conneced_meter)
-            #awsaccess.publish_mediciones(mqtt_client, datos['sensor_CT01CO2'])
+            awsaccess.publish_mediciones(mqtt_client, datos['sensor_THT03R'])
             awsaccess.disconnect_from_aws_iot(mqtt_client)# Mantener la conexión activa y recibir mensajes
             
             
