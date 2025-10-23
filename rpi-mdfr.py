@@ -1,7 +1,5 @@
 from dotenv import load_dotenv
 import os
-#import minimalmodbus
-#import serial
 import time
 import json
 import util
@@ -59,15 +57,6 @@ def leer_float32(instrumento, address):
     registros = instrumento.read_registers(address, 2, functioncode=3)
     return struct.unpack(">f", struct.pack(">HH", registros[0], registros[1]))[0]
 
-
-
-#-----------------------------------------------------------------------------------------------------------
-# Función que empaqueta el evento en una estructura JSON
-#-----------------------------------------------------------------------------------------------------------
-def payloadMedicion(config):
-    return {
-        "d": [payload_event(config)]  # Contiene los eventos dentro de una lista
-    }
 #-----------------------------------------------------------------------------------------------------------    
 # Función para procesar eventos en la cola
 #-----------------------------------------------------------------------------------------------------------
