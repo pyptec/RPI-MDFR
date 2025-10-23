@@ -50,12 +50,6 @@ def door_interrupt_callback(channel):
             awsaccess.disconnect_from_aws_iot(mqtt_client)
     else:
         fileventqueue.agregar_evento(Sistema)
-#-----------------------------------------------------------------------------------------------------------
-
-#-----------------------------------------------------------------------------------------------------------        
-def leer_float32(instrumento, address):
-    registros = instrumento.read_registers(address, 2, functioncode=3)
-    return struct.unpack(">f", struct.pack(">HH", registros[0], registros[1]))[0]
 
 #-----------------------------------------------------------------------------------------------------------    
 # Función para procesar eventos en la cola
@@ -103,16 +97,24 @@ def obtener_datos_medidores_y_sensor():
                 '/home/pi/.scr/.scr/RPI-MDFR/device/ct01co2.yml',
                 'ct01co2_sensor'
             )
+            g_ct01 = config_CT01CO2.get('id_device')
             medicion_CT01CO2 = modbusdevices.payload_event_modbus(config_CT01CO2)
             if medicion_CT01CO2 is None:
                 util.logging.warning("Sensor CT01CO2 no conectado o sin respuesta.")
                 medicion_CT01CO2 = {
-                    "d": [{"t": util.get__time_utc(), "g": 14, "v": [None], "u": [None]}]
+                    "d": [{"t": util.get__time_utc(), "g": g_ct01, "v": [None], "u": [None]}]
                 }
+            else:
+                # Extraer valor de CO2 para log
+                valor_co2 = medicion_CT01CO2["d"][0]["v"][0]
+                if valor_co2 not in [None, "None"]:
+                    util.logging.info(f"Lectura CT01CO2 → CO₂ = {valor_co2} ppm")
+                else:
+                    util.logging.warning("Sensor CT01CO2 sin valor válido (None)")
         except Exception as e:
             util.logging.error(f"Error al leer CT01CO2: {e}")
             medicion_CT01CO2 = {
-                "d": [{"t": util.get__time_utc(), "g": 14, "v": [None], "u": [None]}]
+                "d": [{"t": util.get__time_utc(), "g": g_ct01, "v": [None], "u": [None]}]
             }
 
         medicionSensorCT01CO2 = json.dumps(medicion_CT01CO2)
@@ -123,17 +125,28 @@ def obtener_datos_medidores_y_sensor():
                 '/home/pi/.scr/.scr/RPI-MDFR/device/tht03r.yml',
                 'tht03r_sensor'
             )
+            g_tht03r = config_THT03R.get('id_device')
             medicion_THT03R = modbusdevices.payload_event_modbus(config_THT03R)
             
             if medicion_THT03R is None:
                 util.logging.warning("Sensor THT03R no conectado o sin respuesta.")
                 medicion_THT03R = {
-                    "d": [{"t": util.get__time_utc(), "g": 12, "v": [None, None], "u": [None, None]}]
+                    "d": [{"t": util.get__time_utc(), "g":  g_tht03r, "v": [None, None], "u": [None, None]}]
                 }
+            else:
+                # Extraer valores de temperatura y humedad para log
+                valores = medicion_THT03R["d"][0]["v"]
+                temp = valores[0] if len(valores) > 0 else None
+                hum  = valores[1] if len(valores) > 1 else None
+
+                if temp not in [None, "None"] or hum not in [None, "None"]:
+                    util.logging.info(f"Lectura THT03R → Temp = {temp} °C, Hum = {hum} %")
+                else:
+                    util.logging.warning("Sensor THT03R sin valores válidos (None)")
         except Exception as e:
             util.logging.error(f"Error al leer THT03R: {e}")
             medicion_THT03R = {
-                "d": [{"t": util.get__time_utc(), "g": 12, "v": [None, None], "u": [None, None]}]
+                "d": [{"t": util.get__time_utc(), "g":  g_tht03r, "v": [None, None], "u": [None, None]}]
             }
 
         medicionSensorTHT03R = json.dumps(medicion_THT03R)
