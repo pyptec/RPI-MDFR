@@ -142,7 +142,7 @@ def payload_event_THT03R(config):
             'O': serial.PARITY_ODD
         }
         instrumento.serial.parity = parity_map.get(config['parity'].upper(), serial.PARITY_NONE)
-
+        instrumento.debug = True
         # Leer cada registro del sensor
         for reg in config['registers']:
             address = reg['address']
