@@ -336,7 +336,7 @@ def main_loop():
         if mqtt_client:
                                         
             awsaccess.publish_mediciones(mqtt_client, conneced_meter)
-            awsaccess.publish_mediciones(mqtt_client, datos['sensor_CT01CO2'])
+            #awsaccess.publish_mediciones(mqtt_client, datos['sensor_CT01CO2'])
             awsaccess.disconnect_from_aws_iot(mqtt_client)# Mantener la conexión activa y recibir mensajes
             
             
@@ -375,7 +375,7 @@ def main_loop():
                         awsaccess.disconnect_from_aws_iot(mqtt_client)
                 else:
                     fileventqueue.agregar_evento(Sistema)
-                
+        ''''        
         # Mediciones cada 1 minutos
         if tempMdfr == 0:
             tempMdfr = TIMER_MDFR
@@ -469,7 +469,7 @@ def main_loop():
         #               util.logging.warning(f"Comando no reconocido: {comando_mensaje}")
         #        except Exception as e:
         #            util.logging.error(f"Error al procesar el mensaje MQTT: {e}")
-
+''''
 # Punto de entrada principal
 if __name__ == '__main__':
     main_loop()
