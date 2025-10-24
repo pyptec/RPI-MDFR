@@ -41,7 +41,7 @@ def cpu_temp():
 ########################################################
 #Se chequea Temperatura y se apaga/prende el ventilador
 ########################################################
-def check_temp(cpu):
+def check_temp():
 	cpu = cpu_temp()
 	#on_hardware("Temperatura: "+str(cpu))
 	if cpu > 48.0  :
