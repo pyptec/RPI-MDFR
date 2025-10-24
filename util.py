@@ -288,7 +288,7 @@ def payload_estado_sistema_y_medidor():
         #str(door_state)
         ]
     
-    Temp.check_temp(cpu)
+    Temp.check_temp()
     logging.info(f"SISTEMA (g={g_id}) → Temp={cpu_temp_c:.1f}°C | RAM={memoria.percent}% | CPU={cpu_usage}% | IP_USB0={ip_usb0}")
 
     #logging.info(f"Estado puerta (GPIO6): {door_status_text}")
