@@ -254,7 +254,7 @@ def ip_a_numero(ip:str) -> str:
 #-----------------------------------------------------------------------------------------------------------
 def payload_estado_sistema_y_medidor():
     
-    cfg = util.cargar_configuracion(
+    cfg = cargar_configuracion(
                 '/home/pi/.scr/.scr/RPI-MDFR/device/sistema.yml',
                 'variables_del_sistema'
             )
