@@ -21,6 +21,10 @@ logging.basicConfig(
     ]
 )
 ruta ="/home/pi/.scr/.scr/RPI-MDFR/log_eventos.txt"
+
+#-----------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------
 def log_event(message):
     try:
         with open(ruta, "a") as log_file:
@@ -32,8 +36,9 @@ def log_event(message):
         print(f"Error al escribir en el archivo log_eventos: {e}")
         
 
-
-#trae el clk en UTC
+#-----------------------------------------------------------------------------------------------------------
+# Función para obtener el tiempo UTC en formato timestamp
+#-----------------------------------------------------------------------------------------------------------
 def get__time_utc():
     now = datetime.datetime.now()
     timestamp = datetime.datetime.timestamp(now)
@@ -66,7 +71,9 @@ def check_internet_connection():
     except Exception as e:
         logging.error(f"Error al intentar verificar la conexión: {e}")
         return False
-    
+#-----------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------    
 def switch_default_route_to(active_interface):
     try:
         # Verificar si eth0 es la interfaz activa y dejarla encendida si tiene conexión
@@ -94,6 +101,9 @@ def switch_default_route_to(active_interface):
     except Exception as e:
         logging.error(f"Error al cambiar la ruta predeterminada a {active_interface}: {e}")
         return False
+#-----------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------    
 def reiniciar_puerto_usb(port='/dev/ttyUSB0'):
     try:
         # Matar cualquier proceso que esté usando el puerto
@@ -108,7 +118,9 @@ def reiniciar_puerto_usb(port='/dev/ttyUSB0'):
     except Exception as e:
         logging.error(f"Error al reiniciar el puerto: {e}")
         
+#-----------------------------------------------------------------------------------------------------------
 
+#-----------------------------------------------------------------------------------------------------------
 def restaurar_dns():
     logging.info("Restaurando DNS a 8.8.8.8 y 8.8.4.4")
     # Comando para sobrescribir el archivo resolv.conf con el DNS primario
@@ -121,6 +133,9 @@ def restaurar_dns():
     subprocess.run(comando1, shell=True, check=True)
     subprocess.run(comando2, shell=True, check=True)   
 # Función para verificar y conectar usb0 si está presente
+#-----------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------
 def check_usb_connection():
     try:
         ifconfig_output = subprocess.check_output(["ifconfig"], text=True)
@@ -131,7 +146,9 @@ def check_usb_connection():
             logging.warning("'usb0' no está presente en ifconfig.")
     except Exception as e:
         logging.error(f"Error al ejecutar ifconfig: {e}")
-        
+#-----------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------       
 def actualizar_temporizadores(tempRaspberry, tempMedidor, tempQueue, tempPing, tempCheckusb, tempMdfr, sleep_time=1):
 
     time.sleep(1)
@@ -142,7 +159,9 @@ def actualizar_temporizadores(tempRaspberry, tempMedidor, tempQueue, tempPing, t
     tempCheckusb -= 1
     tempMdfr -=1
     return tempRaspberry, tempMedidor, tempQueue, tempPing, tempCheckusb,tempMdfr
+#-----------------------------------------------------------------------------------------------------------
 
+#-----------------------------------------------------------------------------------------------------------
 def enable_interface(interface, hostname="google.com"):
     try:
         # Verificar si la interfaz está activa
@@ -172,17 +191,24 @@ def enable_interface(interface, hostname="google.com"):
     except Exception as e:
         logging.error(f"Error al habilitar o verificar la interfaz {interface}: {e}")
         return False 
-    
+#-----------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------    
 def run_in_thread(interface):
     thread = threading.Thread(target=enable_interface, args=(interface,))
     thread.start()
     return thread
+#-----------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------
 def cargar_configuracion(path, medidor='meatrolME337'):
     with open(path, 'r') as file:
         config = yaml.safe_load(file)
         #print(config)  # Imprimir la configuración para verificar la estructura
         return config['medidores'].get(medidor, {})
-    
+#-----------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------    
 def obtener_ip_usb0():
     # Obtiene las direcciones de todas las interfaces de red
     interfaces = psutil.net_if_addrs()
@@ -194,6 +220,9 @@ def obtener_ip_usb0():
                 return info.address  # Devuelve la dirección IP
 
     return None
+#-----------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------
 def reset_usb0():
     """
     Baja y sube la interfaz usb0, o bien libera y renueva DHCP.
@@ -209,7 +238,9 @@ def reset_usb0():
     # time.sleep(1)
     # subprocess.run(["sudo", "dhclient", "usb0"], check=False)
     time.sleep(5)  # espera a que vuelva a negociar IP
+#-----------------------------------------------------------------------------------------------------------
 
+#-----------------------------------------------------------------------------------------------------------
 def ip_a_numero(ip:str) -> str:
     """
     Convierte '192.168.0.5' → '19216805'.
@@ -218,9 +249,21 @@ def ip_a_numero(ip:str) -> str:
     if not ip:
         return "0"
     return "".join(ip.split("."))
-
+#-----------------------------------------------------------------------------------------------------------
+#funcion para armar el payload del estado del sistema y de la raspberry pi
+#-----------------------------------------------------------------------------------------------------------
 def payload_estado_sistema_y_medidor():
-    cpu = Temp.cpu_temp()
+    
+    cfg = util.cargar_configuracion(
+                '/home/pi/.scr/.scr/RPI-MDFR/device/sistema.yml',
+                'variables_del_sistema'
+            )
+    g_id = cfg.get('id_device')
+        unidades_cfg = cfg.get('unidades', [])
+        codigos_unidades = [u['codigo'] for u in unidades_cfg]
+
+        # === Obtener métricas del sistema ===
+    cpu_temp_c = Temp.cpu_temp()
     memoria = psutil.virtual_memory()
     cpu_usage = psutil.cpu_percent(interval=1)
     
@@ -236,9 +279,9 @@ def payload_estado_sistema_y_medidor():
     #door_state = Temp.door()
     # Convertir a texto legible
     #door_status_text = "Cerrada" if door_state == 1 else "Abierta"
-    
+    # === Armar lista de valores mensurados ===
     mensurados = [
-        str(round(cpu, 1)), 
+        str(round(cpu_temp_c, 1)), 
         str(memoria.percent),
         str(cpu_usage),
         ip_sin_puntos,
@@ -246,19 +289,21 @@ def payload_estado_sistema_y_medidor():
         ]
     
     Temp.check_temp(cpu)
-    logging.info(f"Porcentaje de RAM usada: {memoria.percent}%")
-    logging.info(f"Uso de CPU:{cpu_usage}%")
-    logging.info(f"IP_USB0:{ip_usb0}")
+    logging.info(f"SISTEMA (g={g_id}) → Temp={cpu_temp_c:.1f}°C | RAM={memoria.percent}% | CPU={cpu_usage}% | IP_USB0={ip_usb0}")
+
     #logging.info(f"Estado puerta (GPIO6): {door_status_text}")
+    # === Construir payload ===
     estado_sistema = {
                     "t": get__time_utc(),
-                    "g": 23,
+                    "g": g_id,
                     "v": mensurados,
-                    "u": [1, 135,136,137]  # 1 = °C, 2 = %RAM
+                    "u": codigos_unidades  # 1 = °C, 2 = %RAM
                 }
     # Retorno doble: el JSON y el estado de la puerta
     return { "d": [estado_sistema] }
+#-----------------------------------------------------------------------------------------------------------
 
+#-----------------------------------------------------------------------------------------------------------
 def renovar_ip_usb0():
     try:
         # Ejecutar dhclient en la interfaz usb0

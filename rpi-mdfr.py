@@ -76,7 +76,7 @@ def process_event_queue():
         util.logging.info("No hay eventos para procesar.")
         
  #-----------------------------------------------------------------------------------------------------------   
- 
+ # Rutina de lectura de sensores Modbus RTU y debuelve datos en formato JSON 
  #-----------------------------------------------------------------------------------------------------------    
 
 def obtener_datos_medidores_y_sensor():
@@ -183,8 +183,8 @@ def main_loop():
     # Publicar el encendido del sistema
     util.logging.info("Sistema encendido.")
     # conexion a AWS
-    conneced_meter = json.dumps(eventHandler.pyp_Conect())
-    # mediciones de los medidores ME337 y el  sensor SHT20
+    conneced_aws = json.dumps(eventHandler.pyp_Conect())
+    # mediciones de los  sensores Modbus RTU 
     datos = obtener_datos_medidores_y_sensor()
     Temp.iniciar_wdt()
     if  util.check_internet_connection():
@@ -192,23 +192,28 @@ def main_loop():
         mqtt_client = awsaccess.connect_to_mqtt()
         if mqtt_client:
                                         
-            awsaccess.publish_mediciones(mqtt_client, conneced_meter)
+            awsaccess.publish_mediciones(mqtt_client, conneced_aws)
+            awsaccess.publish_mediciones(mqtt_client, datos['sensor_CT01CO2'])
             awsaccess.publish_mediciones(mqtt_client, datos['sensor_THT03R'])
-            awsaccess.disconnect_from_aws_iot(mqtt_client)# Mantener la conexión activa y recibir mensajes
+            awsaccess.disconnect_from_aws_iot(mqtt_client)
             
             
         else:
             # Hay internet, pero falla conectar MQTT:
-            util.logging.error("No hay Conexion a AWS, almacena en la cola, las mediciones del medidor, Temp, Humedad y la hora de encendido.")
+            util.logging.error("No hay Conexion a AWS, almacena en la cola, sensor_CT01CO2, sensor_THT03R y conneced_aws.")
             fileventqueue.agregar_evento(datos['sensor_CT01CO2'])
-            
+            fileventqueue.agregar_evento(datos['sensor_THT03R'])
+            fileventqueue.agregar_evento(conneced_aws)
+             
     else:
         # No hay internet:
-        util.logging.error("No hay internet, almacena en la cola, las mediciones del medidor, Temp, Humedad y la hora de encendido.")
+        util.logging.error("No hay internet, almacena en la cola,sensor_CT01CO2, sensor_THT03R y conneced_aws.")
         fileventqueue.agregar_evento(datos['sensor_CT01CO2'])
+        fileventqueue.agregar_evento(datos['sensor_THT03R'])
+        fileventqueue.agregar_evento(conneced_aws)
         
     # Verificar la temperatura al inicio
-    #Temp.check_temp()
+    Temp.check_temp()
     # Bucle principal
     contador_envio = 0  # Inicialízalo fuera del loop principal
     while True:
