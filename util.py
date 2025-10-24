@@ -259,8 +259,8 @@ def payload_estado_sistema_y_medidor():
                 'variables_del_sistema'
             )
     g_id = cfg.get('id_device')
-        unidades_cfg = cfg.get('unidades', [])
-        codigos_unidades = [u['codigo'] for u in unidades_cfg]
+         unidades_cfg = cfg.get('unidades', [])
+         codigos_unidades = [u['codigo'] for u in unidades_cfg]
 
         # === Obtener métricas del sistema ===
     cpu_temp_c = Temp.cpu_temp()
