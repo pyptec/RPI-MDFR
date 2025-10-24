@@ -42,7 +42,7 @@ def cpu_temp():
 #Se chequea Temperatura y se apaga/prende el ventilador
 ########################################################
 def check_temp(cpu):
-	#cpu = cpu_temp()
+	cpu = cpu_temp()
 	#on_hardware("Temperatura: "+str(cpu))
 	if cpu > 48.0  :
 		#GPIO.output(GPIO18_VENTILADOR, False)
@@ -53,34 +53,55 @@ def check_temp(cpu):
 		#GPIO.output(GPIO18_VENTILADOR, True)
 		GPIO.output(GPIO11_VENTILADOR, False)
 		util.logging.info(f"CPU BAJA: {cpu:.1f} ºC")
-		
+
+#-----------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------		
 # Función para hacer titilar el LED usando PWM
 def parpadear_led_500ms():
     GPIO.output(GPIO5_PILOTO, True)
     time.sleep(0.5)  # Mantén el parpadeo durante 500 milisegundos
     GPIO.output(GPIO5_PILOTO, False)
-   
+#-----------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------  
 def wdt():
     util.logging.info("WDT:INICIADO")
     GPIO.output(GPIO23_WDI, True)
     time.sleep(0.2)
     GPIO.output(GPIO23_WDI, False)
     time.sleep(0.2)
+#-----------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------
 def iniciar_wdt():
     # Crear y empezar el hilo que ejecutará la función wdt
     hilo_wdt = threading.Thread(target=wdt)
     hilo_wdt.daemon = True  # El hilo se cerrará automáticamente cuando termine el programa principal
     hilo_wdt.start()
-    
+#-----------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------    
 def door():
     return GPIO.input(GPIO6_DOOR)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)
+#-----------------------------------------------------------------------------------------------------------
 
+#-----------------------------------------------------------------------------------------------------------
 def getgas():
 	return GPIO.input(GPIO09_RELE2_GAS)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)
+#-----------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------
 def setgas(estado):
 	GPIO.output(GPIO09_RELE2_GAS, estado)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)
+#-----------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------
 def getextractor():
 	return GPIO.input(GPIO10_RELE1_EXTRACTOR)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)
+#-----------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------
 def setextractor(estado):
 	GPIO.output(GPIO10_RELE1_EXTRACTOR, estado)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)	
 	
