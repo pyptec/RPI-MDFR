@@ -206,22 +206,9 @@ def cargar_configuracion(path, medidor='meatrolME337'):
         config = yaml.safe_load(file)
         #print(config)  # Imprimir la configuración para verificar la estructura
         return config['medidores'].get(medidor, {})
+
 #-----------------------------------------------------------------------------------------------------------
-
-#-----------------------------------------------------------------------------------------------------------    
-def obtener_ip_usb0():
-    # Obtiene las direcciones de todas las interfaces de red
-    interfaces = psutil.net_if_addrs()
-
-    # Verifica si 'usb0' existe en las interfaces
-    if 'usb0' in interfaces:
-        for info in interfaces['usb0']:
-            if info.family == socket.AF_INET:  # Solo IPs IPv4
-                return info.address  # Devuelve la dirección IP
-
-    return None
-#-----------------------------------------------------------------------------------------------------------
-
+#Resetea la interfaz usb0
 #-----------------------------------------------------------------------------------------------------------
 def reset_usb0():
     """
@@ -239,7 +226,7 @@ def reset_usb0():
     # subprocess.run(["sudo", "dhclient", "usb0"], check=False)
     time.sleep(5)  # espera a que vuelva a negociar IP
 #-----------------------------------------------------------------------------------------------------------
-
+# Función para convertir una IP en número eliminando los puntos
 #-----------------------------------------------------------------------------------------------------------
 def ip_a_numero(ip:str) -> str:
     """
@@ -249,6 +236,20 @@ def ip_a_numero(ip:str) -> str:
     if not ip:
         return "0"
     return "".join(ip.split("."))
+#-----------------------------------------------------------------------------------------------------------
+#obtener la ip de la interfaz usb0
+#-----------------------------------------------------------------------------------------------------------    
+def obtener_ip_usb0():
+    # Obtiene las direcciones de todas las interfaces de red
+    interfaces = psutil.net_if_addrs()
+
+    # Verifica si 'usb0' existe en las interfaces
+    if 'usb0' in interfaces:
+        for info in interfaces['usb0']:
+            if info.family == socket.AF_INET:  # Solo IPs IPv4
+                return info.address  # Devuelve la dirección IP
+
+    return None
 #-----------------------------------------------------------------------------------------------------------
 #funcion para armar el payload del estado del sistema y de la raspberry pi
 #-----------------------------------------------------------------------------------------------------------

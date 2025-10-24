@@ -81,5 +81,6 @@ def payload_event_modbus(config):
         }
 
     except Exception as e:
-        util.logging.error(f"Error al leer el THT03R: {e}")
+        util.logging.error(f"[{device_name}] Error general al leer el equipo "
+            f"(slave={config.get('slave_id')}, port={port}): {type(e).__name__}: {e}")
         return None

@@ -1,5 +1,6 @@
 medidores:
   dioustou_4r:
+    device_name: "DIOUSTOU-4R"
     id_device: 20
     port: "/dev/ttyS0"   # AJUSTA si es distinto
     slave_id: 2            # Recomendado (no uses 255)
