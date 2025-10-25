@@ -270,19 +270,21 @@ def main_loop():
                 cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/ct01co2.yml')
                 ctl = cfg.get('medidores', {}).get('ct01co2_sensor', {}).get('control', {})
                
-                CO2_LOW  = int(ctl.get('co2_ppm_low'))
-                CO2_HIGH = int(ctl.get('co2_ppm_high'))
+                low_raw  = ctl.get('co2_ppm_low')
+                high_raw = ctl.get('co2_ppm_high')
+                if low_raw is None or high_raw is None:
+                    util.logging.warning("Umbrales CO2 ausentes en YAML (control.co2_ppm_low / co2_ppm_high). Se omite control de relés este ciclo.")
+                else:
+                    CO2_LOW  = int(low_raw)
+                    CO2_HIGH = int(high_raw)
                 # 2) Tomar SOLO el valor que ya trajo obtener_datos_medidores_y_sensor()
                 
-                payload = datos.get('sensor_CT01CO2')        # puede ser str JSON o dict
-                if payload is None:
-                    util.logging.warning("CT01CO2: 'payload' ausente en 'datos'; se omite control este ciclo.")
-                else:
+                    payload = datos.get('sensor_CT01CO2')        # puede ser str JSON o dict
                     evt = json.loads(payload) if isinstance(payload, str) else payload
                 
                     # 3) Extraer co2_raw de forma segura
                     co2_raw = None
-                    if evt and isinstance(evt, dict):
+                    if isinstance(evt, dict):
                         d = evt.get('d', [])
                         if d and isinstance(d, list) and isinstance(d[0], dict):
                             v = d[0].get('v', [])
