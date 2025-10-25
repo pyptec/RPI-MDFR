@@ -98,7 +98,7 @@ def _cfg_relays():
 #-----------------------------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------------------------
-def setgas(estado):
+def setgas(on: bool):
     """Histórico: 'gas' ahora corresponde a RELAY 4 = 'etileno'."""
     cfg = _cfg_relays()
     ok = modbusdevices.relay_set(cfg, 'etileno', bool(on))
@@ -109,7 +109,7 @@ def setgas(estado):
 #-----------------------------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------------------------
-def setextractor(estado):
+def setextractor(on: bool):
     """Extractor corresponde a RELAY 2 = 'extractor'."""
     cfg = _cfg_relays()
     ok = modbusdevices.relay_set(cfg, 'extractor', bool(on))
