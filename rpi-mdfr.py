@@ -123,12 +123,16 @@ def obtener_datos_medidores_y_sensor():
                         "d": [{"t": util.get__time_utc(), "g": g_ct01, "v": [None], "u": [None]}]
                     }
                 else:
-                    # Extraer valor de CO2 para log
-                    valor_co2 = medicion_CT01CO2["d"][0]["v"][0]
-                    if valor_co2 not in [None, "None"]:
-                        util.logging.info(f"Lectura CT01CO2 → CO₂ = {valor_co2} ppm")
-                    else:
-                        util.logging.warning("Sensor CT01CO2 sin valor válido (None)")
+                    try
+                        
+                        valor_co2 = medicion_CT01CO2["d"][0]["v"][0]
+                        if valor_co2 not in [None, "None"]:
+                            util.logging.info(f"Lectura CT01CO2 → CO₂ = {valor_co2} ppm")
+                        else:
+                            util.logging.warning("Sensor CT01CO2 sin valor válido (None)")
+                    except Exception:
+                        util.logging.warning(f"CT01CO2: payload sin estructura esperada (g={g_ct01})")
+
         except Exception as e:
             util.logging.error(f"Error al leer CT01CO2: {e}")
             medicion_CT01CO2 = {
