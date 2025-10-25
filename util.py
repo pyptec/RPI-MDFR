@@ -347,8 +347,7 @@ def payload_estado_sistema_y_medidor():
         ]
     
     Temp.check_temp()
-    logging.info(f"SISTEMA (g={g_id}) → Temp={cpu_temp_c:.1f}°C | RAM={memoria.percent}% | CPU={cpu_usage}% | IP_USB0={ip_activa}| IP_Ethernet={ip_eth_report}")
-
+    
     # Cargar unidades y g desde el YAML (como ya venías haciendo)
     cfg = cargar_configuracion(
                 '/home/pi/.scr/.scr/RPI-MDFR/device/sistema.yml',
@@ -358,6 +357,9 @@ def payload_estado_sistema_y_medidor():
     unidades_cfg = cfg.get('unidades', [])
     codigos_unidades = [u['codigo'] for u in unidades_cfg]
     #logging.info(f"Estado puerta (GPIO6): {door_status_text}")
+    
+    logging.info(f"SISTEMA (g={g_id}) → Temp={cpu_temp_c:.1f}°C | RAM={memoria.percent}% | CPU={cpu_usage}% | IP_USB0={ip_activa}| IP_Ethernet={ip_eth_report}")
+
     # === Construir payload ===
     estado_sistema = {
                     "t": get__time_utc(),
