@@ -263,8 +263,18 @@ def main_loop():
                     fileventqueue.agregar_evento(Sistema)
              
         # Mediciones cada 1 minutos
-        tempMdfr = ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor)
-        
+        #tempMdfr = ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor)
+        cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml', 'relayDioustou_4r')
+
+        print("— ON extractor —")
+        modbusdevices.relay_set(cfg, 'extractor', True)
+        time.sleep(0.3)
+        print(modbusdevices.relay_read_states(cfg))
+
+        print("— OFF extractor —")
+        modbusdevices.relay_set(cfg, 'extractor', False)
+        time.sleep(0.3)
+        print(modbusdevices.relay_read_states(cfg))
         # Mediciones cada 10 minutos
         if tempMedidor == 0:
             tempMedidor = TIMERMEDICION
