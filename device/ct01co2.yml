@@ -9,6 +9,9 @@ medidores:
     parity: N
     stopbits: 1
     timeout: 1
+    
+    simular: true   # <--- NUEVO FLAG para activar la simulación
+
     registers:
       - name: co2
         address: 3

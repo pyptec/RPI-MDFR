@@ -98,19 +98,37 @@ def obtener_datos_medidores_y_sensor():
                 'ct01co2_sensor'
             )
             g_ct01 = config_CT01CO2.get('id_device')
-            medicion_CT01CO2 = modbusdevices.payload_event_modbus(config_CT01CO2)
-            if medicion_CT01CO2 is None:
-                util.logging.warning("Sensor CT01CO2 no conectado o sin respuesta.")
+            simular = bool(config_CT01CO2.get('simular', False))
+            
+            if simular:
+                # --- MODO SIMULACIÓN ACTIVADO ---
+                import random
+                co2_simulado = random.randint(4800, 9200)
+                util.logging.info(f"[CT01CO2] Modo SIMULACIÓN → CO₂ simulado = {co2_simulado} ppm")
                 medicion_CT01CO2 = {
-                    "d": [{"t": util.get__time_utc(), "g": g_ct01, "v": [None], "u": [None]}]
-                }
+                    "d": [{
+                    "t": util.get__time_utc(),
+                    "g": g_ct01,
+                    "v": [str(co2_simulado)],
+                    "u": ["139"]
+                }]
+            }
+
             else:
-                # Extraer valor de CO2 para log
-                valor_co2 = medicion_CT01CO2["d"][0]["v"][0]
-                if valor_co2 not in [None, "None"]:
-                    util.logging.info(f"Lectura CT01CO2 → CO₂ = {valor_co2} ppm")
+                # --- MODO REAL ---
+                medicion_CT01CO2 = modbusdevices.payload_event_modbus(config_CT01CO2)
+                if medicion_CT01CO2 is None:
+                    util.logging.warning("Sensor CT01CO2 no conectado o sin respuesta.")
+                    medicion_CT01CO2 = {
+                        "d": [{"t": util.get__time_utc(), "g": g_ct01, "v": [None], "u": [None]}]
+                    }
                 else:
-                    util.logging.warning("Sensor CT01CO2 sin valor válido (None)")
+                    # Extraer valor de CO2 para log
+                    valor_co2 = medicion_CT01CO2["d"][0]["v"][0]
+                    if valor_co2 not in [None, "None"]:
+                        util.logging.info(f"Lectura CT01CO2 → CO₂ = {valor_co2} ppm")
+                    else:
+                        util.logging.warning("Sensor CT01CO2 sin valor válido (None)")
         except Exception as e:
             util.logging.error(f"Error al leer CT01CO2: {e}")
             medicion_CT01CO2 = {
@@ -246,6 +264,8 @@ def main_loop():
              # --- EXTRAER CO2 Y CONTROLAR RELÉS ---
             try:
                 cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/ct01co2.yml')
+                g_ct01 = config_CT01CO2.get('id_device')
+                simular = bool(config_CT01CO2.get('simular', False))
                 ctl = cfg.get('medidores', {}).get('ct01co2_sensor', {}).get('control', {})
                 CO2_LOW  = int(ctl.get('co2_ppm_low'))
                 CO2_HIGH = int(ctl.get('co2_ppm_high'))
