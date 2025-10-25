@@ -113,7 +113,7 @@ def setextractor(estado):
 #-----------------------------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------------------------
- def setrecircular(on: bool):
+def setrecircular(on: bool):
     cfg = _cfg_relays()
     return modbusdevices.relay_set(cfg, 'recircular', bool(on))
 
