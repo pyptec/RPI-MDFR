@@ -270,34 +270,37 @@ def main_loop():
                 CO2_HIGH = int(ctl.get('co2_ppm_high'))
                 # 2) Tomar SOLO el valor que ya trajo obtener_datos_medidores_y_sensor()
                 
-                payload = datos.get('sensor_CT01CO2')              # puede ser str JSON o dict
-                evt = json.loads(payload) if isinstance(payload, str) else payload
+                payload = datos.get('sensor_CT01CO2')        # puede ser str JSON o dict
+                if payload is None:
+                    util.logging.warning("CT01CO2: 'payload' ausente en 'datos'; se omite control este ciclo.")
+                else:
+                    evt = json.loads(payload) if isinstance(payload, str) else payload
                 
-                # 3) Extraer co2_raw de forma segura
-                co2_raw = None
-                if evt and isinstance(evt, dict):
-                    d = evt.get('d', [])
-                    if d and isinstance(d, list) and isinstance(d[0], dict):
-                        v = d[0].get('v', [])
-                        if v and isinstance(v, list):
-                            co2_raw = v[0]  # lo que haya puesto obtener_datos_medidores_y_sensor()
+                    # 3) Extraer co2_raw de forma segura
+                    co2_raw = None
+                    if evt and isinstance(evt, dict):
+                        d = evt.get('d', [])
+                        if d and isinstance(d, list) and isinstance(d[0], dict):
+                            v = d[0].get('v', [])
+                            if v and isinstance(v, list):
+                                co2_raw = v[0]  # lo que haya puesto obtener_datos_medidores_y_sensor()
 
                 
-                # 4) Si no hay dato, no controles (y log amable)
-                if co2_raw in [None, "None", ""]:
-                    util.logging.warning("CT01CO2 sin dato en 'datos'; se omite control de relés este ciclo.")
-                else:
-                    co2_ppm = int(float(co2_raw))
-                    util.logging.info(f"CO2 ppm={co2_ppm} (low={CO2_LOW}, high={CO2_HIGH})")
+                    # 4) Si no hay dato, no controles (y log amable)
+                    if co2_raw in [None, "None", ""]:
+                        util.logging.warning("CT01CO2 sin dato en 'datos'; se omite control de relés este ciclo.")
+                    else:
+                        co2_ppm = int(float(co2_raw))
+                        util.logging.info(f"CO2 ppm={co2_ppm} (low={CO2_LOW}, high={CO2_HIGH})")
             
-                    if co2_ppm <= CO2_LOW:
-                        # Debajo de 5000 → enciende relé1 (GPIO10), apaga relé2
-                        Temp.setgas(True)
-                        Temp.setextractor(False)
-                    elif co2_ppm >= CO2_HIGH:
-                        # Encima de 10000 → enciende relé2 (GPIO9), apaga relé1
-                        Temp.setgas(False)
-                        Temp.setextractor(True)
+                        if co2_ppm <= CO2_LOW:
+                            # Debajo de 5000 → enciende relé1 (GPIO10), apaga relé2
+                            Temp.setgas(True)
+                            Temp.setextractor(False)
+                        elif co2_ppm >= CO2_HIGH:
+                            # Encima de 10000 → enciende relé2 (GPIO9), apaga relé1
+                            Temp.setgas(False)
+                            Temp.setextractor(True)
                    
                    
                
