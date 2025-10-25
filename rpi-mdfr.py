@@ -245,7 +245,7 @@ def main_loop():
             datos = obtener_datos_medidores_y_sensor()
              # --- EXTRAER CO2 Y CONTROLAR RELÉS ---
             try:
-                cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFER/device/ct01co2.yml')
+                cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/ct01co2.yml')
                 ctl = cfg.get('medidores', {}).get('ct01co2_sensor', {}).get('control', {})
                 CO2_LOW  = int(ctl.get('co2_ppm_low'))
                 CO2_HIGH = int(ctl.get('co2_ppm_high'))
