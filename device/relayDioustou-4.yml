@@ -1,5 +1,5 @@
 medidores:
-  dioustou_4r:
+  relayDioustou_4r:
     device_name: "DIOUSTOU-4R"
     id_device: 20
     port: "/dev/ttyS0"   # AJUSTA si es distinto
