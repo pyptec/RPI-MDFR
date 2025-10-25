@@ -50,13 +50,17 @@ def payload_event_modbus(config):
             'O': serial.PARITY_ODD
         }
         instrumento.serial.parity = parity_map.get(config['parity'].upper(), serial.PARITY_NONE)
+        # nombre para logs (desde el YAML)
+        device_name = config.get('device_name') 
+
+        
         #instrumento.debug = True
         # Leer cada registro del sensor
         for reg in config['registers']:
             address = reg['address']
             # valores por defecto para este sensor
-            fc = 3
-            decimals = reg['decimal']
+            fc  = reg.get('fc')
+            decimals = reg['decimals']
             signed = False
             #print(f"→ Leyendo dirección {address} (función {fc}) ...")
              
