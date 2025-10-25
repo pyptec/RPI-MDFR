@@ -123,7 +123,7 @@ def obtener_datos_medidores_y_sensor():
                         "d": [{"t": util.get__time_utc(), "g": g_ct01, "v": [None], "u": [None]}]
                     }
                 else:
-                    try
+                    try:
                         
                         valor_co2 = medicion_CT01CO2["d"][0]["v"][0]
                         if valor_co2 not in [None, "None"]:
