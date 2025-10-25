@@ -88,3 +88,87 @@ def payload_event_modbus(config):
         util.logging.error(f"[{device_name}] Error general al leer el equipo "
             f"(slave={config.get('slave_id')}, port={port}): {type(e).__name__}: {e}")
         return None
+    
+#-----------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------
+def relay_set(config, relay_name: str, on: bool) -> bool:
+    """
+    Enciende/Apaga un relé por nombre usando FC=5 (Write Single Coil).
+    relay_name: 'recircular' | 'extractor' | 'humidificador' | 'etileno'
+    """
+    try:
+        device_name = config.get('device_name') or f"ModbusDevice(g={config.get('id_device')})"
+        port = config.get('port', serialPort)
+        slave = int(config['slave_id'])
+
+        # buscar el registro por nombre
+        reg = next((r for r in config.get('registers', []) if r.get('name') == relay_name), None)
+        if not reg:
+            util.logging.error(f"[{device_name}] Relay '{relay_name}' no existe en YAML.")
+            return False
+
+        addr = int(reg['address'])
+
+        inst = minimalmodbus.Instrument(port, slave)
+        inst.serial.baudrate = int(config['baudrate'])
+        inst.serial.bytesize = int(config['bytesize'])
+        inst.serial.stopbits = int(config['stopbits'])
+        inst.serial.timeout  = float(config.get('timeout', 1))
+        inst.mode = minimalmodbus.MODE_RTU
+        inst.clear_buffers_before_each_transaction = True
+        inst.close_port_after_each_call = True
+
+        parity_map = {'N': serial.PARITY_NONE, 'E': serial.PARITY_EVEN, 'O': serial.PARITY_ODD}
+        inst.serial.parity = parity_map.get(str(config['parity']).upper(), serial.PARITY_NONE)
+
+        # FC 5: write_bit(address, value, functioncode=5)
+        inst.write_bit(addr, 1 if on else 0, functioncode=5)
+        util.logging.info(f"[{device_name}] Relay '{relay_name}' → {'ON' if on else 'OFF'} (addr={addr}, slave={slave})")
+        return True
+
+    except Exception as e:
+        util.logging.error(f"[{config.get('device_name','Relay')}] Error al escribir relay '{relay_name}': {type(e).__name__}: {e}")
+        return False
+#-----------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------   
+def relay_read_states(config) -> dict:
+    """
+    Lee el estado de todos los relés definidos (FC=1 Read Coils).
+    Devuelve dict { name: True/False/None }
+    """
+    estados = {}
+    try:
+        device_name = config.get('device_name') or f"ModbusDevice(g={config.get('id_device')})"
+        port = config.get('port', serialPort)
+        slave = int(config['slave_id'])
+
+        inst = minimalmodbus.Instrument(port, slave)
+        inst.serial.baudrate = int(config['baudrate'])
+        inst.serial.bytesize = int(config['bytesize'])
+        inst.serial.stopbits = int(config['stopbits'])
+        inst.serial.timeout  = float(config.get('timeout', 1))
+        inst.mode = minimalmodbus.MODE_RTU
+        inst.clear_buffers_before_each_transaction = True
+        inst.close_port_after_each_call = True
+
+        parity_map = {'N': serial.PARITY_NONE, 'E': serial.PARITY_EVEN, 'O': serial.PARITY_ODD}
+        inst.serial.parity = parity_map.get(str(config['parity']).upper(), serial.PARITY_NONE)
+
+        for reg in config.get('registers', []):
+            name = reg.get('name')
+            addr = int(reg.get('address'))
+            try:
+                bit = inst.read_bit(addr, functioncode=1)  # FC1: Read Coils
+                estados[name] = bool(bit)
+            except Exception as e:
+                util.logging.warning(f"[{device_name}] No se pudo leer '{name}' (addr={addr}): {type(e).__name__}: {e}")
+                estados[name] = None
+
+        util.logging.info(f"[{device_name}] Estados relés: {estados}")
+        return estados
+
+    except Exception as e:
+        util.logging.error(f"[{config.get('device_name','Relay')}] Error general al leer estados: {type(e).__name__}: {e}")
+        return estados

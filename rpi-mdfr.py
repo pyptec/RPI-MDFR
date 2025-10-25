@@ -264,73 +264,7 @@ def main_loop():
              
         # Mediciones cada 1 minutos
         tempMdfr = ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor)
-        '''
-        if tempMdfr == 0:
-            tempMdfr = TIMER_MDFR
-            # mediciones de los Co2 (ct01) Hum Temp (tht03r)
-            datos = obtener_datos_medidores_y_sensor()
-             # --- EXTRAER CO2 Y CONTROLAR RELÉS ---
-            try:
-                # Cargar YAML (con o sin sección, ambos casos soportados)
-                cfg_raw = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/ct01co2.yml', 'ct01co2_sensor')
-
-                # Si cfg_raw trae sólo el sensor, control cuelga directo; si trae todo el archivo, hay que bajar por medidores
-                if isinstance(cfg_raw, dict) and 'control' in cfg_raw:
-                    cfg_sensor = cfg_raw
-                else:
-                    # reintento: cargar sin sección y bajar por medidores
-                    cfg_full = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/ct01co2.yml')
-                    cfg_sensor = (cfg_full.get('medidores', {})
-                                          .get('ct01co2_sensor', {}))
-
-                ctl = cfg_sensor.get('control', {})
-
-                
-                util.logging.info(f"DEBUG control ct01co2: {ctl}")
-                
-                low_raw  = ctl.get('co2_ppm_low')
-                high_raw = ctl.get('co2_ppm_high')
-                if low_raw is None or high_raw is None:
-                    util.logging.warning("Umbrales CO2 ausentes en YAML (control.co2_ppm_low / co2_ppm_high). Se omite control de relés este ciclo.")
-                else:
-                    CO2_LOW  = int(low_raw)
-                    CO2_HIGH = int(high_raw)
-                # 2) Tomar SOLO el valor que ya trajo obtener_datos_medidores_y_sensor()
-                
-                    payload = datos.get('sensor_CT01CO2')        # puede ser str JSON o dict
-                    evt = json.loads(payload) if isinstance(payload, str) else payload
-                
-                    # 3) Extraer co2_raw de forma segura
-                    co2_raw = None
-                    if isinstance(evt, dict):
-                        d = evt.get('d', [])
-                        if d and isinstance(d, list) and isinstance(d[0], dict):
-                            v = d[0].get('v', [])
-                            if v and isinstance(v, list):
-                                co2_raw = v[0]  # lo que haya puesto obtener_datos_medidores_y_sensor()
-
-                
-                    # 4) Si no hay dato, no controles (y log amable)
-                    if co2_raw in [None, "None", ""]:
-                        util.logging.warning("CT01CO2 sin dato en 'datos'; se omite control de relés este ciclo.")
-                    else:
-                        co2_ppm = int(float(co2_raw))
-                        util.logging.info(f"CO2 ppm={co2_ppm} (low={CO2_LOW}, high={CO2_HIGH})")
-            
-                        if co2_ppm <= CO2_LOW:
-                            # Debajo de 5000 → enciende relé1 (GPIO10), apaga relé2
-                            Temp.setgas(True)
-                            Temp.setextractor(False)
-                        elif co2_ppm >= CO2_HIGH:
-                            # Encima de 10000 → enciende relé2 (GPIO9), apaga relé1
-                            Temp.setgas(False)
-                            Temp.setextractor(True)
-                   
-                   
-               
-            except Exception as e:
-                util.logging.error(f"No se pudo procesar CO2 para relés: {e}")
-        '''
+        
         # Mediciones cada 10 minutos
         if tempMedidor == 0:
             tempMedidor = TIMERMEDICION

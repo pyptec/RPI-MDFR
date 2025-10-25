@@ -11,7 +11,7 @@ medidores:
     timeout: 1
 # Mapa simple de relés → dirección de coil
     registers:
-      - name: Relay_1
+      - name: recircular      #Relay_1
         address: 0
         fc_read: 1            # Leer estado (FC=1 → coil)
         fc_write: 5           # Escribir ON/OFF (FC=5)
@@ -20,7 +20,7 @@ medidores:
         unit: 140
         alias: R1
 
-      - name: Relay_2
+      - name: extractor       #Relay_2
         address: 1
         fc_read: 1
         fc_write: 5
@@ -29,7 +29,7 @@ medidores:
         unit: 141
         alias: R2
 
-      - name: Relay_3
+      - name: humidificador   #Relay_3
         address: 2
         fc_read: 1
         fc_write: 5
@@ -38,7 +38,7 @@ medidores:
         unit: 142
         alias: R3
 
-      - name: Relay_4
+      - name: etileno           #Relay_4
         address: 3
         fc_read: 1
         fc_write: 5

@@ -4,7 +4,11 @@ import RPi.GPIO as GPIO
 import util
 import threading
 import signal
+import modbusdevices
 
+
+RELAY_YAML = '/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml'
+RELAY_KEY  = 'relayDioustou_4r'
 # constantes de programa
 FORMATO_DATE="%d/%m/%Y %H:%M "
 GPIO11_VENTILADOR=11 #11 18
@@ -86,22 +90,54 @@ def door():
     return GPIO.input(GPIO6_DOOR)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)
 #-----------------------------------------------------------------------------------------------------------
 
-#-----------------------------------------------------------------------------------------------------------
-def getgas():
-	return GPIO.input(GPIO09_RELE2_GAS)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)
+#-----------------------------------------------------------------------------------------------------------    
+def _cfg_relays():
+    return util.cargar_configuracion(RELAY_YAML, RELAY_KEY)
+
 #-----------------------------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------------------------
 def setgas(estado):
-	GPIO.output(GPIO09_RELE2_GAS, estado)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)
+    """Histórico: 'gas' ahora corresponde a RELAY 4 = 'etileno'."""
+    cfg = _cfg_relays()
+    return modbusdevices.relay_set(cfg, 'etileno', bool(on))
+	#GPIO.output(GPIO09_RELE2_GAS, estado)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)
+#-----------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------
+def setextractor(estado):
+    """Extractor corresponde a RELAY 2 = 'extractor'."""
+    cfg = _cfg_relays()
+    return modbusdevices.relay_set(cfg, 'extractor', bool(on))
+	#GPIO.output(GPIO10_RELE1_EXTRACTOR, estado)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)	
+#-----------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------
+ def setrecircular(on: bool):
+    cfg = _cfg_relays()
+    return modbusdevices.relay_set(cfg, 'recircular', bool(on))
+
+#-----------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------
+def sethumidificador(on: bool):
+    cfg = _cfg_relays()
+    return modbusdevices.relay_set(cfg, 'humidificador', bool(on)) 
+#-----------------------------------------------------------------------------------------------------------
+
+#----------------------------------------------------------------------------------------------------------- 
+def relays_estado() -> dict:
+    cfg = _cfg_relays()
+    return modbusdevices.relay_read_states(cfg)
+ 
+#-----------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------
+def getgas():
+	return GPIO.input(GPIO09_RELE2_GAS)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)	 
 #-----------------------------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------------------------
 def getextractor():
 	return GPIO.input(GPIO10_RELE1_EXTRACTOR)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)
-#-----------------------------------------------------------------------------------------------------------
 
-#-----------------------------------------------------------------------------------------------------------
-def setextractor(estado):
-	GPIO.output(GPIO10_RELE1_EXTRACTOR, estado)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)	
-	
