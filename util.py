@@ -255,26 +255,56 @@ def obtener_ip_usb0():
 #-----------------------------------------------------------------------------------------------------------
 def payload_estado_sistema_y_medidor():
     
-    cfg = cargar_configuracion(
-                '/home/pi/.scr/.scr/RPI-MDFR/device/sistema.yml',
-                'variables_del_sistema'
-            )
-    g_id = cfg.get('id_device')
-    unidades_cfg = cfg.get('unidades', [])
-    codigos_unidades = [u['codigo'] for u in unidades_cfg]
+ 
 
         # === Obtener métricas del sistema ===
     cpu_temp_c = Temp.cpu_temp()
     memoria = psutil.virtual_memory()
     cpu_usage = psutil.cpu_percent(interval=1)
     
-    ip_usb0 = obtener_ip_usb0()
-    if not ip_usb0:
+    # === PRIORIDAD DE RED: Ethernet > USB ===
+    eth_iface = primera_eth_disponible() or "eth0"
+    eth_up    = iface_exists(eth_iface) and iface_operstate(eth_iface) == "up"
+    eth_ip    = iface_ip4(eth_iface) if eth_up else None
+
+    usb_iface = "usb0"
+    usb_exists = iface_exists(usb_iface)
+    usb_up     = usb_exists and iface_operstate(usb_iface) == "up"
+    usb_ip     = iface_ip4(usb_iface) if usb_up else None
+
+    # IP activa: si hay Ethernet operativa, usarla; si no, USB (si existe)
+    if eth_up and eth_ip:
+        ip_activa = eth_ip
+        # NO tocar usb0 ni sacar warnings de usb0
+    else:
+        if usb_exists:
+            if usb_ip:
+                ip_activa = usb_ip
+            else:
+                logging.warning("No hay IP en usb0: reset de la interfaz usb0")
+                reset_usb0()
+                usb_ip = iface_ip4(usb_iface) or ""
+                ip_activa = usb_ip
+                if not ip_activa:
+                    logging.error("usb0 sigue sin IP después del reset")
+        else:
+            logging.info("Interfaz usb0 no existe; sin conexión USB.")
+            ip_activa = ""
+
+    # También reportamos IP de Ethernet (aunque no sea la activa)
+    ip_eth_report = eth_ip or ""
+
+    ip_sin_puntos = ip_a_numero(ip_activa)     # unidad 137 (IP activa numérica)
+    ip_eth_num    = ip_a_numero(ip_eth_report) # unidad 144 (IP Ethernet numérica)
+    
+    
+   # ip_usb0 = obtener_ip_usb0()
+   # if not ip_usb0:
         # si no hay IP, reseteo usb0 y reintento una vez
-        reset_usb0()
-        ip_usb0 = obtener_ip_usb0() or ""
+   #     reset_usb0()
+   #     ip_usb0 = obtener_ip_usb0() or ""
         
-    ip_sin_puntos = ip_a_numero(ip_usb0)
+    #ip_sin_puntos = ip_a_numero(ip_usb0)
     
      # Leer estado de la puerta
     #door_state = Temp.door()
@@ -286,12 +316,21 @@ def payload_estado_sistema_y_medidor():
         str(memoria.percent),
         str(cpu_usage),
         ip_sin_puntos,
+        ip_eth_num   
         #str(door_state)
         ]
     
     Temp.check_temp()
-    logging.info(f"SISTEMA (g={g_id}) → Temp={cpu_temp_c:.1f}°C | RAM={memoria.percent}% | CPU={cpu_usage}% | IP_USB0={ip_usb0}")
+    logging.info(f"SISTEMA (g={g_id}) → Temp={cpu_temp_c:.1f}°C | RAM={memoria.percent}% | CPU={cpu_usage}% | IP_USB0={ip_activa}| IP_Ethernet={ip_eth_report}")
 
+    # Cargar unidades y g desde el YAML (como ya venías haciendo)
+    cfg = cargar_configuracion(
+                '/home/pi/.scr/.scr/RPI-MDFR/device/sistema.yml',
+                'variables_del_sistema'
+            )
+    g_id = cfg.get('id_device')
+    unidades_cfg = cfg.get('unidades', [])
+    codigos_unidades = [u['codigo'] for u in unidades_cfg]
     #logging.info(f"Estado puerta (GPIO6): {door_status_text}")
     # === Construir payload ===
     estado_sistema = {

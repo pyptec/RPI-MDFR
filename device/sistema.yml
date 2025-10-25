@@ -10,4 +10,6 @@ medidores:
         descripcion: "Porcentaje de CPU usada (%)"
       - codigo: 137
         descripcion: "Dirección IP usb0 convertida a número entero"
+      - codigo: 144
+        descripcion: "IP Ethernet (convertida a entero)"
     descripcion: "Variables del sistema Raspberry Pi"
