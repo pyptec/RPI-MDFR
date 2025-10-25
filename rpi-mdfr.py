@@ -1,4 +1,6 @@
 from dotenv import load_dotenv
+from mdfr_loop import ejecutar_mdfr
+
 import os
 import time
 import json
@@ -261,6 +263,8 @@ def main_loop():
                     fileventqueue.agregar_evento(Sistema)
              
         # Mediciones cada 1 minutos
+        tempMdfr = ejecutar_mdfr(tempMdfr, TIMER_MDFR)
+        '''
         if tempMdfr == 0:
             tempMdfr = TIMER_MDFR
             # mediciones de los Co2 (ct01) Hum Temp (tht03r)
@@ -326,7 +330,7 @@ def main_loop():
                
             except Exception as e:
                 util.logging.error(f"No se pudo procesar CO2 para relés: {e}")
-        
+        '''
         # Mediciones cada 10 minutos
         if tempMedidor == 0:
             tempMedidor = TIMERMEDICION
