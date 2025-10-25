@@ -206,7 +206,33 @@ def cargar_configuracion(path, medidor='meatrolME337'):
         config = yaml.safe_load(file)
         #print(config)  # Imprimir la configuración para verificar la estructura
         return config['medidores'].get(medidor, {})
+def iface_exists(iface: str) -> bool:
+    return os.path.isdir(f"/sys/class/net/{iface}")
 
+def iface_operstate(iface: str) -> str:
+    try:
+        with open(f"/sys/class/net/{iface}/operstate", "r") as f:
+            return f.read().strip()
+    except Exception:
+        return "unknown"
+
+def iface_ip4(iface: str) -> str | None:
+    try:
+        addrs = psutil.net_if_addrs().get(iface, [])
+        for a in addrs:
+            if a.family == socket.AF_INET:
+                return a.address
+        return None
+    except Exception:
+        return None
+
+def primera_eth_disponible() -> str | None:
+    # Prioriza nombres típicos (eth*, en*)
+    candidatos = [n for n in psutil.net_if_addrs().keys() if n.startswith(("eth", "en"))]
+    for iface in sorted(candidatos):
+        if iface_exists(iface):
+            return iface
+    return "eth0" if iface_exists("eth0") else None
 #-----------------------------------------------------------------------------------------------------------
 #Resetea la interfaz usb0
 #-----------------------------------------------------------------------------------------------------------
