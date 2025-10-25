@@ -47,14 +47,19 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                     util.logging.warning("CT01CO2 sin dato válido; se omite control de relés este ciclo.")
                 else:
                     co2_ppm = int(float(co2_raw))
+                    
                     util.logging.info(f"CO2 ppm={co2_ppm} (low={CO2_LOW}, high={CO2_HIGH})")
 
                     if co2_ppm <= CO2_LOW:
+                        util.logging.info("[MDFR] Acción → GAS ON (etileno), EXTRACTOR OFF")
                         Temp.setgas(True)
                         Temp.setextractor(False)
                     elif co2_ppm >= CO2_HIGH:
+                        util.logging.info("[MDFR] Acción → GAS OFF (etileno), EXTRACTOR ON")
                         Temp.setgas(False)
                         Temp.setextractor(True)
+                    else:
+                        util.logging.info("[MDFR] En banda (sin cambio de relés)")
                     # Entre LOW y HIGH: mantener estado
 
             except Exception as e:
