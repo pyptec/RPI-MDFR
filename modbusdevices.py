@@ -124,6 +124,9 @@ def relay_set(config, relay_name: str, on: bool) -> bool:
 
         # FC 5: write_bit(address, value, functioncode=5)
         inst.write_bit(addr, 1 if on else 0, functioncode=5)
+        
+        instrumento.debug = True
+        
         util.logging.info(f"[{device_name}] Relay '{relay_name}' → {'ON' if on else 'OFF'} (addr={addr}, slave={slave})")
         return True
 
