@@ -270,6 +270,7 @@ def main_loop():
                 cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/ct01co2.yml')
                 #ctl = cfg.get('medidores', {}).get('ct01co2_sensor', {}).get('control', {})
                 ctl = cfg.get('control', {})
+                
                 util.logging.info(f"DEBUG control ct01co2: {ctl}")
                 
                 low_raw  = ctl.get('co2_ppm_low')
