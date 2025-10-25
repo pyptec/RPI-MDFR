@@ -20,7 +20,8 @@ medidores:
         alias: Temp
       - name: Humidity
         address: 1
-        decimal: 1        # decimals = 0 → deja el valor tal cual (entero), decimals = 1 → divide el valor por 10, decimals = 2 → divide por 100
+        fc: 3
+        decimals: 1        # decimals = 0 → deja el valor tal cual (entero), decimals = 1 → divide el valor por 10, decimals = 2 → divide por 100
         readWrite: "R"
         scale: 1
         unit: 2

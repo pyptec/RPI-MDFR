@@ -42,7 +42,7 @@ def payload_event_modbus(config):
         instrumento.serial.inter_byte_timeout = 0.2
         instrumento.mode = minimalmodbus.MODE_RTU
         instrumento.clear_buffers_before_each_transaction = True
-
+        instrumento.close_port_after_each_call = True
         # Paridad
         parity_map = {
             'N': serial.PARITY_NONE,
@@ -60,7 +60,7 @@ def payload_event_modbus(config):
             address = reg['address']
             # valores por defecto para este sensor
             fc  = reg.get('fc')
-            decimals = reg['decimals']
+            decimals = reg.get('decimals')
             signed = False
             #print(f"→ Leyendo dirección {address} (función {fc}) ...")
              
