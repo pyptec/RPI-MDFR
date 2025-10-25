@@ -264,8 +264,6 @@ def main_loop():
              # --- EXTRAER CO2 Y CONTROLAR RELÉS ---
             try:
                 cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/ct01co2.yml')
-                g_ct01 = config_CT01CO2.get('id_device')
-                simular = bool(config_CT01CO2.get('simular', False))
                 ctl = cfg.get('medidores', {}).get('ct01co2_sensor', {}).get('control', {})
                 CO2_LOW  = int(ctl.get('co2_ppm_low'))
                 CO2_HIGH = int(ctl.get('co2_ppm_high'))
