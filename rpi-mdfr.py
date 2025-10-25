@@ -267,9 +267,20 @@ def main_loop():
             datos = obtener_datos_medidores_y_sensor()
              # --- EXTRAER CO2 Y CONTROLAR RELÉS ---
             try:
-                cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/ct01co2.yml')
-                #ctl = cfg.get('medidores', {}).get('ct01co2_sensor', {}).get('control', {})
-                ctl = cfg.get('control', {})
+                # Cargar YAML (con o sin sección, ambos casos soportados)
+                cfg_raw = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/ct01co2.yml', 'ct01co2_sensor')
+
+                # Si cfg_raw trae sólo el sensor, control cuelga directo; si trae todo el archivo, hay que bajar por medidores
+                if isinstance(cfg_raw, dict) and 'control' in cfg_raw:
+                    cfg_sensor = cfg_raw
+                else:
+                    # reintento: cargar sin sección y bajar por medidores
+                    cfg_full = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/ct01co2.yml')
+                    cfg_sensor = (cfg_full.get('medidores', {})
+                                          .get('ct01co2_sensor', {}))
+
+                ctl = cfg_sensor.get('control', {})
+
                 
                 util.logging.info(f"DEBUG control ct01co2: {ctl}")
                 
