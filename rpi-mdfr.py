@@ -265,7 +265,7 @@ def main_loop():
             try:
                 cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/ct01co2.yml')
                 ctl = cfg.get('medidores', {}).get('ct01co2_sensor', {}).get('control', {})
-                ctl = cfg.get('control', {})
+               
                 CO2_LOW  = int(ctl.get('co2_ppm_low'))
                 CO2_HIGH = int(ctl.get('co2_ppm_high'))
                 # 2) Tomar SOLO el valor que ya trajo obtener_datos_medidores_y_sensor()
