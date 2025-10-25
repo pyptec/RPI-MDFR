@@ -323,16 +323,8 @@ def payload_estado_sistema_y_medidor():
     ip_sin_puntos = ip_a_numero(ip_activa)     # unidad 137 (IP activa numérica)
     ip_eth_num    = ip_a_numero(ip_eth_report) # unidad 144 (IP Ethernet numérica)
     
-    
-   # ip_usb0 = obtener_ip_usb0()
-   # if not ip_usb0:
-        # si no hay IP, reseteo usb0 y reintento una vez
-   #     reset_usb0()
-   #     ip_usb0 = obtener_ip_usb0() or ""
-        
-    #ip_sin_puntos = ip_a_numero(ip_usb0)
-    
-     # Leer estado de la puerta
+     
+    # Leer estado de la puerta
     #door_state = Temp.door()
     # Convertir a texto legible
     #door_status_text = "Cerrada" if door_state == 1 else "Abierta"

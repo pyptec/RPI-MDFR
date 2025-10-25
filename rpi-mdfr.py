@@ -237,30 +237,37 @@ def main_loop():
                         awsaccess.disconnect_from_aws_iot(mqtt_client)
                 else:
                     fileventqueue.agregar_evento(Sistema)
-        '''        
+             
         # Mediciones cada 1 minutos
         if tempMdfr == 0:
             tempMdfr = TIMER_MDFR
-            # mediciones de los medidores ME337 y el  sensor SHT20
+            # mediciones de los Co2 (ct01) Hum Temp (tht03r)
             datos = obtener_datos_medidores_y_sensor()
              # --- EXTRAER CO2 Y CONTROLAR RELÉS ---
             try:
-                payload = datos.get('sensor_CT01CO2')
-                # tu rutina suele devolver JSON string; si ya es dict, respeta
+                cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFER/device/ct01co2.yml')
+                ctl = cfg.get('medidores', {}).get('ct01co2_sensor', {}).get('control', {})
+                CO2_LOW  = int(ctl.get('co2_ppm_low'))
+                CO2_HIGH = int(ctl.get('co2_ppm_high'))
+                
+                # --- EXTRAER CO2 Y CONTROLAR RELÉS ---
+                payload = datos.get('sensor_CT01CO2')  # tu clave actual
                 evt = json.loads(payload) if isinstance(payload, str) else payload
                 co2_ppm = int(float(evt['d'][0]['v'][0]))  # v[0] = CO2 en ppm
 
-                util.logging.info(f"CO2 ppm={co2_ppm}")
+                util.logging.info(f"CO2 ppm={co2_ppm} (low={CO2_LOW}, high={CO2_HIGH})")
+            
 
-                if co2_ppm <= 1000:
+                if co2_ppm <= CO2_LOW:
                 # Debajo de 5000 → enciende relé1 (GPIO10), apaga relé2
                     Temp.setgas(True)
                     Temp.setextractor(False)
                     
-                elif co2_ppm >= 1100:
+                elif co2_ppm >= CO2_HIGH:
                     # Encima de 10000 → enciende relé2 (GPIO9), apaga relé1
                     Temp.setgas(False)
                     Temp.setextractor(True)
+                   
                    
                
             except Exception as e:
@@ -269,7 +276,7 @@ def main_loop():
         # Mediciones cada 10 minutos
         if tempMedidor == 0:
             tempMedidor = TIMERMEDICION
-              # mediciones de los medidores ME337 y el  sensor SHT20
+            # datos de los sensores
             datos = obtener_datos_medidores_y_sensor()
             
             if  util.check_internet_connection():
@@ -289,7 +296,7 @@ def main_loop():
         if tempQueue == 0:
             tempQueue = TIMERCOLAEVENTOS
             process_event_queue()
-
+'''
         if tempPing == 0:
             interfaz = "eth0"
             tempPing = TIMERPING
