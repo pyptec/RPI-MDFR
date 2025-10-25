@@ -5,7 +5,7 @@ import modbusdevices
 
 
 
-def ejecutar_mdfr(tempMdfr, TIMER_MDFR):
+def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
     """
     Ejecuta el bloque de medición CT01CO2 (CO2) y THT03R (Temp/Hum),
     procesando simulación, lectura y control de relés.
@@ -68,5 +68,3 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR):
         return tempMdfr
 
 
-# === IMPORTACIÓN DIFERIDA ===
-from RPI_MDFR.obtener_datos import obtener_datos_medidores_y_sensor

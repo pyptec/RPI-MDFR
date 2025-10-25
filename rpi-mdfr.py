@@ -263,7 +263,7 @@ def main_loop():
                     fileventqueue.agregar_evento(Sistema)
              
         # Mediciones cada 1 minutos
-        tempMdfr = ejecutar_mdfr(tempMdfr, TIMER_MDFR)
+        tempMdfr = ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor)
         '''
         if tempMdfr == 0:
             tempMdfr = TIMER_MDFR
