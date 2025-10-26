@@ -122,7 +122,7 @@ def relay_set(config, relay_name: str, on: bool) -> bool:
         parity_map = {'N': serial.PARITY_NONE, 'E': serial.PARITY_EVEN, 'O': serial.PARITY_ODD}
         inst.serial.parity = parity_map.get(str(config['parity']).upper(), serial.PARITY_NONE)
         
-        inst.debug = True
+        #inst.debug = True
         # FC 5: write_bit(address, value, functioncode=5)
         inst.write_bit(addr, 1 if on else 0, functioncode=5)
         
