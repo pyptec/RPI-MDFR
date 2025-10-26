@@ -102,8 +102,8 @@ def setgas(on: bool):
     """Histórico: 'gas' ahora corresponde a RELAY 4 = 'etileno'."""
     cfg = _cfg_relays()
     ok = modbusdevices.relay_set(cfg, 'etileno', bool(on))
-    estados = modbusdevices.relay_read_states(cfg)
-    util.logging.info(f"[RELAYS] setgas({on}) verificación -> etileno={estados.get('etileno')}")
+    #estados = modbusdevices.relay_read_states(cfg)
+    #util.logging.info(f"[RELAYS] setgas({on}) verificación -> etileno={estados.get('etileno')}")
     return ok
 	#GPIO.output(GPIO09_RELE2_GAS, estado)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)
 #-----------------------------------------------------------------------------------------------------------
@@ -113,8 +113,8 @@ def setextractor(on: bool):
     """Extractor corresponde a RELAY 2 = 'extractor'."""
     cfg = _cfg_relays()
     ok = modbusdevices.relay_set(cfg, 'extractor', bool(on))
-    estados = modbusdevices.relay_read_states(cfg)
-    util.logging.info(f"[RELAYS] setextractor({on}) verificación -> extractor={estados.get('extractor')}")
+    #estados = modbusdevices.relay_read_states(cfg)
+    #util.logging.info(f"[RELAYS] setextractor({on}) verificación -> extractor={estados.get('extractor')}")
     return ok
 	#GPIO.output(GPIO10_RELE1_EXTRACTOR, estado)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)	
 #-----------------------------------------------------------------------------------------------------------

@@ -47,3 +47,12 @@ medidores:
         scale: 1
         unit: 143
         alias: R4
+
+      - name: offall           #apaga todos los relay
+        address: 00
+        fc_read: 1
+        fc_write: 15
+        decimals: 0
+        scale: 1
+        unit: 0
+        alias: OFFALL

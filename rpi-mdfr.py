@@ -1,5 +1,6 @@
 from dotenv import load_dotenv
 from mdfr_loop import ejecutar_mdfr
+from rasp_loop import ejecutar_raspberry
 
 import os
 import time
@@ -15,6 +16,11 @@ import shared
 import subprocess
 import modbusdevices
 #import tunel_watcher
+# Dispatcher simple (si luego agregas más “cases”, sólo añádelos aquí)
+DISPATCH = {
+    "raspberry": ejecutar_raspberry,  # espera: (tempRaspberry, TIMERCHEQUEOTEMPERATURA, contador_envio)
+    "mdfr": ejecutar_mdfr,            # espera: (tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor)
+}
 
 
 # Ruta al archivo .env
@@ -244,7 +250,7 @@ def main_loop():
     while True:
         tempRaspberry, tempMedidor, tempQueue, tempPing, tempCheckusb, tempMdfr = util.actualizar_temporizadores(
         tempRaspberry, tempMedidor, tempQueue, tempPing, tempCheckusb, tempMdfr)
-        
+        '''
         if tempRaspberry == 0:
             tempRaspberry = TIMERCHEQUEOTEMPERATURA
             json_estado = util.payload_estado_sistema_y_medidor()
@@ -262,12 +268,21 @@ def main_loop():
                         awsaccess.disconnect_from_aws_iot(mqtt_client)
                 else:
                     fileventqueue.agregar_evento(Sistema)
-             
+        '''     
         # Mediciones cada 1 minutos
-        tempMdfr = ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor)
-        time.sleep(0.5)
-        cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml', 'relayDioustou_4r')
-        print(modbusdevices.relay_read_states(cfg))
+        # Caso “raspberry”
+        tempRaspberry, contador_envio = DISPATCH["raspberry"](
+        tempRaspberry, TIMERCHEQUEOTEMPERATURA, contador_envio
+        )
+
+        # Caso “mdfr”
+        tempMdfr = DISPATCH["mdfr"](
+        tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor
+        )
+        #tempMdfr = ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor)
+        #time.sleep(0.5)
+        #cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml', 'relayDioustou_4r')
+        #print(modbusdevices.relay_read_states(cfg))
         '''
         cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml', 'relayDioustou_4r')
 
