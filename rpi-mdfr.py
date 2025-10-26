@@ -193,7 +193,8 @@ def obtener_datos_medidores_y_sensor():
 # Lógica principal
 def main_loop():
     #global ssh_process  
-   
+    temp.setbaliza(False)
+    temp.setsirena(False)
     tempRaspberry = TIMERCHEQUEOTEMPERATURA
     tempMedidor   = TIMERMEDICION
     tempQueue     = TIMERCOLAEVENTOS

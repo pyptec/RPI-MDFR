@@ -15,8 +15,8 @@ GPIO11_VENTILADOR=11 #11 18
 GPIO5_PILOTO=5 #5 22
 GPIO23_WDI=23
 GPIO6_DOOR=6 
-GPIO09_RELE2_GAS=9
-GPIO10_RELE1_EXTRACTOR=10
+GPIO09_RELE2_SIRENA=9
+GPIO10_RELE1_BALIZA=10
 
 
 
@@ -26,8 +26,8 @@ GPIO.setwarnings(False)
 GPIO.setup(GPIO11_VENTILADOR, GPIO.OUT)
 GPIO.setup(GPIO5_PILOTO, GPIO.OUT)
 GPIO.setup(GPIO23_WDI, GPIO.OUT)
-GPIO.setup(GPIO09_RELE2_GAS, GPIO.OUT)
-GPIO.setup(GPIO10_RELE1_EXTRACTOR, GPIO.OUT)
+GPIO.setup(GPIO09_RELE2_SIRENA, GPIO.OUT)
+GPIO.setup(GPIO10_RELE1_BALIZA, GPIO.OUT)
 
 GPIO.setup(GPIO6_DOOR, GPIO.IN)
 
@@ -132,6 +132,17 @@ def sethumidificador(on: bool):
     return modbusdevices.relay_set(cfg, 'humidificador', bool(on)) 
 #-----------------------------------------------------------------------------------------------------------
 
+#-----------------------------------------------------------------------------------------------------------
+def setsirena(on:bool):
+	GPIO.output(GPIO09_RELE2_SIRENA, bool(on))  # 1 = cerrada, 0 = abierta (o viceversa según conexión)	 
+#-----------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------
+def setbaliza(on:bool):
+	GPIO.output(GPIO10_RELE1_BALIZA, bool(on))  # 1 = cerrada, 0 = abierta (o viceversa según conexión)	
+ 
+#-----------------------------------------------------------------------------------------------------------
+
 #----------------------------------------------------------------------------------------------------------- 
 def relays_estado() -> dict:
     cfg = _cfg_relays()
@@ -140,11 +151,11 @@ def relays_estado() -> dict:
 #-----------------------------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------------------------
-def getgas():
-	return GPIO.input(GPIO09_RELE2_GAS)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)	 
+def getsirena():
+	return GPIO.input(GPIO09_SIRENA)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)	 
 #-----------------------------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------------------------
-def getextractor():
-	return GPIO.input(GPIO10_RELE1_EXTRACTOR)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)
+def getbaliza():
+	return GPIO.input(GPIO10_RELE1_BALIZA)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)
 
