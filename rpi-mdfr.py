@@ -105,7 +105,7 @@ def obtener_datos_medidores_y_sensor():
             if simular:
                 # --- MODO SIMULACIÓN ACTIVADO ---
                 import random
-                co2_simulado = random.randint(4800, 9200)
+                co2_simulado = random.randint(800, 9600)
                 util.logging.info(f"[CT01CO2] Modo SIMULACIÓN → CO₂ simulado = {co2_simulado} ppm")
                 medicion_CT01CO2 = {
                     "d": [{
