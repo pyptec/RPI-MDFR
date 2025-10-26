@@ -26,3 +26,6 @@ medidores:
         scale: 1
         unit: 2
         alias: Humidity
+    control:
+      hu_ppm_low: 67     # por debajo o igual a este valor → HUMEDAD ON, HUMIDIFICADOR OFF
+      hu_ppm_high: 90    # por encima o igual a este valor → HUMEDAD OFF, HUMIDIFICADOR ON 
