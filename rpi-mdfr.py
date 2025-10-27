@@ -263,7 +263,7 @@ def main_loop():
         cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml', 'relayDioustou_4r')
         modbusdevices.relay_set(cfg, 'all_off')
         time.sleep(1)
-        Temp.setrecircular(true)
+        Temp.setrecircular(True)
         time.sleep(1)
         # Mediciones cada 10 minutos
         if tempMedidor == 0:
