@@ -201,6 +201,7 @@ def main_loop():
     #global ssh_process  
     Temp.setbaliza(False)
     Temp.setsirena(False)
+    Temp.all_relay()
     tempRaspberry = TIMERCHEQUEOTEMPERATURA
     tempMedidor   = TIMERMEDICION
     tempQueue     = TIMERCOLAEVENTOS
@@ -260,11 +261,7 @@ def main_loop():
         tempMdfr = DISPATCH["mdfr"](
         tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor
         )
-        cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml', 'relayDioustou_4r')
-        modbusdevices.relay_set(cfg, 'all_off')
-        time.sleep(1)
-        Temp.setrecircular(True)
-        time.sleep(1)
+        
         # Mediciones cada 10 minutos
         if tempMedidor == 0:
             tempMedidor = TIMERMEDICION
