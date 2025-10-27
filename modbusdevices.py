@@ -133,7 +133,7 @@ def relay_set(config, relay_name: str, on: bool = False) -> bool:
         # === Modo normal FC5 ===
         if fc == 5:
             inst.write_bit(addr, 1 if on else 0, functioncode=5)
-            util.logging.info(f"[{device_name}] FC5 {relay_name} → {'ON' if value else 'OFF'}")
+            util.logging.info(f"[{device_name}] FC5 {relay_name} → {'ON' if on else 'OFF'}")
             return True
         # === Modo especial FC15 ===
         elif fc == 15:
