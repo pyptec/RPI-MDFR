@@ -92,7 +92,7 @@ def payload_event_modbus(config):
 #-----------------------------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------------------------
-def relay_set(config, relay_name: str, on: bool) -> bool:
+def relay_set(config, relay_name: str, on: bool = False) -> bool:
     """
     Enciende/Apaga un relé por nombre usando FC=5 (Write Single Coil).
     relay_name: 'recircular' | 'extractor' | 'humidificador' | 'etileno'
