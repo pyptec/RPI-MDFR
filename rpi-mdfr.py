@@ -250,26 +250,7 @@ def main_loop():
     while True:
         tempRaspberry, tempMedidor, tempQueue, tempPing, tempCheckusb, tempMdfr = util.actualizar_temporizadores(
         tempRaspberry, tempMedidor, tempQueue, tempPing, tempCheckusb, tempMdfr)
-        '''
-        if tempRaspberry == 0:
-            tempRaspberry = TIMERCHEQUEOTEMPERATURA
-            json_estado = util.payload_estado_sistema_y_medidor()
-            Sistema =json.dumps(json_estado)
-            #se inicia el wdt 
-            Temp.iniciar_wdt()
-        # lógica normal de envío cada 3 ciclos
-            contador_envio += 1
-            if contador_envio >= 3:
-                contador_envio = 0  # Reiniciar después de enviar
-                if  util.check_internet_connection():
-                    mqtt_client = awsaccess.connect_to_mqtt()
-                    if mqtt_client:
-                        awsaccess.publish_mediciones(mqtt_client, Sistema)
-                        awsaccess.disconnect_from_aws_iot(mqtt_client)
-                else:
-                    fileventqueue.agregar_evento(Sistema)
-        '''     
-        # Mediciones cada 1 minutos
+                
         # Caso “raspberry”
         tempRaspberry, contador_envio = DISPATCH["raspberry"](
         tempRaspberry, TIMERCHEQUEOTEMPERATURA, contador_envio
@@ -279,23 +260,11 @@ def main_loop():
         tempMdfr = DISPATCH["mdfr"](
         tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor
         )
-        #tempMdfr = ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor)
-        #time.sleep(0.5)
-        #cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml', 'relayDioustou_4r')
-        #print(modbusdevices.relay_read_states(cfg))
-        '''
         cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml', 'relayDioustou_4r')
-
-        print("— ON extractor —")
-        modbusdevices.relay_set(cfg, 'extractor', True)
-        time.sleep(0.3)
-        print(modbusdevices.relay_read_states(cfg))
-
-        print("— OFF extractor —")
-        modbusdevices.relay_set(cfg, 'extractor', False)
-        time.sleep(0.3)
-        print(modbusdevices.relay_read_states(cfg))
-        '''
+        modbusdevices.relay_set(cfg, 'all_off')
+        time.sleep(1)
+        setrecircular(true)
+        time.sleep(1)
         # Mediciones cada 10 minutos
         if tempMedidor == 0:
             tempMedidor = TIMERMEDICION

@@ -10,6 +10,7 @@ medidores:
     parity: N
     stopbits: 1
     timeout: 1
+    inter_byte_timeout: 0.2
 # Mapa simple de relés → dirección de coil
     registers:
       - name: recircular      #Relay_1
@@ -48,10 +49,12 @@ medidores:
         unit: 143
         alias: R4
 
-      - name: offall           #apaga todos los relay
+      - name: all_off          #apaga todos los relay
         address: 00
         fc_read: 1
         fc_write: 15
+        quantity: 8             # Escribe 8 coils (0..7)
+        data_hex: "00"          # Datos = 0x00 → todas OFF
         decimals: 0
         scale: 1
         unit: 0
