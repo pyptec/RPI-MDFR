@@ -29,3 +29,5 @@ medidores:
     control:
       hu_ppm_low: 67     # por debajo o igual a este valor → HUMEDAD ON, HUMIDIFICADOR OFF
       hu_ppm_high: 90    # por encima o igual a este valor → HUMEDAD OFF, HUMIDIFICADOR ON 
+      temp_c_low: 18     # (opcional) °C → extractor OFF si <=
+      temp_c_high: 28    # (opcional) °C → extractor ON  si >=

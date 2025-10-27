@@ -219,40 +219,7 @@ def main_loop():
     
     # --- BLOQUE DE ARRANQUE ---
     ejecutar_datos_iniciales(obtener_datos_medidores_y_sensor)
-    '''
-    # conexion a AWS
-    conneced_aws = json.dumps(eventHandler.pyp_Conect())
-    # mediciones de los  sensores Modbus RTU 
-    datos = obtener_datos_medidores_y_sensor()
-    Temp.iniciar_wdt()
-    if  util.check_internet_connection():
-         # Conectar al cliente MQTT
-        mqtt_client = awsaccess.connect_to_mqtt()
-        if mqtt_client:
-                                        
-            awsaccess.publish_mediciones(mqtt_client, conneced_aws)
-            awsaccess.publish_mediciones(mqtt_client, datos['sensor_CT01CO2'])
-            awsaccess.publish_mediciones(mqtt_client, datos['sensor_THT03R'])
-            awsaccess.disconnect_from_aws_iot(mqtt_client)
-            
-            
-        else:
-            # Hay internet, pero falla conectar MQTT:
-            util.logging.error("No hay Conexion a AWS, almacena en la cola, sensor_CT01CO2, sensor_THT03R y conneced_aws.")
-            fileventqueue.agregar_evento(datos['sensor_CT01CO2'])
-            fileventqueue.agregar_evento(datos['sensor_THT03R'])
-            fileventqueue.agregar_evento(conneced_aws)
-             
-    else:
-        # No hay internet:
-        util.logging.error("No hay internet, almacena en la cola,sensor_CT01CO2, sensor_THT03R y conneced_aws.")
-        fileventqueue.agregar_evento(datos['sensor_CT01CO2'])
-        fileventqueue.agregar_evento(datos['sensor_THT03R'])
-        fileventqueue.agregar_evento(conneced_aws)
-        
-    # Verificar la temperatura al inicio
-    Temp.check_temp()
-    '''
+    
     # Bucle principal
     contador_envio = 0  # Inicialízalo fuera del loop principal
     while True:
