@@ -1,6 +1,8 @@
 from dotenv import load_dotenv
 from mdfr_loop import ejecutar_mdfr
 from rasp_loop import ejecutar_raspberry
+from datos_iniciales import ejecutar_datos_iniciales
+
 
 import os
 import time
@@ -214,6 +216,10 @@ def main_loop():
  
     # Publicar el encendido del sistema
     util.logging.info("Sistema encendido.")
+    
+    # --- BLOQUE DE ARRANQUE ---
+    ejecutar_datos_iniciales(obtener_datos_medidores_y_sensor)
+    '''
     # conexion a AWS
     conneced_aws = json.dumps(eventHandler.pyp_Conect())
     # mediciones de los  sensores Modbus RTU 
@@ -246,6 +252,7 @@ def main_loop():
         
     # Verificar la temperatura al inicio
     Temp.check_temp()
+    '''
     # Bucle principal
     contador_envio = 0  # Inicialízalo fuera del loop principal
     while True:
