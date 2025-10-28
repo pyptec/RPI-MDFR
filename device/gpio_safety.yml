@@ -1,9 +1,0 @@
-door_meta:
-  id_device: 138
-  i: 12
-  name: "door_chamber"
-  invert_active_low: true    # El HAT cablea pull-up + contacto a GND
-  debounce_ms: 80
-  units:
-    door_state: 300          # 1=abierta, 0=cerrada
-    open_duration_s: 301     # segundos abierta

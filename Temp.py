@@ -14,8 +14,6 @@ FORMATO_DATE="%d/%m/%Y %H:%M "
 GPIO11_VENTILADOR=11 #11 18
 GPIO5_PILOTO=5 #5 22
 GPIO23_WDI=23
-#GPIO6_BOTON=6
-#GPIO13_DOOR=13 
 GPIO09_RELE2_SIRENA=9
 GPIO10_RELE1_BALIZA=10
 
@@ -31,8 +29,6 @@ GPIO.setup(GPIO23_WDI, GPIO.OUT)
 GPIO.setup(GPIO09_RELE2_SIRENA, GPIO.OUT)
 GPIO.setup(GPIO10_RELE1_BALIZA, GPIO.OUT)
 
-#GPIO.setup(GPIO6_BOTON, GPIO.IN)
-#GPIO.setup(GPIO13_DOOR, GPIO.IN)
 
 # Estado interno puerta
 _door_state = {
@@ -93,8 +89,7 @@ def iniciar_wdt():
 #-----------------------------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------------------------    
-def door():
-    return GPIO.input(GPIO6_DOOR)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)
+
 #-----------------------------------------------------------------------------------------------------------
 #Informa la configuración de los relays
 #-----------------------------------------------------------------------------------------------------------    
@@ -187,13 +182,15 @@ def _door_read_active(invert_active_low: bool) -> bool:
     return (raw == 0) if invert_active_low else (raw == 1)
 
 def _door_callback(channel):
-    meta = _load_door_meta()
-    gid  = int(meta.get('id_device', 41))
-    invert = bool(meta.get('invert_active_low', True))
-    u_door = str((meta.get('units') or {}).get('door_state', 300))
-    u_dur  = str((meta.get('units') or {}).get('open_duration_s', 301))
+    cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/door.yml')
+    door = cfg.get('medidores', {}).get('door_sensor', {})
+    i_value = int(door.get('i', 12))
+    regs = door.get('registers', [])
+    u_open = next((str(r['u']) for r in regs if r.get('alias')=='door_open'), '300')
+    u_dur  = next((str(r['u']) for r in regs if r.get('alias')=='door_open_duration_s'), '301')
 
-    active = _door_read_active(invert)  # True=abierta con invert_active_low=True
+    invert = bool(door.get('invert_active_low', True))
+    active = _door_read_active(invert)  # True=abierta
     now = time.monotonic()
 
     last = _door_state.get("active")
@@ -201,24 +198,28 @@ def _door_callback(channel):
         _door_state["active"] = active
         _door_state["changed_ts"] = now
         # (opcional) emitir estado inicial
-        _publish_dgu(_payload_dgu(gid, [1 if active else 0], [u_door]))
+        if active:
+            _publish_ivu(i_value, ["1"], [u_open])
+        else:
+            # nada; aún no hay duración
+            pass
         return
 
     if active == last:
-        return  # sin cambio real (rebote ya filtrado por bouncetime)
+        return
 
+    prev_ts = _door_state["changed_ts"]
     _door_state["active"] = active
-    prev_ts = _door_state.get("changed_ts", now)
     _door_state["changed_ts"] = now
 
     if active:
-        util.logging.warning("[DOOR] ABIERTA → apagar relés Modbus.")
-        all_relay()
-        _publish_dgu(_payload_dgu(gid, [1], [u_door]))  # 1=abierta
+        # Puerta ABIERTA → apagar relés y enviar estado (v=1,u=300)
+        _relay_all_off()
+        _publish_ivu(i_value, ["1"], [u_open])
     else:
+        # Puerta CERRADA → enviar duración (v=segundos,u=301)
         dur = round(now - prev_ts, 1)
-        util.logging.info(f"[DOOR] CERRADA. Abierta {dur}s")
-        _publish_dgu(_payload_dgu(gid, [0, dur], [u_door, u_dur]))  # 0=cerrada
+        _publish_ivu(i_value, [str(dur)], [u_dur])
 
 def _payload_dgu(g: int, v_list, u_list):
     v_norm = [(None if v is None else str(v)) for v in v_list]
