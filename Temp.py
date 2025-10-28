@@ -169,7 +169,7 @@ def getbaliza():
 #-----------------------------------------------------------------------------------------------------------
 #Carga solo metadatos de la puerta (NO pines).
 #-----------------------------------------------------------------------------------------------------------
-DOOR_PIN_BCM = 13  # fijo por HAT
+
 
 def _door_read_active(invert_low: bool) -> bool:
     """
@@ -188,7 +188,21 @@ def _door_cfg():
     except Exception as e:
         util.logging.error(f"[DOOR] No se pudo cargar door.yml: {e}")
         return {}
-
+def door_is_open() -> bool:
+    """
+    True si la puerta está ABIERTA. Usa inversión definida en door.yml.
+    NO publica nada; sólo lectura.
+    """
+    door = _door_cfg()
+    invert = bool(door.get('invert_active_low', True))
+    try:
+        # Asegura modo/entrada (idempotente)
+        GPIO.setwarnings(False)
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(DOOR_PIN_BCM, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    except Exception:
+        pass
+    return _door_read_active(invert)
 
 def _door_callback(channel):
     door = _door_cfg()

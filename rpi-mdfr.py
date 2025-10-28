@@ -178,6 +178,7 @@ def obtener_datos_medidores_y_sensor():
 # Lógica principal
 def main_loop():
     #global ssh_process  
+                   
     Temp.setbaliza(False)
     Temp.setsirena(False)
     Temp.all_relay()
@@ -194,16 +195,49 @@ def main_loop():
     # Publicar el encendido del sistema
     util.logging.info("Sistema encendido.")
     
+    while True:
+        try:
+            if not Temp.door_is_open():
+                util.logging.info("[START] Puerta CERRADA → arrancando sistema.")
+                break
+        # Puerta abierta: forzar relés OFF y quedar en espera (sin lecturas)
+            util.logging.warning("[START] Puerta ABIERTA → modo seguro: relés OFF, sin lecturas.")
+            try:
+                Temp.all_relay()
+            except Exception as e:
+                util.logging.error(f"[START] all_relay() falló: {type(e).__name__}: {e}")
+        # “Refresco” del watchdog mientras esperamos
+            Temp.iniciar_wdt()
+            time.sleep(1.0)
+        except Exception as e:
+            util.logging.error(f"[START] Error en gate de puerta: {type(e).__name__}: {e}")
+            time.sleep(1.0)
+    
     # --- BLOQUE DE ARRANQUE ---
     ejecutar_datos_iniciales(obtener_datos_medidores_y_sensor)
     
     # Bucle principal
     contador_envio = 0  # Inicialízalo fuera del loop principal
     while True:
+        
+        # --- GUARD DE OPERACIÓN: si se abre, apaga y salta ciclo ---
+        if Temp.door_is_open():
+            util.logging.warning("[LOOP] Puerta ABIERTA → relés OFF, sin mediciones/control este ciclo.")
+            try:
+                Temp.all_relay()
+            except Exception as e:
+                util.logging.error(f"[LOOP] all_relay() falló: {type(e).__name__}: {e}")
+        # refresco rápido del watchdog mientras esperamos
+            Temp.iniciar_wdt()
+            time.sleep(0.5)
+            continue
+
         tempRaspberry, tempMedidor, tempQueue, tempPing, tempCheckusb, tempMdfr = util.actualizar_temporizadores(
         tempRaspberry, tempMedidor, tempQueue, tempPing, tempCheckusb, tempMdfr)
-                
+          
+                       
         # Caso “raspberry”
+        
         tempRaspberry, contador_envio = DISPATCH["raspberry"](
         tempRaspberry, TIMERCHEQUEOTEMPERATURA, contador_envio
         )
