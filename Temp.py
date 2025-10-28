@@ -4,7 +4,7 @@ import RPi.GPIO as GPIO
 import util
 import threading
 import signal
-import modbusdevices, awsaccess, fileventqueue
+import modbusdevices, awsaccess, fileventqueue, modbusdevices
 
 
 RELAY_YAML = '/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml'
@@ -169,6 +169,18 @@ def getbaliza():
 #-----------------------------------------------------------------------------------------------------------
 #Carga solo metadatos de la puerta (NO pines).
 #-----------------------------------------------------------------------------------------------------------
+DOOR_PIN_BCM = 13  # fijo por HAT
+
+def _door_read_active(invert_low: bool) -> bool:
+    """
+    Lee el pin de puerta y aplica la inversión:
+    - invert_low=True  => activo si GPIO lee 0 (pull-up + contacto a GND)
+    - invert_low=False => activo si GPIO lee 1
+    """
+    raw = GPIO.input(DOOR_PIN_BCM)  # 0/1
+    return (raw == 0) if invert_low else (raw == 1)
+
+
 def _door_cfg():
     try:
         cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/door.yml')
@@ -207,7 +219,8 @@ def _door_callback(channel):
 
     if active:
         util.logging.warning("[DOOR] ABIERTA → apagar relés Modbus.")
-        _relay_all_off()
+        all_relay()
+        #_relay_all_off()
         _publish_ivu(i_value, ["1"], [u_open])  # evento “abierta”
     else:
         dur = round(now - prev_ts, 1)
