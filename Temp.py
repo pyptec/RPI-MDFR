@@ -203,13 +203,24 @@ def door_is_open() -> bool:
     except Exception:
         pass
     return _door_read_active(invert)
+def _get_unit(regs, candidates, default_str):
+    """Busca en registers por alias o name; devuelve u en str."""
+    cand = set(candidates)
+    for r in regs or []:
+        if str(r.get('alias')) in cand or str(r.get('name')) in cand:
+            u = r.get('u')
+            if u is not None:
+                return str(u)
+    util.logging.warning(f"[DOOR] u-code no encontrado para {candidates}; usando {default_str}")
+    return str(default_str)
 
 def _door_callback(channel):
     door = _door_cfg()
     i_value = int(door.get('i', 12))
     regs = door.get('registers', [])
-    u_open = next((str(r['u']) for r in regs if r.get('alias') == 'door_open'), '300')
-    u_dur  = next((str(r['u']) for r in regs if r.get('alias') == 'door_open_duration_s'), '301')
+    # usa lo que venga en YAML; defaults: abierta=145, duración=138
+    u_open = _get_unit(regs, {"door_open", "estado_puerta"}, "138")
+    u_dur  = _get_unit(regs, {"door_open_duration_s", "duracion_abierta"}, "145")
 
     invert = bool(door.get('invert_active_low', True))
     active = _door_read_active(invert)  # True = abierta
