@@ -169,40 +169,33 @@ def getbaliza():
 #-----------------------------------------------------------------------------------------------------------
 #Carga solo metadatos de la puerta (NO pines).
 #-----------------------------------------------------------------------------------------------------------
-def _load_door_meta():
-    """Carga solo metadatos de la puerta (NO pines)."""
+def _door_cfg():
     try:
-        m = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/gpio_safety.yml', 'door_meta')
-        return m if isinstance(m, dict) else {}
+        cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/door.yml')
+        return cfg.get('medidores', {}).get('door_sensor', {}) if isinstance(cfg, dict) else {}
     except Exception as e:
-        util.logging.error(f"[DOOR] No se pudo cargar door_meta: {e}")
+        util.logging.error(f"[DOOR] No se pudo cargar door.yml: {e}")
         return {}
-def _door_read_active(invert_active_low: bool) -> bool:
-    raw = GPIO.input(DOOR_PIN_BCM)  # 0 o 1
-    return (raw == 0) if invert_active_low else (raw == 1)
+
 
 def _door_callback(channel):
-    cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/door.yml')
-    door = cfg.get('medidores', {}).get('door_sensor', {})
+    door = _door_cfg()
     i_value = int(door.get('i', 12))
     regs = door.get('registers', [])
-    u_open = next((str(r['u']) for r in regs if r.get('alias')=='door_open'), '300')
-    u_dur  = next((str(r['u']) for r in regs if r.get('alias')=='door_open_duration_s'), '301')
+    u_open = next((str(r['u']) for r in regs if r.get('alias') == 'door_open'), '300')
+    u_dur  = next((str(r['u']) for r in regs if r.get('alias') == 'door_open_duration_s'), '301')
 
     invert = bool(door.get('invert_active_low', True))
-    active = _door_read_active(invert)  # True=abierta
+    active = _door_read_active(invert)  # True = abierta
     now = time.monotonic()
 
     last = _door_state.get("active")
     if last is None:
         _door_state["active"] = active
         _door_state["changed_ts"] = now
-        # (opcional) emitir estado inicial
+        # opcional: publicar estado inicial solo si está abierta
         if active:
             _publish_ivu(i_value, ["1"], [u_open])
-        else:
-            # nada; aún no hay duración
-            pass
         return
 
     if active == last:
@@ -213,28 +206,29 @@ def _door_callback(channel):
     _door_state["changed_ts"] = now
 
     if active:
-        # Puerta ABIERTA → apagar relés y enviar estado (v=1,u=300)
+        util.logging.warning("[DOOR] ABIERTA → apagar relés Modbus.")
         _relay_all_off()
-        _publish_ivu(i_value, ["1"], [u_open])
+        _publish_ivu(i_value, ["1"], [u_open])  # evento “abierta”
     else:
-        # Puerta CERRADA → enviar duración (v=segundos,u=301)
         dur = round(now - prev_ts, 1)
-        _publish_ivu(i_value, [str(dur)], [u_dur])
+        util.logging.info(f"[DOOR] CERRADA. Abierta {dur}s")
+        _publish_ivu(i_value, [str(dur)], [u_dur])  # evento “cerrada” (solo duración)
 
-def _payload_dgu(g: int, v_list, u_list):
+
+def _payload_ivu(i_value: int, v_list, u_list):
     v_norm = [(None if v is None else str(v)) for v in v_list]
     u_norm = [(None if u is None else str(u)) for u in u_list]
-    return {"d": [{"t": util.get__time_utc(), "i": g, "v": v_norm, "u": u_norm}]}
+    return {"d": [{"t": util.get__time_utc(), "i": int(i_value), "v": v_norm, "u": u_norm}]}
 
-def _publish_dgu(payload_dict):
+def _publish_ivu(i_value: int, v_list, u_list):
     try:
-        msg = json.dumps(payload_dict)
+        msg = json.dumps(_payload_ivu(i_value, v_list, u_list))
         if util.check_internet_connection():
             cli = awsaccess.connect_to_mqtt()
             if cli:
                 awsaccess.publish_mediciones(cli, msg)
                 awsaccess.disconnect_from_aws_iot(cli)
-                util.logging.info("[DOOR] Alerta enviada a AWS.")
+                util.logging.info(f"[DOOR] Dato enviado (i={i_value}, v={v_list}, u={u_list})")
             else:
                 util.logging.error("[DOOR] MQTT no disponible. Cola local.")
                 fileventqueue.agregar_evento(msg)
@@ -242,29 +236,62 @@ def _publish_dgu(payload_dict):
             util.logging.error("[DOOR] Sin internet. Cola local.")
             fileventqueue.agregar_evento(msg)
     except Exception as e:
-        util.logging.error(f"[DOOR] Error publicando DGU: {type(e).__name__}: {e}")
+        util.logging.error(f"[DOOR] Error publicando IVU: {type(e).__name__}: {e}")
+
 
 def setup_door_interrupt():
     """
     Configura GPIO13 como entrada con pull-up y registra interrupción BOTH.
-    Debe llamarse una sola vez al inicio del programa.
+    Si add_event_detect falla (pin ya tomado/permisos), activa fallback por polling.
     """
-    meta = _load_door_meta()
-    debounce_ms = int(meta.get('debounce_ms', 80))
+    door = _door_cfg()
+    debounce_ms = int(door.get('debounce_ms', 80))
+    invert = bool(door.get('invert_active_low', True))
 
     GPIO.setwarnings(False)
     GPIO.setmode(GPIO.BCM)
-    GPIO.setup(DOOR_PIN_BCM, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
+    # Limpieza defensiva: quita detección previa y limpia SOLO este pin
     try:
         GPIO.remove_event_detect(DOOR_PIN_BCM)
     except Exception:
         pass
+    try:
+        GPIO.cleanup(DOOR_PIN_BCM)
+    except Exception:
+        pass
 
-    GPIO.add_event_detect(DOOR_PIN_BCM, GPIO.BOTH, callback=_door_callback, bouncetime=debounce_ms)
+    # Re-configura y estabiliza
+    GPIO.setup(DOOR_PIN_BCM, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    time.sleep(0.02)
 
-    # Inicializar estado y (opcional) publicar estado inicial
-    invert = bool(meta.get('invert_active_low', True))
+    # Inicializa estado
     _door_state["active"] = _door_read_active(invert)
     _door_state["changed_ts"] = time.monotonic()
-    util.logging.info(f"[DOOR] Interrupción lista en GPIO{DOOR_PIN_BCM} (debounce={debounce_ms} ms)")
+
+    # Intenta edge detection
+    try:
+        GPIO.add_event_detect(
+            DOOR_PIN_BCM,
+            GPIO.BOTH,
+            callback=_door_callback,
+            bouncetime=debounce_ms
+        )
+        util.logging.info(f"[DOOR] Interrupción lista en GPIO{DOOR_PIN_BCM} (debounce={debounce_ms} ms)")
+        return
+    except RuntimeError as e:
+        util.logging.error(f"[DOOR] add_event_detect falló: {e}. Activando fallback por polling…")
+
+    # Fallback por polling (50 ms o el debounce configurado)
+    def _door_poll_worker():
+        last = _door_state["active"]
+        while True:
+            cur = _door_read_active(invert)
+            if cur != last:
+                _door_callback(DOOR_PIN_BCM)  # dispara la misma lógica
+                last = cur
+            time.sleep(max(0.05, debounce_ms / 1000.0))
+
+    t = threading.Thread(target=_door_poll_worker, daemon=True)
+    t.start()
+    util.logging.info("[DOOR] Fallback por polling activado.")
