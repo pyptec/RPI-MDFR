@@ -3,6 +3,7 @@ medidores:
     device_name: "CT01CO2"
     id_device: 22
     port: "/dev/ttyS0"
+    debug: False 
     slave_id: 1
     baudrate: 9600
     bytesize: 8

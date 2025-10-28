@@ -211,7 +211,7 @@ def main_loop():
     tempCheckusb  = TIMECHECKUSBETHERNET 
     tempHora      = TIMECHECK_USB_ETHERNET_TIME
     tempMdfr      = TIMER_MDFR
-    
+    Temp.setup_door_interrupt()
     #threading.Thread(target=awsaccess.iniciar_recepcion_mensajes, daemon=True).start()
  
     # Publicar el encendido del sistema

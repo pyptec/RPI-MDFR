@@ -3,6 +3,7 @@ medidores:
     device_name: "THT03R"
     id_device: 21
     port: "/dev/ttyS0"
+    debug: False 
     slave_id: 4
     baudrate: 9600
     bytesize: 8
