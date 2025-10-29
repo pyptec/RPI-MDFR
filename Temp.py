@@ -384,23 +384,12 @@ def _man_button_callback(channel):
     i_value = int(cfg.get('i', 12))
     regs = cfg.get('registers', [])
     u_pressed = _get_unit(regs, {"man_pressed"}, "310")
-    invert = bool(cfg.get('invert_active_low', True))
+    #invert = bool(cfg.get('invert_active_low', True))
 
     # Espera corta y re-lee para asegurarse que sigue en 0 (activo-bajo)
     time.sleep(0.02)  # 20 ms
-    if not _btn_read_active(invert):    # si ya rebotó a 'no presionado', ignora
+    if GPIO.input(MAN_BUTTON_PIN_BCM) != 0:
         return
-    # No dispares si la puerta está abierta (seguridad y evita latch indeseado)
-    if door_is_open():
-        util.logging.warning("[MAN] Ignorado: puerta está ABIERTA.")
-        _man_state["last_pressed"] = True  # evita retrigger inmediato
-        return
-
-    # Evita duplicado si ya estaba en estado presionado
-    
-    if _man_state.get("last_pressed") is True:
-        return
-    _man_state["last_pressed"] = True
     
     # Ya latcheado => no repetir
     
@@ -413,6 +402,7 @@ def _man_button_callback(channel):
     setbaliza(True)
     _man_state["latched"] = True
     _man_state["pressed_ts"] = time.monotonic()
+    _man_state["last_pressed"] = True  # estado actual
     util.logging.warning("[MAN] LATCH ACTIVO → sirena y baliza ON (esperando apertura de puerta).")
 
     # Publicación: evento PRESSED (v=1, u=310)
@@ -423,7 +413,7 @@ def _man_button_callback(channel):
 def setup_man_button_interrupt():
     cfg = _btn_cfg()
     debounce_ms = int(cfg.get('debounce_ms', 80))
-    invert = bool(cfg.get('invert_active_low', True))  # true = activo-bajo
+    #invert = bool(cfg.get('invert_active_low', True))  # true = activo-bajo
     
     GPIO.setwarnings(False)
     GPIO.setmode(GPIO.BCM)
@@ -441,7 +431,7 @@ def setup_man_button_interrupt():
    # Estado inicial (no dispares si ya entra en 0 por wiring/ruido)
     _man_state["latched"] = False
     _man_state["pressed_ts"] = None
-    _man_state["last_pressed"] = _btn_read_active(invert)
+    _man_state["last_pressed"] = False
 
     try:
         # Solo flanco de bajada (HIGH->LOW) coherente con activo-bajo
@@ -455,9 +445,11 @@ def setup_man_button_interrupt():
     except RuntimeError as e:
         util.logging.error(f"[MAN] add_event_detect falló: {e}. Activando polling…")
         def _poll():
-            last = _btn_read_active(invert)
+            #last = _btn_read_active(invert)
+            last = GPIO.input(MAN_BUTTON_PIN_BCM)  # 1 reposo, 0 presionado
             while True:
-                cur = _btn_read_active(invert)
+                #cur = _btn_read_active(invert)
+                cur = GPIO.input(MAN_BUTTON_PIN_BCM)  # 1 reposo, 0 presionado
                 # Dispara al detectar transición 1->0 (activo-bajo)
                 if (last is False) and (cur is True):  # 1->0 lógico: ojo, cur True == activo
                     _man_button_callback(MAN_BUTTON_PIN_BCM)
