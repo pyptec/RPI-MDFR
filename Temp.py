@@ -261,8 +261,9 @@ def _door_callback(channel):
             if man_state.get("latched"):
                 setsirena(False)
                 setbaliza(False)
-                man_state["latched"] = False
-                man_state["pressed_ts"] = None
+                _man_state["latched"] = False
+                _man_state["pressed_ts"] = None
+                _man_state["last_pressed"] = False
                 util.logging.info("[MAN] LATCH LIBERADO por apertura de puerta.")
         except Exception as e:
             util.logging.error(f"[MAN] Error al liberar latch: {e}")
@@ -384,11 +385,11 @@ def _man_button_callback(channel):
     i_value = int(cfg.get('i', 12))
     regs = cfg.get('registers', [])
     u_pressed = _get_unit(regs, {"man_pressed"}, "310")
-    #invert = bool(cfg.get('invert_active_low', True))
+    invert = bool(cfg.get('invert_active_low', False))
 
     # Espera corta y re-lee para asegurarse que sigue en 0 (activo-bajo)
     time.sleep(0.02)  # 20 ms
-    if GPIO.input(MAN_BUTTON_PIN_BCM) != 0:
+    if not _btn_read_active(invert):     # debe seguir en 1
         return
     
     # Ya latcheado => no repetir
@@ -437,7 +438,7 @@ def setup_man_button_interrupt():
         # Solo flanco de bajada (HIGH->LOW) coherente con activo-bajo
         GPIO.add_event_detect(
             MAN_BUTTON_PIN_BCM,
-             GPIO.FALLING,
+             GPIO.RISING,
             callback=_man_button_callback,
             bouncetime=debounce_ms
         )
