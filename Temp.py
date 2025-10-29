@@ -19,7 +19,7 @@ GPIO10_RELE1_BALIZA=10
 
 # Pines fijos del HAT
 DOOR_PIN_BCM = 13          # Puerta (entrada)
-
+MAN_BUTTON_PIN_BCM = 6
 #Definiciones de GPIO
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
@@ -34,6 +34,10 @@ GPIO.setup(GPIO10_RELE1_BALIZA, GPIO.OUT)
 _door_state = {
     "active": None,          # True=abierta (con invert_active_low=True)
     "changed_ts": None,      # time.monotonic() del último cambio
+}
+man_state = {
+    "latched": False,       # True si sirena/baliza ON esperando que se abra la puerta
+    "pressed_ts": None,     # instante (monotonic) del último PRESSED
 }
 
 #######################################
@@ -91,7 +95,7 @@ def iniciar_wdt():
 #-----------------------------------------------------------------------------------------------------------    
 
 #-----------------------------------------------------------------------------------------------------------
-#Informa la configuración de los relays
+#Informa la configuración de los relays lee el YAML
 #-----------------------------------------------------------------------------------------------------------    
 def _cfg_relays():
     cfg = util.cargar_configuracion(RELAY_YAML, RELAY_KEY)
@@ -104,10 +108,8 @@ def setgas(on: bool):
     """Histórico: 'gas' ahora corresponde a RELAY 4 = 'etileno'."""
     cfg = _cfg_relays()
     ok = modbusdevices.relay_set(cfg, 'etileno', bool(on))
-    #estados = modbusdevices.relay_read_states(cfg)
-    #util.logging.info(f"[RELAYS] setgas({on}) verificación -> etileno={estados.get('etileno')}")
     return ok
-	#GPIO.output(GPIO09_RELE2_GAS, estado)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)
+
 #-----------------------------------------------------------------------------------------------------------
 #rele extractor abre una ventana
 #-----------------------------------------------------------------------------------------------------------
@@ -115,10 +117,8 @@ def setextractor(on: bool):
     """Extractor corresponde a RELAY 2 = 'extractor'."""
     cfg = _cfg_relays()
     ok = modbusdevices.relay_set(cfg, 'extractor', bool(on))
-    #estados = modbusdevices.relay_read_states(cfg)
-    #util.logging.info(f"[RELAYS] setextractor({on}) verificación -> extractor={estados.get('extractor')}")
     return ok
-	#GPIO.output(GPIO10_RELE1_EXTRACTOR, estado)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)	
+	
 #-----------------------------------------------------------------------------------------------------------
 #Rele que activa la recirculacion del aire
 #-----------------------------------------------------------------------------------------------------------
@@ -136,7 +136,8 @@ def sethumidificador(on: bool):
 #Apaga todos los relays
 #-----------------------------------------------------------------------------------------------------------
 def all_relay():
-    cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml', 'relayDioustou_4r')
+    cfg = _cfg_relays()
+    #util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml', 'relayDioustou_4r')
     return modbusdevices.relay_set(cfg, 'all_off')
 #-----------------------------------------------------------------------------------------------------------
 #Rele interno que activa la sirena 
@@ -167,10 +168,8 @@ def getsirena():
 def getbaliza():
 	return GPIO.input(GPIO10_RELE1_BALIZA)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)
 #-----------------------------------------------------------------------------------------------------------
-#Carga solo metadatos de la puerta (NO pines).
+#Lee el pin de puerta con inversión
 #-----------------------------------------------------------------------------------------------------------
-
-
 def _door_read_active(invert_low: bool) -> bool:
     """
     Lee el pin de puerta y aplica la inversión:
@@ -179,8 +178,9 @@ def _door_read_active(invert_low: bool) -> bool:
     """
     raw = GPIO.input(DOOR_PIN_BCM)  # 0/1
     return (raw == 0) if invert_low else (raw == 1)
-
-
+#-----------------------------------------------------------------------------------------------------------
+#Carga configuración de la puerta desde door.yml
+#-----------------------------------------------------------------------------------------------------------
 def _door_cfg():
     try:
         cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/door.yml')
@@ -188,6 +188,10 @@ def _door_cfg():
     except Exception as e:
         util.logging.error(f"[DOOR] No se pudo cargar door.yml: {e}")
         return {}
+
+#-----------------------------------------------------------------------------------------------------------
+# Informa si la puerta está abierta
+#-----------------------------------------------------------------------------------------------------------
 def door_is_open() -> bool:
     """
     True si la puerta está ABIERTA. Usa inversión definida en door.yml.
@@ -203,6 +207,9 @@ def door_is_open() -> bool:
     except Exception:
         pass
     return _door_read_active(invert)
+#-----------------------------------------------------------------------------------------------------------
+# Busca en registers por alias o name; devuelve u en str.
+#-----------------------------------------------------------------------------------------------------------
 def _get_unit(regs, candidates, default_str):
     """Busca en registers por alias o name; devuelve u en str."""
     cand = set(candidates)
@@ -213,7 +220,9 @@ def _get_unit(regs, candidates, default_str):
                 return str(u)
     util.logging.warning(f"[DOOR] u-code no encontrado para {candidates}; usando {default_str}")
     return str(default_str)
-
+#-----------------------------------------------------------------------------------------------------------
+# Callback de interrupción de puerta
+#-----------------------------------------------------------------------------------------------------------
 def _door_callback(channel):
     door = _door_cfg()
     i_value = int(door.get('i', 12))
@@ -245,19 +254,22 @@ def _door_callback(channel):
     if active:
         util.logging.warning("[DOOR] ABIERTA → apagar relés Modbus.")
         all_relay()
-        #_relay_all_off()
         _publish_ivu(i_value, ["1"], [u_open])  # evento “abierta”
     else:
         dur = round(now - prev_ts, 1)
         util.logging.info(f"[DOOR] CERRADA. Abierta {dur}s")
         _publish_ivu(i_value, [str(dur)], [u_dur])  # evento “cerrada” (solo duración)
 
-
+#-----------------------------------------------------------------------------------------------------------
+# Prepara el payload JSON para IVU puerta esta abierta
+#-----------------------------------------------------------------------------------------------------------
 def _payload_ivu(i_value: int, v_list, u_list):
     v_norm = [(None if v is None else str(v)) for v in v_list]
     u_norm = [(None if u is None else str(u)) for u in u_list]
     return {"d": [{"t": util.get__time_utc(), "i": int(i_value), "v": v_norm, "u": u_norm}]}
-
+#-----------------------------------------------------------------------------------------------------------
+# Publica IVU puerta abierta o cerrada
+#-----------------------------------------------------------------------------------------------------------
 def _publish_ivu(i_value: int, v_list, u_list):
     try:
         msg = json.dumps(_payload_ivu(i_value, v_list, u_list))
@@ -268,15 +280,17 @@ def _publish_ivu(i_value: int, v_list, u_list):
                 awsaccess.disconnect_from_aws_iot(cli)
                 util.logging.info(f"[DOOR] Dato enviado (i={i_value}, v={v_list}, u={u_list})")
             else:
-                util.logging.error("[DOOR] MQTT no disponible. Cola local.")
+                #util.logging.error("[DOOR] MQTT no disponible. Cola local.")
                 fileventqueue.agregar_evento(msg)
         else:
-            util.logging.error("[DOOR] Sin internet. Cola local.")
+            #util.logging.error("[DOOR] Sin internet. Cola local.")
             fileventqueue.agregar_evento(msg)
     except Exception as e:
         util.logging.error(f"[DOOR] Error publicando IVU: {type(e).__name__}: {e}")
 
-
+#-----------------------------------------------------------------------------------------------------------
+#Configura interrupción GPIO de puerta solo una vez
+#-----------------------------------------------------------------------------------------------------------
 def setup_door_interrupt():
     """
     Configura GPIO13 como entrada con pull-up y registra interrupción BOTH.
@@ -333,3 +347,84 @@ def setup_door_interrupt():
     t = threading.Thread(target=_door_poll_worker, daemon=True)
     t.start()
     util.logging.info("[DOOR] Fallback por polling activado.")
+    
+def _btn_cfg():
+    try:
+        cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/door.yml')
+        return cfg.get('medidores', {}).get('man_trapped', {}) if isinstance(cfg, dict) else {}
+    except Exception:
+        return {}
+
+def _btn_read_active(invert_low: bool) -> bool:
+    """True si PRESIONADO."""
+    raw = GPIO.input(MAN_BUTTON_PIN_BCM)  # 0/1
+    return (raw == 0) if invert_low else (raw == 1)
+#-----------------------------------------------------------------------------------------------------------
+# Callback de interrupción de botón hombre atrapado
+#-----------------------------------------------------------------------------------------------------------
+def _man_button_callback(channel):
+    cfg = _btn_cfg()
+    i_value = int(cfg.get('i', 12))
+    regs = cfg.get('registers', [])
+    u_pressed = _get_unit(regs, {"man_pressed"}, "310")
+    invert = bool(cfg.get('invert_active_low', True))
+
+    pressed = _btn_read_active(invert)  # True=presionado
+    # Evita rebotes lógicos: solo actuamos en flanco a PRESSED
+    if not pressed:
+        return
+
+    # Si ya estaba latcheado, no repetir
+    if _man_state["latched"]:
+        util.logging.info("[MAN] Botón presionado pero ya estaba latcheado; sin cambio.")
+        return
+
+    # LATCH: enciende sirena & baliza y guarda TS
+    setsirena(True)
+    setbaliza(True)
+    _man_state["latched"] = True
+    _man_state["pressed_ts"] = time.monotonic()
+    util.logging.warning("[MAN] LATCH ACTIVO → sirena y baliza ON (esperando apertura de puerta).")
+
+    # Publicación: evento PRESSED (v=1, u=310)
+    _publish_ivu(i_value, ["1"], [u_pressed])
+
+def setup_man_button_interrupt():
+    cfg = _btn_cfg()
+    debounce_ms = int(cfg.get('debounce_ms', 50))
+
+    GPIO.setwarnings(False)
+    GPIO.setmode(GPIO.BCM)
+
+    try: GPIO.remove_event_detect(MAN_BUTTON_PIN_BCM)
+    except Exception: pass
+    try: GPIO.cleanup(MAN_BUTTON_PIN_BCM)
+    except Exception: pass
+
+    GPIO.setup(MAN_BUTTON_PIN_BCM, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    time.sleep(0.02)
+
+    # Estado inicial (no latcheado)
+    _man_state["latched"] = False
+    _man_state["pressed_ts"] = None
+
+    try:
+        GPIO.add_event_detect(
+            MAN_BUTTON_PIN_BCM,
+            GPIO.BOTH,
+            callback=_man_button_callback,
+            bouncetime=debounce_ms
+        )
+        util.logging.info(f"[MAN] Interrupción lista en GPIO{MAN_BUTTON_PIN_BCM} (debounce={debounce_ms} ms)")
+    except RuntimeError as e:
+        util.logging.error(f"[MAN] add_event_detect falló: {e}. Activando polling…")
+        def _poll():
+            invert = bool(cfg.get('invert_active_low', True))
+            last = False
+            while True:
+                cur = _btn_read_active(invert)
+                if cur and not last:
+                    _man_button_callback(MAN_BUTTON_PIN_BCM)
+                last = cur
+                time.sleep(max(0.05, debounce_ms / 1000.0))
+        threading.Thread(target=_poll, daemon=True).start()

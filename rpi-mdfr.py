@@ -177,11 +177,12 @@ def obtener_datos_medidores_y_sensor():
 
 # Lógica principal
 def main_loop():
-    #global ssh_process  
-                   
+    
+    #Apagar relays y sirena al iniciar               
     Temp.setbaliza(False)
     Temp.setsirena(False)
     Temp.all_relay()
+    # Inicializar temporizadores
     tempRaspberry = TIMERCHEQUEOTEMPERATURA
     tempMedidor   = TIMERMEDICION
     tempQueue     = TIMERCOLAEVENTOS
@@ -189,7 +190,10 @@ def main_loop():
     tempCheckusb  = TIMECHECKUSBETHERNET 
     tempHora      = TIMECHECK_USB_ETHERNET_TIME
     tempMdfr      = TIMER_MDFR
+    # Configurar interrupción de puerta
     Temp.setup_door_interrupt()
+    # Configurar interrupción de botón hombre atrapado
+    Temp.setup_man_button_interrupt()   # ← botón hombre atrapado (GPIO6)
     #threading.Thread(target=awsaccess.iniciar_recepcion_mensajes, daemon=True).start()
  
     # Publicar el encendido del sistema
