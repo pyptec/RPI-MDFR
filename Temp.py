@@ -433,13 +433,13 @@ def setup_man_button_interrupt():
    # Estado inicial (no dispares si ya entra en 0 por wiring/ruido)
     _man_state["latched"] = False
     _man_state["pressed_ts"] = None
-    #_man_state["last_pressed"] = False
+    _man_state["last_pressed"] = False
 
     try:
         # Solo flanco de bajada (HIGH->LOW) coherente con activo-bajo
         GPIO.add_event_detect(
             MAN_BUTTON_PIN_BCM,
-             GPIO.RISING,
+             GPIO.BOTH,
             callback=_man_button_callback,
             bouncetime=debounce_ms
         )
