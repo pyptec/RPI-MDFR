@@ -193,7 +193,7 @@ def main_loop():
     # Configurar interrupción de puerta
     Temp.setup_door_interrupt()
     # Configurar interrupción de botón hombre atrapado
-    #Temp.setup_man_button_interrupt()   # ← botón hombre atrapado (GPIO6)
+    Temp.setup_man_button_interrupt()   # ← botón hombre atrapado (GPIO6)
     #threading.Thread(target=awsaccess.iniciar_recepcion_mensajes, daemon=True).start()
  
     # Publicar el encendido del sistema
@@ -229,6 +229,12 @@ def main_loop():
             util.logging.warning("[LOOP] Puerta ABIERTA → relés OFF, sin mediciones/control este ciclo.")
             try:
                 Temp.all_relay()
+                if Temp._man_state.get("latched"):
+                    Tem.setsirena(False); Temp.setbaliza(False)
+                # (no se publica “liberado”; solo se apaga por puerta)
+                    Temp._man_state["latched"] = False
+                    Temp._man_state["pressed_ts"] = None
+                    util.logging.info("[MAN] LATCH LIBERADO por apertura de puerta.")
             except Exception as e:
                 util.logging.error(f"[LOOP] all_relay() falló: {type(e).__name__}: {e}")
         # refresco rápido del watchdog mientras esperamos
