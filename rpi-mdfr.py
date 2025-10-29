@@ -230,7 +230,7 @@ def main_loop():
             try:
                 Temp.all_relay()
                 if Temp._man_state.get("latched"):
-                    Tem.setsirena(False); Temp.setbaliza(False)
+                    Temp.setsirena(False); Temp.setbaliza(False)
                 # (no se publica “liberado”; solo se apaga por puerta)
                     Temp._man_state["latched"] = False
                     Temp._man_state["pressed_ts"] = None
