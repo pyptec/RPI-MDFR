@@ -263,7 +263,7 @@ def _door_callback(channel):
                 setbaliza(False)
                 _man_state["latched"] = False
                 _man_state["pressed_ts"] = None
-                _man_state["last_pressed"] = False
+               # _man_state["last_pressed"] = False
                 util.logging.info("[MAN] LATCH LIBERADO por apertura de puerta.")
         except Exception as e:
             util.logging.error(f"[MAN] Error al liberar latch: {e}")
@@ -385,10 +385,11 @@ def _man_button_callback(channel):
     i_value = int(cfg.get('i', 12))
     regs = cfg.get('registers', [])
     u_pressed = _get_unit(regs, {"man_pressed"}, "310")
-    invert = bool(cfg.get('invert_active_low', False))
+    
+    #invert = bool(cfg.get('invert_active_low', False))
 
     # Espera corta y re-lee para asegurarse que sigue en 0 (activo-bajo)
-    time.sleep(0.02)  # 20 ms
+    #time.sleep(0.02)  # 20 ms
     if not _btn_read_active(invert):     # debe seguir en 1
         return
     
@@ -403,7 +404,7 @@ def _man_button_callback(channel):
     setbaliza(True)
     _man_state["latched"] = True
     _man_state["pressed_ts"] = time.monotonic()
-    _man_state["last_pressed"] = True  # estado actual
+    #_man_state["last_pressed"] = True  # estado actual
     util.logging.warning("[MAN] LATCH ACTIVO → sirena y baliza ON (esperando apertura de puerta).")
 
     # Publicación: evento PRESSED (v=1, u=310)
@@ -432,7 +433,7 @@ def setup_man_button_interrupt():
    # Estado inicial (no dispares si ya entra en 0 por wiring/ruido)
     _man_state["latched"] = False
     _man_state["pressed_ts"] = None
-    _man_state["last_pressed"] = False
+    #_man_state["last_pressed"] = False
 
     try:
         # Solo flanco de bajada (HIGH->LOW) coherente con activo-bajo
@@ -452,7 +453,7 @@ def setup_man_button_interrupt():
                 #cur = _btn_read_active(invert)
                 cur = GPIO.input(MAN_BUTTON_PIN_BCM)  # 1 reposo, 0 presionado
                 # Dispara al detectar transición 1->0 (activo-bajo)
-                if last == 1 and cur == 0:         # flanco 1->0
+                if last == 0 and cur == 1:         # flanco 1->0
                     _man_button_callback(MAN_BUTTON_PIN_BCM)
                 last = cur
                 time.sleep(max(0.05, debounce_ms / 1000.0))
