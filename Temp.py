@@ -35,7 +35,7 @@ _door_state = {
     "active": None,          # True=abierta (con invert_active_low=True)
     "changed_ts": None,      # time.monotonic() del último cambio
 }
-man_state = {
+_man_state = {
     "latched": False,       # True si sirena/baliza ON esperando que se abra la puerta
     "pressed_ts": None,     # instante (monotonic) del último PRESSED
 }
