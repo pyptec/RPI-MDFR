@@ -193,7 +193,7 @@ def main_loop():
     # Configurar interrupción de puerta
     Temp.setup_door_interrupt()
     # Configurar interrupción de botón hombre atrapado
-    Temp.setup_man_button_interrupt()   # ← botón hombre atrapado (GPIO6)
+    #Temp.setup_man_button_interrupt()   # ← botón hombre atrapado (GPIO6)
     #threading.Thread(target=awsaccess.iniciar_recepcion_mensajes, daemon=True).start()
  
     # Publicar el encendido del sistema
