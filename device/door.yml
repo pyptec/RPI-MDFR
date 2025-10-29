@@ -16,7 +16,7 @@ medidores:
     man_trapped:
       i: 12
       invert_active_low: false    # pull-up + botón a GND
-      debounce_ms: 80
+      debounce_ms: 120
       registers:
         - name: man_pressed
           alias: man_pressed

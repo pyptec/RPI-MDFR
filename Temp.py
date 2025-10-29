@@ -453,7 +453,7 @@ def setup_man_button_interrupt():
                 #cur = _btn_read_active(invert)
                 cur = GPIO.input(MAN_BUTTON_PIN_BCM)  # 1 reposo, 0 presionado
                 # Dispara al detectar transición 1->0 (activo-bajo)
-                if last == 1 and cur == 0:         # flanco 1->0
+                if last == 0 and cur == 1:         # flanco 1->0
                     _man_button_callback(MAN_BUTTON_PIN_BCM)
                 last = cur
                 time.sleep(max(0.05, debounce_ms / 1000.0))
