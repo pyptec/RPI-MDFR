@@ -161,7 +161,7 @@ def relays_estado() -> dict:
 #Informa el estado de la sirena
 #-----------------------------------------------------------------------------------------------------------
 def getsirena():
-	return GPIO.input(GPIO09_SIRENA)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)	 
+	return GPIO.input(GPIO09_RELE2_SIRENA)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)	 
 #-----------------------------------------------------------------------------------------------------------
 #Informa el estado de la baliza
 #-----------------------------------------------------------------------------------------------------------
@@ -254,7 +254,18 @@ def _door_callback(channel):
     if active:
         util.logging.warning("[DOOR] ABIERTA → apagar relés Modbus.")
         all_relay()
-        _publish_ivu(i_value, ["1"], [u_open])  # evento “abierta”
+        #_publish_ivu(i_value, ["1"], [u_open])  # evento “abierta”
+        # liberar latch de hombre atrapado
+        try:
+            if man_state.get("latched"):
+                setsirena(False)
+                setbaliza(False)
+                man_state["latched"] = False
+                man_state["pressed_ts"] = None
+                util.logging.info("[MAN] LATCH LIBERADO por apertura de puerta.")
+        except Exception as e:
+            util.logging.error(f"[MAN] Error al liberar latch: {e}")
+        _publish_ivu(i_value, ["1"], [u_open])  # v=1, u=138
     else:
         dur = round(now - prev_ts, 1)
         util.logging.info(f"[DOOR] CERRADA. Abierta {dur}s")
