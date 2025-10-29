@@ -38,7 +38,7 @@ _door_state = {
 _man_state = {
     "latched": False,       # True si sirena/baliza ON esperando que se abra la puerta
     "pressed_ts": None,     # instante (monotonic) del último PRESSED
-     "last_pressed": False,   # estado lógico previo (True=presionado)
+    "last_pressed": False,   # estado lógico previo (True=presionado)
 }
 
 #######################################
@@ -451,7 +451,7 @@ def setup_man_button_interrupt():
                 #cur = _btn_read_active(invert)
                 cur = GPIO.input(MAN_BUTTON_PIN_BCM)  # 1 reposo, 0 presionado
                 # Dispara al detectar transición 1->0 (activo-bajo)
-                if (last is False) and (cur is True):  # 1->0 lógico: ojo, cur True == activo
+                if last == 1 and cur == 0:         # flanco 1->0
                     _man_button_callback(MAN_BUTTON_PIN_BCM)
                 last = cur
                 time.sleep(max(0.05, debounce_ms / 1000.0))
