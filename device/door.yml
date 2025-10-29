@@ -15,7 +15,7 @@ medidores:
         u: 145
     man_trapped:
       i: 12
-      invert_active_low: false    # pull-up + botón a GND
+      invert_active_low: true    # pull-up + botón a GND
       debounce_ms: 80
       registers:
         - name: man_pressed
