@@ -402,10 +402,12 @@ def _man_button_callback(channel):
 
 def setup_man_button_interrupt():
     cfg = _btn_cfg()
-    debounce_ms = int(cfg.get('debounce_ms', 50))
-
+    debounce_ms = int(cfg.get('debounce_ms', 80))
+    invert = bool(cfg.get('invert_active_low', True))  # true = activo-bajo
+    
     GPIO.setwarnings(False)
     GPIO.setmode(GPIO.BCM)
+    
 
     try: GPIO.remove_event_detect(MAN_BUTTON_PIN_BCM)
     except Exception: pass
@@ -415,22 +417,25 @@ def setup_man_button_interrupt():
     GPIO.setup(MAN_BUTTON_PIN_BCM, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     time.sleep(0.02)
 
+    # Estado base (NO disparar si ya está en 0 al arrancar)
+    pressed_now = _btn_read_active(invert)  # True si está a 0 (activo-bajo)
     # Estado inicial (no latcheado)
     _man_state["latched"] = False
     _man_state["pressed_ts"] = None
+    _man_state["last_pressed"] = pressed_now  # guardamos estado inicial
 
     try:
         GPIO.add_event_detect(
             MAN_BUTTON_PIN_BCM,
-            GPIO.BOTH,
+             GPIO.FALLING,
             callback=_man_button_callback,
             bouncetime=debounce_ms
         )
-        util.logging.info(f"[MAN] Interrupción lista en GPIO{MAN_BUTTON_PIN_BCM} (debounce={debounce_ms} ms)")
+        util.logging.info(f"[MAN] IRQ GPIO{MAN_BUTTON_PIN_BCM} FALLING (debounce={debounce_ms} ms)")
     except RuntimeError as e:
         util.logging.error(f"[MAN] add_event_detect falló: {e}. Activando polling…")
         def _poll():
-            invert = bool(cfg.get('invert_active_low', True))
+            invert = bool(cfg.get('invert_active_low', False))
             last = False
             while True:
                 cur = _btn_read_active(invert)
