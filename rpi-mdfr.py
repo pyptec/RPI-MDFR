@@ -248,7 +248,7 @@ def main_loop():
         if getattr(Temp, "_man_state", {}).get("latched"):
             util.logging.warning("[LOOP] Hombre atrapado ACTIVO → sólo sirena/baliza; sin mediciones/control.")
     # Asegura Modbus OFF y HAT OFF, luego deja sólo sirena/baliza ON
-            Temp._modbus_all_off_safe()
+           
             Temp.all_relay()
             Temp.setsirena(True)
             Temp.setbaliza(True)
