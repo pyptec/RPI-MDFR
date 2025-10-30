@@ -398,7 +398,11 @@ def _man_button_callback(channel):
     if _man_state["latched"]:
         util.logging.info("[MAN] Botón presionado pero ya estaba latcheado; sin cambio.")
         return
-
+    # 2) APAGAR todos los relés del HAT
+    try:
+        Temp.all_relay()
+    except Exception as e:
+        util.logging.error(f"[MAN] all_relay() falló: {type(e).__name__}: {e}")
     # LATCH: enciende sirena & baliza y guarda TS
     setsirena(True)
     setbaliza(True)
