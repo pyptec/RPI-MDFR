@@ -439,7 +439,7 @@ def _man_button_callback(channel):
         return
     # 2) APAGAR todos los relés del HAT
     try:
-        Temp.all_relay()
+        all_relay()
     except Exception as e:
         util.logging.error(f"[MAN] all_relay() falló: {type(e).__name__}: {e}")
     # LATCH: enciende sirena & baliza y guarda TS
@@ -498,7 +498,8 @@ def setup_man_button_interrupt():
             callback=_man_button_callback,
             bouncetime=debounce_ms
         )
-        util.logging.info(f"[MAN] IRQ FALLING GPIO{MAN_BUTTON_PIN_BCM} (debounce={debounce_ms} ms)")
+        util.logging.info(f"[MAN] IRQ {'FALLING' if edge==GPIO.FALLING else 'RISING'} "
+                            f"GPIO{MAN_BUTTON_PIN_BCM} (debounce={debounce_ms} ms)")
     except RuntimeError as e:
         util.logging.error(f"[MAN] add_event_detect falló: {e}. Activando polling…")
         def _poll():
