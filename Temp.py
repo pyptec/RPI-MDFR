@@ -386,10 +386,10 @@ def _man_button_callback(channel):
     regs = cfg.get('registers', [])
     u_pressed = _get_unit(regs, {"man_pressed"}, "310")
     
-    #invert = bool(cfg.get('invert_active_low', False))
+    invert = bool(cfg.get('invert_active_low', False))
 
     # Espera corta y re-lee para asegurarse que sigue en 0 (activo-bajo)
-    #time.sleep(0.02)  # 20 ms
+    time.sleep(0.02)  # 20 ms
     if not _btn_read_active(invert):     # debe seguir en 1
         return
     
@@ -415,7 +415,7 @@ def _man_button_callback(channel):
 def setup_man_button_interrupt():
     cfg = _btn_cfg()
     debounce_ms = int(cfg.get('debounce_ms', 80))
-    #invert = bool(cfg.get('invert_active_low', True))  # true = activo-bajo
+    invert = bool(cfg.get('invert_active_low', True))  # true = activo-bajo
     
     GPIO.setwarnings(False)
     GPIO.setmode(GPIO.BCM)
@@ -427,10 +427,22 @@ def setup_man_button_interrupt():
     except Exception: pass
     
     # Pull-up interno: reposo en 1; al presionar baja a 0
-    GPIO.setup(MAN_BUTTON_PIN_BCM, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    #GPIO.setup(MAN_BUTTON_PIN_BCM, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    # Selección de pull y flanco según 'invert'
+    if invert:
+        # Activo-bajo: reposo 1 (pull-up), presiona => 0 (FALLING)
+        GPIO.setup(MAN_BUTTON_PIN_BCM, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        edge = GPIO.FALLING
+    else:
+        # Activo-alto: reposo 0 (pull-down), presiona => 1 (RISING)
+        GPIO.setup(MAN_BUTTON_PIN_BCM, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+        edge = GPIO.RISING
+
+    
+    
     time.sleep(0.02)
 
-   # Estado inicial (no dispares si ya entra en 0 por wiring/ruido)
+    # Estado inicial (no dispares si ya entra en 0 por wiring/ruido)
     _man_state["latched"] = False
     _man_state["pressed_ts"] = None
     _man_state["last_pressed"] = False
@@ -439,7 +451,7 @@ def setup_man_button_interrupt():
         # Solo flanco de bajada (HIGH->LOW) coherente con activo-bajo
         GPIO.add_event_detect(
             MAN_BUTTON_PIN_BCM,
-             GPIO.BOTH,
+            edge,
             callback=_man_button_callback,
             bouncetime=debounce_ms
         )
@@ -452,9 +464,11 @@ def setup_man_button_interrupt():
             while True:
                 #cur = _btn_read_active(invert)
                 cur = GPIO.input(MAN_BUTTON_PIN_BCM)  # 1 reposo, 0 presionado
-                # Dispara al detectar transición 1->0 (activo-bajo)
-                if last == 0 and cur == 1:         # flanco 1->0
-                    _man_button_callback(MAN_BUTTON_PIN_BCM)
+                # Disparo por flanco según config
+                if invert:
+                    if last == 1 and cur == 0: _man_button_callback(MAN_BUTTON_PIN_BCM)  # 1->0
+                else:
+                    if last == 0 and cur == 1: _man_button_callback(MAN_BUTTON_PIN_BCM)  # 0->1
                 last = cur
                 time.sleep(max(0.05, debounce_ms / 1000.0))
         threading.Thread(target=_poll, daemon=True).start()
