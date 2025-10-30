@@ -41,6 +41,7 @@ _man_state = {
     "last_pressed": False,   # estado lógico previo (True=presionado)
 }
 
+_door_restored = False
 #######################################
 #Mantenimiento raspberry Temperatura
 ########################################
@@ -254,9 +255,11 @@ def _door_callback(channel):
 
     if active:
         util.logging.warning("[DOOR] ABIERTA → apagar relés Modbus.")
-        all_relay()
+        restablecer_sistema_post_puerta()
+        #all_relay()
         #_publish_ivu(i_value, ["1"], [u_open])  # evento “abierta”
         # liberar latch de hombre atrapado
+        '''
         try:
             if man_state.get("latched"):
                 setsirena(False)
@@ -267,9 +270,12 @@ def _door_callback(channel):
                 util.logging.info("[MAN] LATCH LIBERADO por apertura de puerta.")
         except Exception as e:
             util.logging.error(f"[MAN] Error al liberar latch: {e}")
+        '''
         _publish_ivu(i_value, ["1"], [u_open])  # v=1, u=138
         _man_state["last_pressed"] = _btn_read_active(True)  # activo-bajo
     else:
+        global _door_restored
+        _door_restored = False
         dur = round(now - prev_ts, 1)
         util.logging.info(f"[DOOR] CERRADA. Abierta {dur}s")
         _publish_ivu(i_value, [str(dur)], [u_dur])  # evento “cerrada” (solo duración)
@@ -377,6 +383,39 @@ def _btn_read_active(invert_low: bool) -> bool:
     """True si PRESIONADO."""
     raw = GPIO.input(MAN_BUTTON_PIN_BCM)  # 0/1
     return (raw == 0) if invert_low else (raw == 1)
+
+#-----------------------------------------------------------------------------------------------------------
+# 
+#-----------------------------------------------------------------------------------------------------------
+def restablecer_sistema_post_puerta():
+    """Apaga todo, libera latch de hombre atrapado y deja sistema listo para reanudar."""
+    global _door_restored
+    try:
+               
+        # 1) Apaga relés del HAT
+        try:
+            all_relay()
+        except Exception as e:
+            util.logging.error(f"[DOOR] all_relay() falló: {type(e).__name__}: {e}")
+
+        # 2) Asegura sirena y baliza en OFF
+        try:
+            setsirena(False)
+            setbaliza(False)
+        except Exception as e:
+            util.logging.error(f"[DOOR] Apagar sirena/baliza falló: {type(e).__name__}: {e}")
+
+        # 4) Libera latch de “hombre atrapado”
+        _man_state["latched"] = False
+        _man_state["pressed_ts"] = None
+
+        # 5) Marca restablecido
+        if not _door_restored:
+            util.logging.info("[DOOR] Sistema restablecido por apertura de puerta (todo OFF, latch liberado).")
+        _door_restored = True
+
+    except Exception as e:
+        util.logging.error(f"[DOOR] restablecer_sistema_post_puerta() error: {type(e).__name__}: {e}")
 #-----------------------------------------------------------------------------------------------------------
 # Callback de interrupción de botón hombre atrapado
 #-----------------------------------------------------------------------------------------------------------

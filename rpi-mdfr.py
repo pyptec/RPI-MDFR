@@ -245,48 +245,21 @@ def main_loop():
       
 
     # --- GUARD 0: Hombre atrapado latcheado → SOLO sirena/baliza, nada más ---
-        try:
-            if getattr(Temp, "_man_state", {}).get("latched"):
-                util.logging.warning("[LOOP] Hombre atrapado ACTIVO → sólo sirena/baliza, sin mediciones/control.")
-            # Asegura Modbus OFF y HAT OFF, luego deja sólo sirena/baliza ON
-                try:
-                    if hasattr(Temp, "_modbus_all_off_safe"):
-                        Temp._modbus_all_off_safe()
-                except Exception as e:
-                    util.logging.error(f"[LOOP] _modbus_all_off_safe() falló: {type(e).__name__}: {e}")
-
-                try:
-                    Temp.all_relay()               # apaga relés del HAT
-                except Exception as e:
-                    util.logging.error(f"[LOOP] all_relay() falló: {type(e).__name__}: {e}")
-
-            # Dejar SOLO sirena y baliza encendidas
-                Temp.setsirena(True)
-                Temp.setbaliza(True)
-
-                # Refresco rápido del WDT mientras estamos en alarma
-                Temp.iniciar_wdt()
-                time.sleep(0.2)
-                continue
-        except Exception as e:
-            util.logging.error(f"[LOOP] Guard hombre atrapado falló: {type(e).__name__}: {e}")
+        if getattr(Temp, "_man_state", {}).get("latched"):
+            util.logging.warning("[LOOP] Hombre atrapado ACTIVO → sólo sirena/baliza; sin mediciones/control.")
+    # Asegura Modbus OFF y HAT OFF, luego deja sólo sirena/baliza ON
+            Temp._modbus_all_off_safe()
+            Temp.all_relay()
+            Temp.setsirena(True)
+            Temp.setbaliza(True)
+            Temp.iniciar_wdt()
+            time.sleep(0.2)
+            continue
 
     # --- GUARD 1: Puerta ABIERTA → todo OFF, sin mediciones/control este ciclo ---
         if Temp.door_is_open():
-            util.logging.warning("[LOOP] Puerta ABIERTA → relés OFF, sin mediciones/control este ciclo.")
-            try:
-                Temp.all_relay()
-            # Si había latch de hombre atrapado, se libera y se apaga sirena/baliza
-                if getattr(Temp, "_man_state", {}).get("latched"):
-                    Temp.setsirena(False)
-                    Temp.setbaliza(False)
-                    Temp._man_state["latched"] = False
-                    Temp._man_state["pressed_ts"] = None
-                    util.logging.info("[MAN] LATCH LIBERADO por apertura de puerta.")
-            except Exception as e:
-                util.logging.error(f"[LOOP] all_relay() falló: {type(e).__name__}: {e}")
-
-            # refresco rápido del watchdog mientras esperamos
+            util.logging.warning("[LOOP] Puerta ABIERTA → restablecer sistema y saltar ciclo.")
+            Temp.restablecer_sistema_post_puerta()
             Temp.iniciar_wdt()
             time.sleep(0.5)
             continue
