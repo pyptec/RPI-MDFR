@@ -20,4 +20,4 @@ medidores:
       registers:
         - name: man_pressed
           alias: man_pressed
-          u: 310                 # evento “presionado” (v = 1)
+          u: 146                 # evento “presionado” (v = 1)

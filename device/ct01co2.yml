@@ -23,5 +23,5 @@ medidores:
         unit: 139
         alias: co2
     control:
-      co2_ppm_low: 5000     # por debajo o igual a este valor → GAS ON, EXTRACTOR OFF
+      co2_ppm_low: 6000     # por debajo o igual a este valor → GAS ON, EXTRACTOR OFF
       co2_ppm_high: 9000    # por encima o igual a este valor → GAS OFF, EXTRACTOR ON 

@@ -29,6 +29,6 @@ medidores:
         alias: Humidity
     control:
       hu_ppm_low: 80     # por debajo o igual a este valor → HUMEDAD ON, HUMIDIFICADOR OFF
-      hu_ppm_high: 95    # por encima o igual a este valor → HUMEDAD OFF, HUMIDIFICADOR ON 
+      hu_ppm_high: 85    # por encima o igual a este valor → HUMEDAD OFF, HUMIDIFICADOR ON 
       temp_c_low: 18     # (opcional) °C → extractor OFF si <=
       temp_c_high: 19    # (opcional) °C → extractor ON  si >=

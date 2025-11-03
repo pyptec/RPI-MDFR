@@ -223,26 +223,7 @@ def main_loop():
     # Bucle principal
     contador_envio = 0  # Inicialízalo fuera del loop principal
     while True:
-        '''
-        # --- GUARD DE OPERACIÓN: si se abre, apaga y salta ciclo ---
-        if Temp.door_is_open():
-            util.logging.warning("[LOOP] Puerta ABIERTA → relés OFF, sin mediciones/control este ciclo.")
-            try:
-                Temp.all_relay()
-                if Temp._man_state.get("latched"):
-                    Temp.setsirena(False); Temp.setbaliza(False)
-                # (no se publica “liberado”; solo se apaga por puerta)
-                    Temp._man_state["latched"] = False
-                    Temp._man_state["pressed_ts"] = None
-                    util.logging.info("[MAN] LATCH LIBERADO por apertura de puerta.")
-            except Exception as e:
-                util.logging.error(f"[LOOP] all_relay() falló: {type(e).__name__}: {e}")
-        # refresco rápido del watchdog mientras esperamos
-            Temp.iniciar_wdt()
-            time.sleep(0.5)
-            continue
-        '''
-      
+        
 
     # --- GUARD 0: Hombre atrapado latcheado → SOLO sirena/baliza, nada más ---
         if getattr(Temp, "_man_state", {}).get("latched"):
