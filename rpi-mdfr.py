@@ -283,7 +283,7 @@ def main_loop():
                 if mqtt_client:
                     awsaccess.publish_mediciones(mqtt_client, datos['sensor_CT01CO2'])
                     awsaccess.publish_mediciones(mqtt_client, datos['sensor_THT03R'])
-                    awsaccess.publish_mediciones(mqtt_client, snap_puerta)
+                    awsaccess.publish_mediciones(mqtt_client, json.dumps(snap_puerta))
                     #awsaccess.publish_mediciones(mqtt_client,batch_str)
                     awsaccess.disconnect_from_aws_iot(mqtt_client)
                    
@@ -291,13 +291,13 @@ def main_loop():
                     # Hay internet, pero falla conectar MQTT:
                     fileventqueue.agregar_evento(datos['sensor_CT01CO2'])
                     fileventqueue.agregar_evento(datos['sensor_THT03R'])
-                    fileventqueue.agregar_evento(snap_puerta)
+                    fileventqueue.agregar_evento(json.dumps(snap_puerta))
                     
             else:
                 # No hay internet:
                 fileventqueue.agregar_evento(datos['sensor_CT01CO2'])
                 fileventqueue.agregar_evento(datos['sensor_THT03R'])
-                fileventqueue.agregar_evento(snap_puerta)
+                fileventqueue.agregar_evento(json.dumps(snap_puerta))
                 
         if tempQueue == 0:
             tempQueue = TIMERCOLAEVENTOS
