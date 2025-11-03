@@ -201,3 +201,81 @@ def relay_read_states(config) -> dict:
     
     
 # modbusdevices.py
+
+def payload_relays_many(config: dict, names: list[str]):
+    """
+    Lee varios relés por nombre (coils FC1) y arma UN payload IVU:
+      - i: config['i'] o config['id_device']
+      - v: ["1"/"0"/"None"] por cada relé (orden = names)
+      - u: [unidad_por_relé] tomada del YAML (orden = names)
+    """
+    device_name = config.get('device_name') or f"ModbusDevice(i={config.get('i') or config.get('id_device')})"
+    i_value = int(config.get('i', config.get('id_device', 0)) or 0)
+
+    port     = config.get('port', '/dev/ttyS0')
+    slave    = int(config.get('slave_id', 1))
+    baud     = int(config.get('baudrate', 9600))
+    bytesize = int(config.get('bytesize', 8))
+    stopbits = int(config.get('stopbits', 1))
+    timeout  = float(config.get('timeout', 1))
+    parity_map = {'N': serial.PARITY_NONE, 'E': serial.PARITY_EVEN, 'O': serial.PARITY_ODD}
+    parity  = parity_map.get(str(config.get('parity', 'N')).upper(), serial.PARITY_NONE)
+
+    # Instancia Modbus
+    inst = minimalmodbus.Instrument(port, slave)
+    inst.serial.baudrate = baud
+    inst.serial.bytesize = bytesize
+    inst.serial.stopbits = stopbits
+    inst.serial.timeout  = timeout
+    inst.serial.parity   = parity
+    inst.mode = minimalmodbus.MODE_RTU
+    inst.clear_buffers_before_each_transaction = True
+    inst.close_port_after_each_call = True
+
+    # Índice rápido por nombre
+    regs_by_name = {str(r.get('name')): r for r in config.get('registers', [])}
+
+    v_vals, u_vals = [], []
+    for name in names:
+        reg = regs_by_name.get(name)
+        if not reg:
+            util.logging.error(f"[{device_name}] Relay '{name}' no existe en YAML.")
+            v_vals.append("None")
+            u_vals.append("143")  # fallback
+            continue
+
+        if str(reg.get('fc_read', '')) != '1':
+            util.logging.warning(f"[{device_name}] Relay '{name}' sin fc_read=1; no se puede leer estado.")
+            v_vals.append("None")
+            u_vals.append(str(reg.get('unit', '143')))
+            continue
+
+        addr = int(reg['address'])
+        try:
+            bit = inst.read_bit(addr, functioncode=1)  # FC1: Read Coils
+            v_vals.append("1" if bit else "0")
+        except Exception as e:
+            util.logging.error(f"[{device_name}] Leer '{name}' addr={addr} falló: {type(e).__name__}: {e}")
+            v_vals.append("None")
+
+        u_vals.append(str(reg.get('unit', '143')))
+
+    return {
+        "d": [{
+            "t": util.get__time_utc(),
+            "i": i_value,
+            "v": v_vals,
+            "u": u_vals
+        }]
+    }
+
+
+def payload_relays_from_yaml(yaml_path: str, block_key: str, names: list[str]):
+    """
+    Atajo: carga el bloque del YAML y llama payload_relays_many().
+    """
+    cfg = util.cargar_configuracion(yaml_path)
+    dev = (cfg or {}).get('medidores', {}).get(block_key)
+    if not isinstance(dev, dict):
+        raise ValueError(f"Bloque '{block_key}' no existe o YAML inválido.")
+    return payload_relays_many(dev, names)

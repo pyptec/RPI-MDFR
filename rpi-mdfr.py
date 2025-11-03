@@ -269,15 +269,18 @@ def main_loop():
             datos = obtener_datos_medidores_y_sensor()
             snap_puerta = Temp.snapshot_puerta()
             snap_man    = Temp.snapshot_hombre_atrapado()
-            #snap_relays = modbusdevices.snapshot_relays_from_file('/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml')
-            #batch = util.merge_payloads(
-            #    datos.get('sensor_CT01CO2'),
-            #    datos.get('sensor_THT03R'),
-            #    snap_puerta,
-            #    snap_man,
-            #    snap_relays
-            #)
-            #batch_str = json.dumps(batch)
+            # Cargar el YAML del módulo de relés
+            cfg_rel = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml')
+            rel_dev = cfg_rel['medidores']['relay_dioustou_4r']  # <-- usa la clave real de tu bloque
+
+            # Tomar cada relé por su 'name' en el YAML
+            # Un solo JSON con estados (v) y unidades (u), en orden:
+            p_relays = modbusdevices.payload_relays_many(
+                rel_dev,
+                ['recircular','extractor','humidificador','etileno']
+        )
+
+            
             if  util.check_internet_connection():
                 mqtt_client = awsaccess.connect_to_mqtt()
                 if mqtt_client:
@@ -285,6 +288,7 @@ def main_loop():
                     awsaccess.publish_mediciones(mqtt_client, datos['sensor_THT03R'])
                     awsaccess.publish_mediciones(mqtt_client, json.dumps(snap_puerta))
                     awsaccess.publish_mediciones(mqtt_client, json.dumps(snap_man))
+                    awsaccess.publish_mediciones(mqtt_client, json.dumps(p_relays))
                     #awsaccess.publish_mediciones(mqtt_client,batch_str)
                     awsaccess.disconnect_from_aws_iot(mqtt_client)
                    
@@ -294,6 +298,7 @@ def main_loop():
                     fileventqueue.agregar_evento(datos['sensor_THT03R'])
                     fileventqueue.agregar_evento(json.dumps(snap_puerta))
                     fileventqueue.agregar_evento(json.dumps(snap_man))
+                    fileventqueue.agregar_evento(json.dumps(p_relays))
                     
             else:
                 # No hay internet:
@@ -301,6 +306,7 @@ def main_loop():
                 fileventqueue.agregar_evento(datos['sensor_THT03R'])
                 fileventqueue.agregar_evento(json.dumps(snap_puerta))
                 fileventqueue.agregar_evento(json.dumps(snap_man))
+                fileventqueue.agregar_evento(json.dumps(p_relays))
                 
         if tempQueue == 0:
             tempQueue = TIMERCOLAEVENTOS
