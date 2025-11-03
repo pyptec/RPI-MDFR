@@ -286,7 +286,6 @@ def main_loop():
                     awsaccess.publish_mediciones(mqtt_client, json.dumps(snap_puerta))
                     awsaccess.publish_mediciones(mqtt_client, json.dumps(snap_man))
                     awsaccess.publish_mediciones(mqtt_client, json.dumps(p_relays))
-                    #awsaccess.publish_mediciones(mqtt_client,batch_str)
                     awsaccess.disconnect_from_aws_iot(mqtt_client)
                    
                 else:
