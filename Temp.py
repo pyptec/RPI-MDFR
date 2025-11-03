@@ -213,7 +213,16 @@ def door_is_open() -> bool:
 # Busca en registers por alias o name; devuelve u en str.
 #-----------------------------------------------------------------------------------------------------------
 def _get_unit(regs, candidates, default_str):
-    """Busca en registers por alias o name; devuelve u en str."""
+    cand = set(str(x) for x in candidates)
+    for r in (regs or []):
+        alias = str(r.get('alias') or r.get('name') or '')
+        if alias in cand:
+            u = r.get('u')
+            if u is not None:
+                return str(u)  # << importante: devolver str
+    util.logging.warning(f"[CFG] u-code no encontrado para {candidates}; usando {default_str}")
+    return str(default_str)
+    """Busca en registers por alias o name; devuelve u en str.
     cand = set(candidates)
     for r in regs or []:
         if str(r.get('alias')) in cand or str(r.get('name')) in cand:
@@ -222,6 +231,7 @@ def _get_unit(regs, candidates, default_str):
                 return str(u)
     util.logging.warning(f"[DOOR] u-code no encontrado para {candidates}; usando {default_str}")
     return str(default_str)
+    """
 #-----------------------------------------------------------------------------------------------------------
 # Callback de interrupción de puerta
 #-----------------------------------------------------------------------------------------------------------
@@ -256,21 +266,6 @@ def _door_callback(channel):
     if active:
         util.logging.warning("[DOOR] ABIERTA → apagar relés Modbus.")
         restablecer_sistema_post_puerta()
-        #all_relay()
-        #_publish_ivu(i_value, ["1"], [u_open])  # evento “abierta”
-        # liberar latch de hombre atrapado
-        '''
-        try:
-            if man_state.get("latched"):
-                setsirena(False)
-                setbaliza(False)
-                _man_state["latched"] = False
-                _man_state["pressed_ts"] = None
-               # _man_state["last_pressed"] = False
-                util.logging.info("[MAN] LATCH LIBERADO por apertura de puerta.")
-        except Exception as e:
-            util.logging.error(f"[MAN] Error al liberar latch: {e}")
-        '''
         _publish_ivu(i_value, ["1"], [u_open])  # v=1, u=138
         _man_state["last_pressed"] = _btn_read_active(True)  # activo-bajo
     else:
@@ -423,7 +418,8 @@ def _man_button_callback(channel):
     cfg = _btn_cfg()
     i_value = int(cfg.get('i', 12))
     regs = cfg.get('registers', [])
-    u_pressed = _get_unit(regs, {"man_pressed"}, "310")
+    u_pressed = _get_unit(regs, {"man_pressed"}, "146")
+    util.logging.info(f"[MAN] Unidad (u) para botón: {u_pressed}")
     
     invert = bool(cfg.get('invert_active_low', False))
 
