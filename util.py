@@ -10,6 +10,7 @@ import socket
 import threading
 import yaml
 import Temp
+import json
 
 # Configuración básica de logging
 logging.basicConfig(
@@ -392,3 +393,37 @@ def renovar_ip_usb0():
     except subprocess.CalledProcessError:
         logging.warning("Error al ejecutar dhclient")
         return None
+    
+
+
+def _normalize_payload(p):
+    """
+    Acepta dict o str (JSON) o None, y devuelve dict con key 'd': [ ... ].
+    Si no trae 'd', devuelve {}.
+    """
+    if p is None:
+        return {}
+    if isinstance(p, str):
+        try:
+            p = json.loads(p)
+        except Exception:
+            return {}
+    if not isinstance(p, dict):
+        return {}
+    d = p.get("d")
+    if isinstance(d, list):
+        return {"d": d}
+    return {}
+
+def merge_payloads(*payloads):
+    """
+    Une varios payloads tipo {"d":[{...}, ...]} en UNO SOLO.
+    Ignora None/strings inválidos. Devuelve {"d": [...]}. Si todo está vacío, devuelve {"d": []}.
+    """
+    merged = []
+    for p in payloads:
+        norm = _normalize_payload(p)
+        dl = norm.get("d", [])
+        if isinstance(dl, list):
+            merged.extend(dl)
+    return {"d": merged}

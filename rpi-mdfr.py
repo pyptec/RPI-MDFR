@@ -267,20 +267,30 @@ def main_loop():
             tempMedidor = TIMERMEDICION
             # datos de los sensores
             datos = obtener_datos_medidores_y_sensor()
-            
+            snap_puerta = Temp.snapshot_puerta()
+            snap_man    = Temp.snapshot_hombre_atrapado()
+            snap_relays = modbusdevices.snapshot_relays_from_file('/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml')
+            batch = util.merge_payloads(
+                datos.get('sensor_CT01CO2'),
+                datos.get('sensor_THT03R'),
+                snap_puerta,
+                snap_man,
+                snap_relays
+            )
+            batch_str = json.dumps(batch)
             if  util.check_internet_connection():
                 mqtt_client = awsaccess.connect_to_mqtt()
                 if mqtt_client:
-                    awsaccess.publish_mediciones(mqtt_client,datos['sensor_CT01CO2'])
+                    awsaccess.publish_mediciones(mqtt_client,batch_str)
                     awsaccess.disconnect_from_aws_iot(mqtt_client)
                    
                 else:
                     # Hay internet, pero falla conectar MQTT:
-                    fileventqueue.agregar_evento(datos['sensor_CT01CO2'])
+                    fileventqueue.agregar_evento(batch_str)
                     
             else:
                 # No hay internet:
-                fileventqueue.agregar_evento(datos['sensor_CT01CO2'])
+                fileventqueue.agregar_evento(batch_str)
                 
         if tempQueue == 0:
             tempQueue = TIMERCOLAEVENTOS

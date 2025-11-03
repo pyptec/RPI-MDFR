@@ -512,3 +512,51 @@ def setup_man_button_interrupt():
                 last = cur
                 time.sleep(max(0.05, debounce_ms / 1000.0))
         threading.Thread(target=_poll, daemon=True).start()
+
+def snapshot_puerta():
+    """
+    Snapshot instantáneo del estado de la puerta:
+      - v=["1"] si abierta, v=["0"] si cerrada
+      - u = unidad configurada para "door_open"/"estado_puerta" (fallback "138")
+      - i = tomado de door.yml (door_sensor.i)
+    """
+    try:
+        door = _door_cfg()
+        i_value = int(door.get('i', 12))
+        regs    = door.get('registers', [])
+
+        # Usa TU helper existente (no redefinimos nada):
+        u_open = _get_unit(regs, {"door_open", "estado_puerta"}, "138")
+
+        invert = bool(door.get('invert_active_low', True))
+        is_open = _door_read_active(invert)  # True si abierta
+
+        v = ["1" if is_open else "0"]
+        return {"d": [{"t": util.get__time_utc(), "i": i_value, "v": v, "u": [u_open]}]}
+    except Exception as e:
+        util.logging.error(f"[SNAP] puerta: {type(e).__name__}: {e}")
+        return None
+
+
+def snapshot_hombre_atrapado():
+    """
+    Snapshot instantáneo del latch de hombre atrapado:
+      - v=["1"] si latcheado, v=["0"] si normal
+      - u = unidad configurada para "man_pressed" (fallback "146")
+      - i = tomado de door.yml (man_trapped.i)
+    """
+    try:
+        cfg_btn = _btn_cfg()
+        i_value = int(cfg_btn.get('i', 12))
+        regs    = cfg_btn.get('registers', [])
+
+        # Usa TU helper:
+        u_btn = _get_unit(regs, {"man_pressed"}, "146")
+
+        latched = bool(_man_state.get("latched"))
+        v = ["1" if latched else "0"]
+        return {"d": [{"t": util.get__time_utc(), "i": i_value, "v": v, "u": [u_btn]}]}
+    except Exception as e:
+        util.logging.error(f"[SNAP] man_trapped: {type(e).__name__}: {e}")
+        return None
+
