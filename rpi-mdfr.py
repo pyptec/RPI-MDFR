@@ -270,8 +270,9 @@ def main_loop():
             snap_puerta = Temp.snapshot_puerta()
             snap_man    = Temp.snapshot_hombre_atrapado()
             # Cargar el YAML del módulo de relés
-            cfg_rel = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml')
-            rel_dev = cfg_rel['medidores']['relay_Dioustou_4r']  # <-- usa la clave real de tu bloque
+            yaml_rel = '/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml'
+            rel_dev  = util.cargar_configuracion(yaml_rel, 'relayDioustou_4r')  # <- nombre exacto del bloque
+
 
             # Tomar cada relé por su 'name' en el YAML
             # Un solo JSON con estados (v) y unidades (u), en orden:
