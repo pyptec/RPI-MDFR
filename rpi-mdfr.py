@@ -217,7 +217,7 @@ def main_loop():
             util.logging.error(f"[START] Error en gate de puerta: {type(e).__name__}: {e}")
             time.sleep(1.0)
     
-    # --- BLOQUE DE ARRANQUE ---
+    # --- BLOQUE DE ARRANQUE datos_iniciales.py---
     ejecutar_datos_iniciales(obtener_datos_medidores_y_sensor)
     
     # Bucle principal
@@ -268,29 +268,36 @@ def main_loop():
             # datos de los sensores
             datos = obtener_datos_medidores_y_sensor()
             snap_puerta = Temp.snapshot_puerta()
-            snap_man    = Temp.snapshot_hombre_atrapado()
-            snap_relays = modbusdevices.snapshot_relays_from_file('/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml')
-            batch = util.merge_payloads(
-                datos.get('sensor_CT01CO2'),
-                datos.get('sensor_THT03R'),
-                snap_puerta,
-                snap_man,
-                snap_relays
-            )
-            batch_str = json.dumps(batch)
+            #snap_man    = Temp.snapshot_hombre_atrapado()
+            #snap_relays = modbusdevices.snapshot_relays_from_file('/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml')
+            #batch = util.merge_payloads(
+            #    datos.get('sensor_CT01CO2'),
+            #    datos.get('sensor_THT03R'),
+            #    snap_puerta,
+            #    snap_man,
+            #    snap_relays
+            #)
+            #batch_str = json.dumps(batch)
             if  util.check_internet_connection():
                 mqtt_client = awsaccess.connect_to_mqtt()
                 if mqtt_client:
-                    awsaccess.publish_mediciones(mqtt_client,batch_str)
+                    awsaccess.publish_mediciones(mqtt_client, datos['sensor_CT01CO2'])
+                    awsaccess.publish_mediciones(mqtt_client, datos['sensor_THT03R'])
+                    awsaccess.publish_mediciones(mqtt_client, snap_puerta)
+                    #awsaccess.publish_mediciones(mqtt_client,batch_str)
                     awsaccess.disconnect_from_aws_iot(mqtt_client)
                    
                 else:
                     # Hay internet, pero falla conectar MQTT:
-                    fileventqueue.agregar_evento(batch_str)
+                    fileventqueue.agregar_evento(datos['sensor_CT01CO2'])
+                    fileventqueue.agregar_evento(datos['sensor_THT03R'])
+                    fileventqueue.agregar_evento(snap_puerta)
                     
             else:
                 # No hay internet:
-                fileventqueue.agregar_evento(batch_str)
+                fileventqueue.agregar_evento(datos['sensor_CT01CO2'])
+                fileventqueue.agregar_evento(datos['sensor_THT03R'])
+                fileventqueue.agregar_evento(snap_puerta)
                 
         if tempQueue == 0:
             tempQueue = TIMERCOLAEVENTOS
