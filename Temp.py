@@ -531,7 +531,7 @@ def snapshot_puerta():
         invert = bool(door.get('invert_active_low', True))
         is_open = _door_read_active(invert)  # True si abierta
 
-        v = ["1" if is_open else "0"]
+        v = ["0" if is_open else "1"]
         return {"d": [{"t": util.get__time_utc(), "i": i_value, "v": v, "u": [u_open]}]}
     except Exception as e:
         util.logging.error(f"[SNAP] puerta: {type(e).__name__}: {e}")
