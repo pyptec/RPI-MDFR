@@ -279,3 +279,81 @@ def payload_relays_from_yaml(yaml_path: str, block_key: str, names: list[str]):
     if not isinstance(dev, dict):
         raise ValueError(f"Bloque '{block_key}' no existe o YAML inválido.")
     return payload_relays_many(dev, names)
+
+import minimalmodbus, serial, struct, util
+
+def payload_relays_many_packed(config: dict, names: list[str]):
+    """
+    Lee los coils 0..7 en un solo FC=1 (Read Coils, qty=8) y arma UN payload:
+      g = config['id_device'] (o 'i' si no existe)
+      v = ["1"/"0"] por cada 'name' (orden dado)
+      u = unidad por cada relé, tomada del YAML
+    El estado de cada relé se toma del byte de datos: bit=address (0..3).
+    """
+    device_name = config.get('device_name') or f"ModbusDevice(g={config.get('id_device') or config.get('i')})"
+    g_value = int(config.get('id_device', config.get('i', 0)) or 0)
+
+    port     = config.get('port', '/dev/ttyS0')
+    slave    = int(config['slave_id'])
+    baud     = int(config['baudrate'])
+    bytesize = int(config['bytesize'])
+    stopbits = int(config['stopbits'])
+    timeout  = float(config.get('timeout', 1))
+    parity_map = {'N': serial.PARITY_NONE, 'E': serial.PARITY_EVEN, 'O': serial.PARITY_ODD}
+    parity  = parity_map.get(str(config.get('parity','N')).upper(), serial.PARITY_NONE)
+
+    # índice por nombre
+    regs_by_name = {str(r.get('name')): r for r in (config.get('registers') or [])}
+
+    inst = minimalmodbus.Instrument(port, slave)
+    inst.serial.baudrate = baud
+    inst.serial.bytesize = bytesize
+    inst.serial.stopbits = stopbits
+    inst.serial.timeout  = timeout
+    inst.serial.parity   = parity
+    inst.mode = minimalmodbus.MODE_RTU
+    inst.clear_buffers_before_each_transaction = True
+    inst.close_port_after_each_call = True
+
+    # ---- FC=1, start=0, qty=8  -> como tus tramas: FF 01 00 00 00 08 CRC ----
+    start_addr = 0
+    quantity   = 8
+    req_payload = struct.pack('>HH', start_addr, quantity)  # big-endian
+    try:
+        # _perform_command devuelve SOLO el payload de respuesta (sin addr/fc/crc)
+        # Para FC=1: b'\x01' + <status_byte>
+        resp = inst._perform_command(1, req_payload)
+        if not resp or len(resp) < 2:
+            raise ValueError(f"Respuesta corta FC1: {resp!r}")
+        byte_count = resp[0]
+        if byte_count < 1:
+            raise ValueError(f"ByteCount inválido en FC1: {byte_count}")
+        status_byte = resp[1]  # ← ESTE ES TU 4º byte de la trama total
+    except Exception as e:
+        util.logging.error(f"[{device_name}] FC1 qty=8 falló: {type(e).__name__}: {e}")
+        # Si falla, devolvemos None por cada name
+        v_vals = ["None"] * len(names)
+        u_vals = [str(regs_by_name.get(n, {}).get('unit', '143')) for n in names]
+        return {"d":[{"t": util.get__time_utc(), "g": g_value, "v": v_vals, "u": u_vals}]}
+
+    # Construir v/u según nombres y address de cada relé (bit = address)
+    v_vals, u_vals = [], []
+    for name in names:
+        reg = regs_by_name.get(name)
+        if not reg:
+            util.logging.error(f"[{device_name}] Relay '{name}' no existe en YAML.")
+            v_vals.append("None")
+            u_vals.append("143")
+            continue
+        addr = int(reg.get('address', 0))
+        bit_val = (status_byte >> addr) & 0x01
+        v_vals.append("1" if bit_val else "0")
+        u_vals.append(str(reg.get('unit', '143')))
+
+    return {
+        "d": [{
+            "t": util.get__time_utc(),
+            "g": g_value,         # ← ahora g (no i)
+            "v": v_vals,
+            "u": u_vals
+        }]}

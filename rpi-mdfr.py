@@ -270,16 +270,12 @@ def main_loop():
             snap_puerta = Temp.snapshot_puerta()
             snap_man    = Temp.snapshot_hombre_atrapado()
             # Cargar el YAML del módulo de relés
-            yaml_rel = '/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml'
-            rel_dev  = util.cargar_configuracion(yaml_rel, 'relayDioustou_4r')  # <- nombre exacto del bloque
-
-
-            # Tomar cada relé por su 'name' en el YAML
-            # Un solo JSON con estados (v) y unidades (u), en orden:
-            p_relays = modbusdevices.payload_relays_many(
-                rel_dev,
-                ['recircular','extractor','humidificador','etileno']
-        )
+            cfg_rel = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml', 'relayDioustou_4r')
+            p_relays = modbusdevices.payload_relays_many_packed(
+                cfg_rel,
+                ['recircular','extractor','humidificador','etileno']   # orden que quieres en v/u
+            )
+               
 
             
             if  util.check_internet_connection():
