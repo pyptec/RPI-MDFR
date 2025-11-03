@@ -25,7 +25,7 @@ def ejecutar_raspberry(tempRaspberry, TIMERCHEQUEOTEMPERATURA, contador_envio):
             contador_envio += 1
             util.logging.info(f"[RASPBERRY] contador_envio={contador_envio}")
 
-            if contador_envio >= 3:
+            if contador_envio >= 10:
                 contador_envio = 0
                 if util.check_internet_connection():
                     mqtt_client = awsaccess.connect_to_mqtt()

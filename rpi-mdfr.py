@@ -245,19 +245,19 @@ def main_loop():
             time.sleep(0.5)
             continue
 
-    # ... (resto de tu loop normal: mediciones, lógica MDFR, etc.) ...
+        # ... (resto de tu loop normal: mediciones, lógica MDFR, etc.) ...
 
         tempRaspberry, tempMedidor, tempQueue, tempPing, tempCheckusb, tempMdfr = util.actualizar_temporizadores(
         tempRaspberry, tempMedidor, tempQueue, tempPing, tempCheckusb, tempMdfr)
           
                        
-        # Caso “raspberry”
+        # Caso “rasp_loop.py ejecutar_raspberry(tempRaspberry, TIMERCHEQUEOTEMPERATURA, contador_envio)”
         
         tempRaspberry, contador_envio = DISPATCH["raspberry"](
         tempRaspberry, TIMERCHEQUEOTEMPERATURA, contador_envio
         )
 
-        # Caso “mdfr”
+        # Caso “mdfr_loop.py ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):”
         tempMdfr = DISPATCH["mdfr"](
         tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor
         )
