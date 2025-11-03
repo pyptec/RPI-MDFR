@@ -263,7 +263,7 @@ def payload_relays_many(config: dict, names: list[str]):
     return {
         "d": [{
             "t": util.get__time_utc(),
-            "i": i_value,
+            "g": i_value,
             "v": v_vals,
             "u": u_vals
         }]
