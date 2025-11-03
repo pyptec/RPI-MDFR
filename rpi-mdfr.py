@@ -268,7 +268,7 @@ def main_loop():
             # datos de los sensores
             datos = obtener_datos_medidores_y_sensor()
             snap_puerta = Temp.snapshot_puerta()
-            #snap_man    = Temp.snapshot_hombre_atrapado()
+            snap_man    = Temp.snapshot_hombre_atrapado()
             #snap_relays = modbusdevices.snapshot_relays_from_file('/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml')
             #batch = util.merge_payloads(
             #    datos.get('sensor_CT01CO2'),
@@ -284,6 +284,7 @@ def main_loop():
                     awsaccess.publish_mediciones(mqtt_client, datos['sensor_CT01CO2'])
                     awsaccess.publish_mediciones(mqtt_client, datos['sensor_THT03R'])
                     awsaccess.publish_mediciones(mqtt_client, json.dumps(snap_puerta))
+                    awsaccess.publish_mediciones(mqtt_client, json.dumps(snap_man))
                     #awsaccess.publish_mediciones(mqtt_client,batch_str)
                     awsaccess.disconnect_from_aws_iot(mqtt_client)
                    
@@ -292,12 +293,14 @@ def main_loop():
                     fileventqueue.agregar_evento(datos['sensor_CT01CO2'])
                     fileventqueue.agregar_evento(datos['sensor_THT03R'])
                     fileventqueue.agregar_evento(json.dumps(snap_puerta))
+                    fileventqueue.agregar_evento(json.dumps(snap_man))
                     
             else:
                 # No hay internet:
                 fileventqueue.agregar_evento(datos['sensor_CT01CO2'])
                 fileventqueue.agregar_evento(datos['sensor_THT03R'])
                 fileventqueue.agregar_evento(json.dumps(snap_puerta))
+                fileventqueue.agregar_evento(json.dumps(snap_man))
                 
         if tempQueue == 0:
             tempQueue = TIMERCOLAEVENTOS
