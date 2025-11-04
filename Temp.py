@@ -424,9 +424,9 @@ def _man_button_callback(channel):
     invert = bool(cfg.get('invert_active_low', False))
 
     # Espera corta y re-lee para asegurarse que sigue en 0 (activo-bajo)
-    time.sleep(0.02)  # 20 ms
-    if not _btn_read_active(invert):     # debe seguir en 1
-        return
+    #time.sleep(0.02)  # 20 ms
+    #if not _btn_read_active(invert):     # debe seguir en 1
+    #    return
     
     # Ya latcheado => no repetir
     
