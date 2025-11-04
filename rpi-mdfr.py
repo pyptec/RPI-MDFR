@@ -307,7 +307,7 @@ def main_loop():
         if tempQueue == 0:
             tempQueue = TIMERCOLAEVENTOS
             process_event_queue()
-'''
+
         if tempPing == 0:
             interfaz = "eth0"
             tempPing = TIMERPING
@@ -317,7 +317,7 @@ def main_loop():
             #else:
                 #util.logging.info(f"Sin conexión a internet en {interfaz}.")    
             
-
+'''
         if tempCheckusb == 0:
             tempCheckusb = TIMECHECKUSBETHERNET
             tempHora -= 1
