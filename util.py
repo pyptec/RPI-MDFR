@@ -11,7 +11,7 @@ import threading
 import yaml
 import Temp
 import json
-
+import shlex, pathlib
 # Configuración básica de logging
 logging.basicConfig(
     level=logging.INFO,  # Nivel mínimo de los mensajes que se registrarán
@@ -113,20 +113,161 @@ def ensure_internet_failover():
 #-----------------------------------------------------------------------------------------------------------    
 def switch_default_route_to(active_interface):
  
+
+    """
+    Cambia la ruta por defecto al dispositivo dado sin bajar otras interfaces.
+    """
     try:
         current_route = os.popen("ip route show default").read()
         if "default via" in current_route and active_interface in current_route:
             logging.info(f"La ruta predeterminada ya está en {active_interface}.")
             return False
+        # limpia default y pone por dispositivo (el GW lo aporta dhcpcd)
         os.system("sudo ip route del default 2>/dev/null")
-        # no pongas 'via' si el DHCP ya la creó; deja que el kernel la resuelva
-        os.system(f"sudo ip route add default dev {active_interface}")
+        cmd = f"sudo ip route add default dev {active_interface}"
+        os.system(cmd)
         restaurar_dns()
         logging.info(f"Ruta predeterminada cambiada a {active_interface}")
         return True
     except Exception as e:
-        logging.error(f"Error al cambiar la ruta a {active_interface}: {e}")
+        logging.error(f"Error al cambiar ruta a {active_interface}: {e}")
         return False
+
+
+
+def _run(cmd, check=False):
+    return subprocess.run(shlex.split(cmd), capture_output=True, text=True, check=check)
+
+def _iface_up(iface):
+    r = _run(f"ip link show {iface}")
+    return r.returncode == 0 and "state UP" in r.stdout
+
+def _has_net(iface=None, host="1.1.1.1", timeout=2):
+    cmd = f"ping -c1 -W{timeout} {host}"
+    if iface: cmd = f"ping -I {iface} -c1 -W{timeout} {host}"
+    return _run(cmd).returncode == 0
+
+def _gw_for_iface(iface):
+    r = _run("ip route").stdout
+    for line in r.splitlines():
+        if line.startswith("default ") and f" dev {iface} " in line:
+            parts = line.split()
+            if "via" in parts:
+                return parts[parts.index("via")+1]
+    # vecino .1 como heurística
+    r = _run(f"ip neigh show dev {iface}").stdout.splitlines()
+    for line in r:
+        ip = line.split()[0]
+        if ip.endswith(".1"):
+            return ip
+    return None
+
+def _set_default_via(gw, iface, metric=None):
+    os.system("sudo ip route del default 2>/dev/null")
+    cmd = f"sudo ip route add default via {gw} dev {iface}"
+    if metric is not None: cmd += f" metric {metric}"
+    return _run(cmd).returncode == 0
+
+def heal_usb0():
+    """
+    Repara usb0 si se 'pierde' (sin IP o sin salida a Internet):
+      1) dhcpcd -n usb0
+      2) default via 192.168.225.1 / 192.168.100.1 si falta
+      3) Si no responde, reactiva PDP/ECM por AT y re-enumera USB
+    Devuelve True si deja ping.
+    """
+    try:
+        # 0️⃣ ya está OK → salir
+        if _iface_up("usb0") and _has_net("usb0"):
+            return True
+
+        # 1️⃣ Renovar DHCP
+        _run("sudo dhcpcd -n usb0")
+        gw = _gw_for_iface("usb0")
+        if not gw:
+            for cand in ("192.168.225.1", "192.168.100.1"):
+                if _set_default_via(cand, "usb0", 150) and _has_net("usb0"):
+                    restaurar_dns()
+                    logging.info(f"usb0 OK via {cand}")
+                    return True
+        else:
+            if _set_default_via(gw, "usb0", 150) and _has_net("usb0"):
+                restaurar_dns()
+                logging.info(f"usb0 OK via {gw}")
+                return True
+
+        # 2️⃣ Reactivar PDP/ECM por AT (Claro)
+        for tty in ("/dev/ttyUSB2", "/dev/ttyUSB3"):
+            if os.path.exists(tty):
+                try:
+                    with open(tty, "wb", buffering=0) as f:
+                        for cmd in (
+                            b"AT\r",
+                            b"AT+CFUN=1\r",
+                            b'AT+CGDCONT=1,"IP","internet.comcel.com"\r',
+                            b'AT+CGAUTH=1,1,"claro","claro"\r',
+                            b"AT+CGACT=1,1\r",
+                            b"AT+CUSBPIDSWITCH=9011,1,1\r",
+                        ):
+                            f.write(cmd)
+                            time.sleep(0.3)
+                    break
+                except Exception as e:
+                    logging.debug(f"AT por {tty} fallo: {e}")
+        time.sleep(8)
+        _run("sudo dhcpcd -n usb0")
+        gw = _gw_for_iface("usb0") or "192.168.225.1"
+        _set_default_via(gw, "usb0", 150)
+        restaurar_dns()
+        if _has_net("usb0"):
+            logging.info("usb0 volvió tras PDP/ECM.")
+            return True
+
+        # 3️⃣ Re-enumerar USB (unbind/bind)
+        try:
+            dev = pathlib.Path("/sys/class/net/usb0")
+            if dev.exists():
+                bus = os.path.basename(os.path.realpath(dev / "device"))  # ej. "1-1.2"
+                unbind = "/sys/bus/usb/drivers/usb/unbind"
+                bind   = "/sys/bus/usb/drivers/usb/bind"
+                os.system(f"echo {bus} | sudo tee {unbind} >/dev/null")
+                time.sleep(1.0)
+                os.system(f"echo {bus} | sudo tee {bind} >/dev/null")
+                time.sleep(3.0)
+                _run("sudo dhcpcd -n usb0")
+                gw = _gw_for_iface("usb0") or "192.168.225.1"
+                _set_default_via(gw, "usb0", 150)
+                restaurar_dns()
+                if _has_net("usb0"):
+                    logging.info("usb0 volvió tras rebind USB.")
+                    return True
+        except Exception as e:
+            logging.warning(f"usb rebind fallo: {e}")
+
+        logging.error("usb0 sigue sin Internet tras todos los intentos.")
+        return False
+    except Exception as e:
+        logging.error(f"heal_usb0() error: {e}")
+        return False
+
+def ensure_internet_failover():
+    """
+    Prioridad: eth0 > usb0.
+    Si eth0 cae, levanta y mantiene usb0.
+    Devuelve True si hay Internet por alguna.
+    """
+    try:
+        # eth0 primero
+        if _iface_up("eth0") and _has_net("eth0"):
+            switch_default_route_to("eth0")
+            return True
+
+        logging.warning("ETH sin salida. Intentando USB (SIM7600)…")
+        return heal_usb0()
+    except Exception as e:
+        logging.error(f"ensure_internet_failover() error: {e}")
+        return False
+
 
 #-----------------------------------------------------------------------------------------------------------
 
@@ -165,21 +306,28 @@ def restaurar_dns():
 #-----------------------------------------------------------------------------------------------------------
 def check_usb_connection():
     
+    
+    """
+    Si existe usb0, fuerza renovación DHCP con dhcpcd y, si falta,
+    intenta poner la default vía 192.168.225.1 (SIM7600 ECM típico).
+    """
     try:
-        ifconfig_output = subprocess.check_output(["ip", "addr", "show", "usb0"], text=True)
-        if "usb0:" in ifconfig_output:
-            logging.info("'usb0' detectado. Renovando DHCP con dhcpcd…")
-            # fuerza DHCP y rutas para usb0
+        out = subprocess.check_output(["ip", "addr", "show", "usb0"], text=True)
+        if "usb0:" in out:
+            logging.info("'usb0' detectado. Renovando DHCP (dhcpcd -n usb0)…")
             subprocess.run(["sudo", "dhcpcd", "-n", "usb0"], check=False)
-            # si no hay default via, intenta poner el gateway común del SIM7600
+            # si aún no hay default via usb0, intenta gateway típico
             route = subprocess.check_output(["ip", "route"], text=True)
-            if "default via" not in route:
-                logging.warning("No hay 'default via' tras dhcpcd; intentando 192.168.225.1…")
-                subprocess.run(["sudo", "ip", "route", "add", "default", "via", "192.168.225.1", "dev", "usb0"], check=False)
+            if "default" not in route or "usb0" not in route:
+                subprocess.run(
+                    ["sudo", "ip", "route", "add", "default", "via", "192.168.225.1", "dev", "usb0"],
+                    check=False
+                )
         else:
             logging.warning("'usb0' no está presente.")
     except Exception as e:
-        logging.error(f"Error al revisar/renovar usb0: {e}")
+        logging.error(f"check_usb_connection() error: {e}")
+
 
 #-----------------------------------------------------------------------------------------------------------
 
@@ -400,33 +548,24 @@ def payload_estado_sistema_y_medidor():
 
 #-----------------------------------------------------------------------------------------------------------
 def renovar_ip_usb0():
+    """
+    Renueva IP de usb0 con dhcpcd y devuelve la IP IPv4 (o None).
+    """
     try:
-        # Ejecutar dhclient en la interfaz usb0
-        subprocess.run(
-            ["sudo", "dhclient", "-v", "usb0"],
-            check=True
-        )
-        # Consultar la IP obtenida en usb0
-        ip_result = subprocess.run(
-            ["ip", "addr", "show", "usb0"],
-            capture_output=True,
-            text=True
-        )
+        subprocess.run(["sudo", "dhcpcd", "-n", "usb0"], check=False)
+        ip_result = subprocess.run(["ip", "addr", "show", "usb0"], capture_output=True, text=True)
         for line in ip_result.stdout.splitlines():
             line = line.strip()
             if line.startswith("inet "):
-                ip_con_mask = line.split()[1]  # Ejemplo: "192.168.1.45/24"
-                ip = ip_con_mask.split("/")[0]  # Solo la IP -> "192.168.1.45"
-                logging.info(f"Renovar Dirección IP obtenida en usb0: {ip}")
-                
+                ip = line.split()[1].split("/")[0]
+                logging.info(f"IP en usb0: {ip}")
                 return ip
-
-        logging.warning("No se encontró dirección IP en usb0")
+        logging.warning("No se encontró IP en usb0")
+        return None
+    except Exception as e:
+        logging.warning(f"renovar_ip_usb0() error: {e}")
         return None
 
-    except subprocess.CalledProcessError:
-        logging.warning("Error al ejecutar dhclient")
-        return None
     
 
 

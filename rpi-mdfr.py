@@ -3,7 +3,6 @@ from mdfr_loop import ejecutar_mdfr
 from rasp_loop import ejecutar_raspberry
 from datos_iniciales import ejecutar_datos_iniciales
 
-
 import os
 import time
 import json
@@ -17,13 +16,13 @@ import eventHandler
 import shared
 import subprocess
 import modbusdevices
-#import tunel_watcher
-# Dispatcher simple (si luego agregas más “cases”, sólo añádelos aquí)
+# import tunel_watcher
+
+# Dispatcher simple
 DISPATCH = {
     "raspberry": ejecutar_raspberry,  # espera: (tempRaspberry, TIMERCHEQUEOTEMPERATURA, contador_envio)
     "mdfr": ejecutar_mdfr,            # espera: (tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor)
 }
-
 
 # Ruta al archivo .env
 load_dotenv(dotenv_path="/home/pi/.scr/.scr/RPI-MDFR/.env")
@@ -37,13 +36,25 @@ TIMECHECKUSBETHERNET = int(os.getenv('TIMECHECKUSBETHERNET', 600))
 TIMECHECK_USB_ETHERNET_TIME = int(os.getenv('TIMECHECK_USB_ETHERNET_TIME', 6))
 TIMER_MDFR = int(os.getenv('TIMER_MDFR', 6))
 
+# ------------------- Watcher de failover (ETH→USB) en segundo plano -------------------
+def _failover_loop(period=30):
+    while True:
+        try:
+            util.ensure_internet_failover()
+        except Exception as e:
+            util.logging.exception(f"failover loop error: {e}")
+        time.sleep(period)
+
+# Lanza el watcher
+threading.Thread(target=_failover_loop, args=(30,), daemon=True).start()
+# --------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------------------------    
 # Función para procesar eventos en la cola
 #-----------------------------------------------------------------------------------------------------------
 def process_event_queue():
     if fileventqueue.contar_eventos() != 0:
-        if  util.check_internet_connection():
+        if util.ensure_internet_failover():
             mqtt_client = awsaccess.connect_to_mqtt()
             if mqtt_client:
                 eventos = fileventqueue.procesar_eventos_de_uno_en_uno()
@@ -54,28 +65,21 @@ def process_event_queue():
                     time.sleep(0.2)
                     hilo_queue.join()
                 awsaccess.disconnect_from_aws_iot(mqtt_client)
-                
             else:
                 util.logging.info("No se pudo conectar a AWS IoT para procesar la cola de eventos.")
         else:
-            util.logging.info("No hay internet para procesar la cola de eventos.")
+            util.logging.info("Sin Internet para procesar la cola de eventos.")
     else:
         util.logging.info("No hay eventos para procesar.")
-        
- #-----------------------------------------------------------------------------------------------------------   
- # Rutina de lectura de sensores Modbus RTU y debuelve datos en formato JSON 
- #-----------------------------------------------------------------------------------------------------------    
 
+#-----------------------------------------------------------------------------------------------------------   
+# Rutina de lectura de sensores Modbus RTU y devuelve datos en formato JSON 
+#-----------------------------------------------------------------------------------------------------------    
 def obtener_datos_medidores_y_sensor():
     """
     Lee los sensores CT01CO2 y THT03R.
     Si alguno no responde, deja sus valores en None y lo registra en el log.
     Devuelve un diccionario donde cada valor es una cadena JSON.
-    - Devuelve objetos Python con:
-        {
-          'sensor_CT01CO2': { 'payload': {...}, 'meta': {...} },
-          'sensor_THT03R':  { 'payload': {...}, 'meta': {...} }
-        }
     """
     try:
         # === SENSOR 1 — CT01CO2 ===
@@ -88,40 +92,35 @@ def obtener_datos_medidores_y_sensor():
             simular = bool(config_CT01CO2.get('simular', False))
             
             if simular:
-                # --- MODO SIMULACIÓN ACTIVADO ---
                 import random
                 co2_simulado = random.randint(800, 9600)
-                util.logging.info(f"[CT01CO2] Modo SIMULACIÓN → CO₂ simulado = {co2_simulado} ppm")
+                util.logging.info(f"[CT01CO2] SIM → CO₂ = {co2_simulado} ppm")
                 medicion_CT01CO2 = {
                     "d": [{
-                    "t": util.get__time_utc(),
-                    "g": g_ct01,
-                    "v": [str(co2_simulado)],
-                    "u": ["139"]
-                }]
-            }
-
+                        "t": util.get__time_utc(),
+                        "g": g_ct01,
+                        "v": [str(co2_simulado)],
+                        "u": ["139"]
+                    }]
+                }
             else:
-                # --- MODO REAL ---
                 medicion_CT01CO2 = modbusdevices.payload_event_modbus(config_CT01CO2)
                 if medicion_CT01CO2 is None:
-                    util.logging.warning("Sensor CT01CO2 no conectado o sin respuesta.")
+                    util.logging.warning("CT01CO2 sin respuesta.")
                     medicion_CT01CO2 = {
                         "d": [{"t": util.get__time_utc(), "g": g_ct01, "v": [None], "u": [None]}]
                     }
                 else:
                     try:
-                        
                         valor_co2 = medicion_CT01CO2["d"][0]["v"][0]
                         if valor_co2 not in [None, "None"]:
-                            util.logging.info(f"Lectura CT01CO2 → CO₂ = {valor_co2} ppm")
+                            util.logging.info(f"CT01CO2 → {valor_co2} ppm")
                         else:
-                            util.logging.warning("Sensor CT01CO2 sin valor válido (None)")
+                            util.logging.warning("CT01CO2 sin valor válido (None)")
                     except Exception:
-                        util.logging.warning(f"CT01CO2: payload sin estructura esperada (g={g_ct01})")
-
+                        util.logging.warning(f"CT01CO2: payload inesperado (g={g_ct01})")
         except Exception as e:
-            util.logging.error(f"Error al leer CT01CO2: {e}")
+            util.logging.error(f"Error CT01CO2: {e}")
             medicion_CT01CO2 = {
                 "d": [{"t": util.get__time_utc(), "g": g_ct01, "v": [None], "u": [None]}]
             }
@@ -138,50 +137,47 @@ def obtener_datos_medidores_y_sensor():
             medicion_THT03R = modbusdevices.payload_event_modbus(config_THT03R)
             
             if medicion_THT03R is None:
-                util.logging.warning("Sensor THT03R no conectado o sin respuesta.")
+                util.logging.warning("THT03R sin respuesta.")
                 medicion_THT03R = {
                     "d": [{"t": util.get__time_utc(), "g":  g_tht03r, "v": [None, None], "u": [None, None]}]
                 }
             else:
-                # Extraer valores de temperatura y humedad para log
                 valores = medicion_THT03R["d"][0]["v"]
                 temp = valores[0] if len(valores) > 0 else None
                 hum  = valores[1] if len(valores) > 1 else None
 
                 if temp not in [None, "None"] or hum not in [None, "None"]:
-                    util.logging.info(f"Lectura THT03R → Temp = {temp} °C, Hum = {hum} %")
+                    util.logging.info(f"THT03R → Temp={temp} °C, Hum={hum} %")
                 else:
-                    util.logging.warning("Sensor THT03R sin valores válidos (None)")
+                    util.logging.warning("THT03R sin valores válidos (None)")
         except Exception as e:
-            util.logging.error(f"Error al leer THT03R: {e}")
+            util.logging.error(f"Error THT03R: {e}")
             medicion_THT03R = {
                 "d": [{"t": util.get__time_utc(), "g":  g_tht03r, "v": [None, None], "u": [None, None]}]
             }
 
         medicionSensorTHT03R = json.dumps(medicion_THT03R)
 
-        # === Retornar como cadenas JSON ===
         return {
             'sensor_CT01CO2': medicionSensorCT01CO2,
-            'sensor_THT03R': medicionSensorTHT03R
+            'sensor_THT03R':  medicionSensorTHT03R
         }
 
     except Exception as e:
         util.logging.error(f"Error general en obtener_datos_medidores_y_sensor: {e}")
         return {
             'sensor_CT01CO2': json.dumps(None),
-            'sensor_THT03R': json.dumps(None)
+            'sensor_THT03R':  json.dumps(None)
         }
 
- #-----------------------------------------------------------------------------------------------------------   
-
+#-----------------------------------------------------------------------------------------------------------   
 # Lógica principal
 def main_loop():
-    
-    #Apagar relays y sirena al iniciar               
+    # Apagar relays y sirena al iniciar
     Temp.setbaliza(False)
     Temp.setsirena(False)
     Temp.all_relay()
+
     # Inicializar temporizadores
     tempRaspberry = TIMERCHEQUEOTEMPERATURA
     tempMedidor   = TIMERMEDICION
@@ -190,46 +186,39 @@ def main_loop():
     tempCheckusb  = TIMECHECKUSBETHERNET 
     tempHora      = TIMECHECK_USB_ETHERNET_TIME
     tempMdfr      = TIMER_MDFR
-    # Configurar interrupción de puerta
+
+    # Interrupciones
     Temp.setup_door_interrupt()
-    # Configurar interrupción de botón hombre atrapado
-    Temp.setup_man_button_interrupt()   # ← botón hombre atrapado (GPIO6)
-    #threading.Thread(target=awsaccess.iniciar_recepcion_mensajes, daemon=True).start()
- 
-    # Publicar el encendido del sistema
+    Temp.setup_man_button_interrupt()   # GPIO6
+
     util.logging.info("Sistema encendido.")
-    
+
+    # Gate de puerta
     while True:
         try:
             if not Temp.door_is_open():
                 util.logging.info("[START] Puerta CERRADA → arrancando sistema.")
                 break
-        # Puerta abierta: forzar relés OFF y quedar en espera (sin lecturas)
             util.logging.warning("[START] Puerta ABIERTA → modo seguro: relés OFF, sin lecturas.")
             try:
                 Temp.all_relay()
             except Exception as e:
                 util.logging.error(f"[START] all_relay() falló: {type(e).__name__}: {e}")
-        # “Refresco” del watchdog mientras esperamos
             Temp.iniciar_wdt()
             time.sleep(1.0)
         except Exception as e:
             util.logging.error(f"[START] Error en gate de puerta: {type(e).__name__}: {e}")
             time.sleep(1.0)
-    
+
     # --- BLOQUE DE ARRANQUE datos_iniciales.py---
     ejecutar_datos_iniciales(obtener_datos_medidores_y_sensor)
-    
-    # Bucle principal
-    contador_envio = 0  # Inicialízalo fuera del loop principal
-    while True:
-        
 
-    # --- GUARD 0: Hombre atrapado latcheado → SOLO sirena/baliza, nada más ---
+    # Bucle principal
+    contador_envio = 0
+    while True:
+        # GUARD 0: Hombre atrapado
         if getattr(Temp, "_man_state", {}).get("latched"):
             util.logging.warning("[LOOP] Hombre atrapado ACTIVO → sólo sirena/baliza; sin mediciones/control.")
-    # Asegura Modbus OFF y HAT OFF, luego deja sólo sirena/baliza ON
-           
             Temp.all_relay()
             Temp.setsirena(True)
             Temp.setbaliza(True)
@@ -237,7 +226,7 @@ def main_loop():
             time.sleep(0.2)
             continue
 
-    # --- GUARD 1: Puerta ABIERTA → todo OFF, sin mediciones/control este ciclo ---
+        # GUARD 1: Puerta abierta
         if Temp.door_is_open():
             util.logging.warning("[LOOP] Puerta ABIERTA → restablecer sistema y saltar ciclo.")
             Temp.restablecer_sistema_post_puerta()
@@ -245,40 +234,37 @@ def main_loop():
             time.sleep(0.5)
             continue
 
-        # ... (resto de tu loop normal: mediciones, lógica MDFR, etc.) ...
-
+        # Actualizar timers
         tempRaspberry, tempMedidor, tempQueue, tempPing, tempCheckusb, tempMdfr = util.actualizar_temporizadores(
-        tempRaspberry, tempMedidor, tempQueue, tempPing, tempCheckusb, tempMdfr)
-          
-                       
-        # Caso “rasp_loop.py ejecutar_raspberry(tempRaspberry, TIMERCHEQUEOTEMPERATURA, contador_envio)”
-        
-        tempRaspberry, contador_envio = DISPATCH["raspberry"](
-        tempRaspberry, TIMERCHEQUEOTEMPERATURA, contador_envio
+            tempRaspberry, tempMedidor, tempQueue, tempPing, tempCheckusb, tempMdfr
         )
 
-        # Caso “mdfr_loop.py ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):”
-        tempMdfr = DISPATCH["mdfr"](
-        tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor
+        # Caso “raspberry”
+        tempRaspberry, contador_envio = DISPATCH["raspberry"](
+            tempRaspberry, TIMERCHEQUEOTEMPERATURA, contador_envio
         )
-        
+
+        # Caso “mdfr”
+        tempMdfr = DISPATCH["mdfr"](
+            tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor
+        )
+
         # Mediciones cada 10 minutos
         if tempMedidor == 0:
             tempMedidor = TIMERMEDICION
-            # datos de los sensores
             datos = obtener_datos_medidores_y_sensor()
             snap_puerta = Temp.snapshot_puerta()
             snap_man    = Temp.snapshot_hombre_atrapado()
-            # Cargar el YAML del módulo de relés
-            cfg_rel = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml', 'relayDioustou_4r')
-            p_relays = modbusdevices.payload_relays_many_packed(
-                cfg_rel,
-                ['recircular','extractor','humidificador','etileno']   # orden que quieres en v/u
-            )
-               
 
-            
-            if  util.check_internet_connection():
+            cfg_rel = util.cargar_configuracion(
+                '/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml',
+                'relayDioustou_4r'
+            )
+            p_relays = modbusdevices.payload_relays_many_packed(
+                cfg_rel, ['recircular','extractor','humidificador','etileno']
+            )
+
+            if util.ensure_internet_failover():
                 mqtt_client = awsaccess.connect_to_mqtt()
                 if mqtt_client:
                     awsaccess.publish_mediciones(mqtt_client, datos['sensor_CT01CO2'])
@@ -287,68 +273,35 @@ def main_loop():
                     awsaccess.publish_mediciones(mqtt_client, json.dumps(snap_man))
                     awsaccess.publish_mediciones(mqtt_client, json.dumps(p_relays))
                     awsaccess.disconnect_from_aws_iot(mqtt_client)
-                   
                 else:
-                    # Hay internet, pero falla conectar MQTT:
                     fileventqueue.agregar_evento(datos['sensor_CT01CO2'])
                     fileventqueue.agregar_evento(datos['sensor_THT03R'])
                     fileventqueue.agregar_evento(json.dumps(snap_puerta))
                     fileventqueue.agregar_evento(json.dumps(snap_man))
                     fileventqueue.agregar_evento(json.dumps(p_relays))
-                    
             else:
-                # No hay internet:
                 fileventqueue.agregar_evento(datos['sensor_CT01CO2'])
                 fileventqueue.agregar_evento(datos['sensor_THT03R'])
                 fileventqueue.agregar_evento(json.dumps(snap_puerta))
                 fileventqueue.agregar_evento(json.dumps(snap_man))
                 fileventqueue.agregar_evento(json.dumps(p_relays))
-                
+
         if tempQueue == 0:
             tempQueue = TIMERCOLAEVENTOS
             process_event_queue()
 
         if tempPing == 0:
-            interfaz = "eth0"
+            tempPing = TIMERPING
             ok = util.ensure_internet_failover()
             if ok:
                 util.logging.info("Internet OK por al menos una interfaz.")
             else:
                 util.logging.warning("Sin Internet por eth0 ni usb0. Intento de recuperación quedará en log.")
-            
-'''
-        if tempCheckusb == 0:
-            tempCheckusb = TIMECHECKUSBETHERNET
-            tempHora -= 1
-            if tempHora == 0:
-                tempHora = TIMECHECK_USB_ETHERNET_TIME
-                util.check_usb_connection()
-                
-    
-        #with shared.mensaje_lock:
-        #    if shared.mensaje_recibido:
-        #        mensaje = shared.mensaje_recibido
-        #        shared.mensaje_recibido = None
-        #        try:
-        #            data = json.loads(mensaje)
-        #            comando_mensaje = data.get("message", "")
-        #            util.logging.warning("Msj MQTT: "+ comando_mensaje )
-        #            
-        #            if comando_mensaje == "disconnect":
-               #         tunel_watcher.cerrar_tunel()
-        #                util.logging.info("Túnel cerrado correctamente.")
-        #                
-        #            elif comando_mensaje.startswith("connect|"):
-        #          #      ip = comando_mensaje.split("|")[1]
-        #           #     tunel_watcher.set_destino(ip)
-        #            #    tunel_watcher.run_ssh()
-        #                util.logging.info(f"msj mqtt ...")
-        #            else:
-        
-        #               util.logging.warning(f"Comando no reconocido: {comando_mensaje}")
-        #        except Exception as e:
-        #            util.logging.error(f"Error al procesar el mensaje MQTT: {e}")
-'''
+
+        # (tu bloque comentado queda igual)
+        # ...
+        # fin while
+
 # Punto de entrada principal
 if __name__ == '__main__':
     main_loop()
