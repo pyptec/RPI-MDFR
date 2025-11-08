@@ -72,36 +72,62 @@ def check_internet_connection():
     except Exception as e:
         logging.error(f"Error al intentar verificar la conexión: {e}")
         return False
+    
+def ensure_internet_failover():
+    """
+    Prioridad: eth0 > usb0.
+    - Si eth0 tiene Internet, deja default por eth0.
+    - Si no, intenta usb0: renueva DHCP, pone gateway si falta y cambia default.
+    Devuelve True si hay Internet por alguna.
+    """
+    try:
+        # 1) ¿Hay internet por ETH?
+        if os.system("ping -I eth0 -c 1 -W 2 1.1.1.1 > /dev/null 2>&1") == 0:
+            switch_default_route_to("eth0")
+            logging.info("Failover: usando Ethernet (eth0).")
+            return True
+
+        logging.warning("ETH sin salida. Probando USB (SIM7600)…")
+
+        # 2) Intentar levantar usb0
+        check_usb_connection()  # dhcpcd -n usb0 + default via 192.168.225.1 si falta
+
+        # 3) ¿Ya hay default por usb0?
+        route = os.popen("ip route").read()
+        if "default via" in route and "usb0" in route:
+            # prueba IP y DNS
+            if os.system("ping -I usb0 -c 1 -W 2 1.1.1.1 > /dev/null 2>&1") == 0:
+                restaurar_dns()  # 8.8.8.8 / 8.8.4.4
+                logging.info("Failover: usando módem 4G (usb0).")
+                return True
+
+        logging.error("Sin salida por eth0 ni usb0 (tras intento de recuperación).")
+        return False
+
+    except Exception as e:
+        logging.error(f"ensure_internet_failover() fallo: {e}")
+        return False
+
 #-----------------------------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------------------------    
 def switch_default_route_to(active_interface):
+ 
     try:
-        # Verificar si eth0 es la interfaz activa y dejarla encendida si tiene conexión
-        if active_interface == "eth0":
-            inactive_interface = "usb0"
-        else:
-            # Apaga eth0 solo si no tiene conexión
-            inactive_interface = "eth0"
-            subprocess.run(["sudo", "ip", "link", "set", inactive_interface, "down"], check=True)
-            logging.info(f"Interfaz {inactive_interface} apagada.")
-    # Verifica si la interfaz ya es la ruta predeterminada
         current_route = os.popen("ip route show default").read()
-        if f"default via" in current_route and active_interface in current_route:
+        if "default via" in current_route and active_interface in current_route:
             logging.info(f"La ruta predeterminada ya está en {active_interface}.")
             return False
-    # Quitar la ruta predeterminada actual (si existe)
-        os.system("sudo ip route del default")
-    # Agregar la nueva ruta predeterminada para la interfaz deseada
+        os.system("sudo ip route del default 2>/dev/null")
+        # no pongas 'via' si el DHCP ya la creó; deja que el kernel la resuelva
         os.system(f"sudo ip route add default dev {active_interface}")
-     # Funciones adicionales después de cambiar la ruta
-        check_usb_connection()
         restaurar_dns()
-        logging.info(f"Ruta predeterminada cambiada a {active_interface}") 
-        return True 
+        logging.info(f"Ruta predeterminada cambiada a {active_interface}")
+        return True
     except Exception as e:
-        logging.error(f"Error al cambiar la ruta predeterminada a {active_interface}: {e}")
+        logging.error(f"Error al cambiar la ruta a {active_interface}: {e}")
         return False
+
 #-----------------------------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------------------------    
@@ -138,15 +164,23 @@ def restaurar_dns():
 
 #-----------------------------------------------------------------------------------------------------------
 def check_usb_connection():
+    
     try:
-        ifconfig_output = subprocess.check_output(["ifconfig"], text=True)
-        if "usb0" in ifconfig_output:
-            logging.info("'usb0' detectado en ifconfig.")
-            subprocess.run(["sudo", "dhclient", "-v", "usb0"], check=True)
+        ifconfig_output = subprocess.check_output(["ip", "addr", "show", "usb0"], text=True)
+        if "usb0:" in ifconfig_output:
+            logging.info("'usb0' detectado. Renovando DHCP con dhcpcd…")
+            # fuerza DHCP y rutas para usb0
+            subprocess.run(["sudo", "dhcpcd", "-n", "usb0"], check=False)
+            # si no hay default via, intenta poner el gateway común del SIM7600
+            route = subprocess.check_output(["ip", "route"], text=True)
+            if "default via" not in route:
+                logging.warning("No hay 'default via' tras dhcpcd; intentando 192.168.225.1…")
+                subprocess.run(["sudo", "ip", "route", "add", "default", "via", "192.168.225.1", "dev", "usb0"], check=False)
         else:
-            logging.warning("'usb0' no está presente en ifconfig.")
+            logging.warning("'usb0' no está presente.")
     except Exception as e:
-        logging.error(f"Error al ejecutar ifconfig: {e}")
+        logging.error(f"Error al revisar/renovar usb0: {e}")
+
 #-----------------------------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------------------------       
