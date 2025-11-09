@@ -160,7 +160,7 @@ def check_internet_connection():
         logging.error(f"Error al intentar verificar la conexión: {e}")
         return False
     
-def ensure_internet_failover():
+def _internet_failoverensure():
     """
     Prioridad: eth0 > usb0.
     - Si eth0 tiene Internet, deja default por eth0.
@@ -534,13 +534,16 @@ def iface_operstate(iface: str) -> str:
 
 def iface_ip4(iface: str) -> str | None:
     try:
-        addrs = psutil.net_if_addrs().get(iface, [])
-        for a in addrs:
-            if a.family == socket.AF_INET:
-                return a.address
-        return None
+        out = subprocess.check_output(
+            ["ip", "-4", "-o", "addr", "show", "dev", iface],
+            text=True
+        )
+        for tok in out.split():
+            if tok.count(".") == 3 and "/" in tok:
+                return tok.split("/")[0]
     except Exception:
-        return None
+        pass
+    return None
 
 def primera_eth_disponible() -> str | None:
     # Prioriza nombres típicos (eth*, en*)
