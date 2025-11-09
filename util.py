@@ -65,19 +65,39 @@ def _default_is_usb0():
         return False
 
 def _set_default_if_missing_for_usb0():
-    """Si no hay default via usb0, intenta aprenderla; si no, usa heurística."""
+    """
+    Si no hay default via usb0, intenta aprenderla de la tabla; si no existe,
+    pone una heurística válida para SIM7600 ECM (NUNCA 1.1.1.1).
+    No borra una default válida; usa 'replace' si ya existe.
+    """
     try:
         s = subprocess.check_output(["ip", "route"], text=True)
         for line in s.splitlines():
             if line.startswith("default ") and " dev usb0 " in line:
-                return True
+                return True  # ya tenemos default por usb0
     except Exception:
         pass
-    # intentar heurísticos típicos SIM7600 ECM
+
+    # intentar aprender el 'via' real
+    try:
+        s = subprocess.check_output(["ip", "route", "show", "dev", "usb0"], text=True)
+        for line in s.splitlines():
+            if line.startswith("default ") and " via " in line:
+                gw = line.split()[2]
+                return subprocess.call(
+                    ["sudo","ip","route","replace","default","via",gw,"dev","usb0","metric","150"]
+                ) == 0
+    except Exception:
+        pass
+
+    # heurística ECM correcta (NO usar 1.1.1.1)
     for gw in ("192.168.225.1", "192.168.100.1"):
-        if subprocess.call(["sudo","ip","route","add","default","via",gw,"dev","usb0","metric","150"]) == 0:
+        if subprocess.call(
+            ["sudo","ip","route","replace","default","via",gw,"dev","usb0","metric","150"]
+        ) == 0:
             return True
     return False
+
 
 #-----------------------------------------------------------------------------------------------------------
 
@@ -243,19 +263,23 @@ def heal_usb0():
         # A) DHCP/route (usa tu función ya existente)
         if _now() - _USB_GUARD["last_dhcp"] >= CD_DHCP:
             _USB_GUARD["last_dhcp"] = _now()
+            # tras renovar DHCP en usb0
             try:
-                check_usb_connection()   # ← reusa TU función
-            except Exception as e:
-                logging.debug(f"check_usb_connection() error: {e}")
-            # asegurar default vía usb0 si falta (sin borrar nada si ya está)
+                check_usb_connection()   # tu función existente
+            except Exception:
+                pass
+
+            time.sleep(1.0)  # debounce: deja que dhcpcd termine
+            ip_now = _usb0_ip_quiet()
             if not _default_is_usb0():
                 _set_default_if_missing_for_usb0()
-            # validar
-            if _usb0_ip_quiet() and _has_net_iface("usb0"):
+
+            if ip_now and _has_net("usb0"):
                 _USB_GUARD["fails"] = 0
                 restaurar_dns()
-                logging.info("usb0 OK tras DHCP/route.")
+                logging.info(f"usb0 OK (IP {ip_now}) tras DHCP/route.")
                 return True
+
 
         # B) PDP/ECM por AT (solo si sigue caído y respeta cooldown)
         if _now() - _USB_GUARD["last_pdp"] >= CD_PDP:
