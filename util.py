@@ -39,6 +39,34 @@ CD_REBIND = 180.0    # segundos entre unbind/bind USB
 
 def _now(): return time.monotonic()
 
+
+def usb0_ip_fallback() -> str | None:
+    """
+    Si iface_ip4('usb0') viene vacío pero hay ruta por usb0,
+    intenta obtener la IP desde la tabla de rutas (campo 'src').
+    """
+    try:
+        # 1) default via usb0
+        s = subprocess.check_output(["ip", "route", "show", "default"], text=True)
+        for line in s.splitlines():
+            if " dev usb0 " in line and " src " in line:
+                parts = line.split()
+                if "src" in parts:
+                    return parts[parts.index("src")+1]
+    except Exception:
+        pass
+    try:
+        # 2) rutas del propio usb0 (p.ej. 192.168.225.0/24 ... src 192.168.225.21)
+        s = subprocess.check_output(["ip", "route", "show", "dev", "usb0"], text=True)
+        for line in s.splitlines():
+            if " src " in line:
+                parts = line.split()
+                if "src" in parts:
+                    return parts[parts.index("src")+1]
+    except Exception:
+        pass
+    return None
+
 def _usb0_ip_quiet():
     """Devuelve la IPv4 de usb0 (o None) sin tocar DHCP."""
     try:
@@ -599,86 +627,77 @@ def obtener_ip_usb0():
 #funcion para armar el payload del estado del sistema y de la raspberry pi
 #-----------------------------------------------------------------------------------------------------------
 def payload_estado_sistema_y_medidor():
-    
- 
-
-        # === Obtener métricas del sistema ===
+    # === Métricas del sistema ===
     cpu_temp_c = Temp.cpu_temp()
     memoria = psutil.virtual_memory()
     cpu_usage = psutil.cpu_percent(interval=1)
-    
-    # === PRIORIDAD DE RED: Ethernet > USB ===
+
+    # === Ethernet ===
     eth_iface = primera_eth_disponible() or "eth0"
     eth_up    = iface_exists(eth_iface) and iface_operstate(eth_iface) == "up"
     eth_ip    = iface_ip4(eth_iface) if eth_up else None
 
-    usb_iface = "usb0"
+    # === USB0 (SIM7600) ===
+    usb_iface  = "usb0"
     usb_exists = iface_exists(usb_iface)
     usb_up     = usb_exists and iface_operstate(usb_iface) == "up"
     usb_ip     = iface_ip4(usb_iface) if usb_up else None
+    if not usb_ip and usb_exists:
+        # Si la IP aún no aparece (ventana de renovación), usa fallback desde la tabla de rutas
+        usb_ip = usb0_ip_fallback()
 
-    # IP activa: si hay Ethernet operativa, usarla; si no, USB (si existe)
+    # === IP activa para el campo numérico (prioridad ETH > USB) ===
     if eth_up and eth_ip:
         ip_activa = eth_ip
-        # NO tocar usb0 ni sacar warnings de usb0
+    elif usb_ip:
+        ip_activa = usb_ip
     else:
-        if usb_exists:
-            if usb_ip:
-                ip_activa = usb_ip
-            else:
-                logging.warning("usb0 presente pero sin IP (no se fuerza reset desde payload).")
-                #reset_usb0()
-                #usb_ip = iface_ip4(usb_iface) or ""
-                #ip_activa = usb_ip
-                ip_activa = ""
-        else:
-            logging.info("Interfaz usb0 no existe; sin conexión USB.")
-            ip_activa = ""
+        ip_activa = ""
 
-    # También reportamos IP de Ethernet (aunque no sea la activa)
+    # === Reportes de texto (cada interfaz por separado) ===
+    ip_usb_report = usb_ip or ""      # << esto es lo que verás en IP_USB0
     ip_eth_report = eth_ip or ""
 
+    # === Campos numéricos (mantengo tu estructura actual) ===
     ip_sin_puntos = ip_a_numero(ip_activa)     # unidad 137 (IP activa numérica)
     ip_eth_num    = ip_a_numero(ip_eth_report) # unidad 144 (IP Ethernet numérica)
-    
-     
-    # Leer estado de la puerta
-    #door_state = Temp.door()
-    # Convertir a texto legible
-    #door_status_text = "Cerrada" if door_state == 1 else "Abierta"
-    # === Armar lista de valores mensurados ===
+
+    # === Valores mensurados ===
     mensurados = [
-        str(round(cpu_temp_c, 1)), 
+        str(round(cpu_temp_c, 1)),
         str(memoria.percent),
         str(cpu_usage),
         ip_sin_puntos,
-        ip_eth_num   
-        #str(door_state)
-        ]
-    
+        ip_eth_num,
+    ]
+
+    # Watchdog térmico
     Temp.check_temp()
-    
-    # Cargar unidades y g desde el YAML (como ya venías haciendo)
+
+    # === YAML de variables del sistema ===
     cfg = cargar_configuracion(
-                '/home/pi/.scr/.scr/RPI-MDFR/device/sistema.yml',
-                'variables_del_sistema'
-            )
+        '/home/pi/.scr/.scr/RPI-MDFR/device/sistema.yml',
+        'variables_del_sistema'
+    )
     g_id = cfg.get('id_device')
     unidades_cfg = cfg.get('unidades', [])
     codigos_unidades = [u['codigo'] for u in unidades_cfg]
-    #logging.info(f"Estado puerta (GPIO6): {door_status_text}")
-    
-    logging.info(f"SISTEMA (g={g_id}) → Temp={cpu_temp_c:.1f}°C | RAM={memoria.percent}% | CPU={cpu_usage}% | IP_USB0={ip_activa}| IP_Ethernet={ip_eth_report}")
 
-    # === Construir payload ===
+    # === Log limpio (sin falsos warnings) con ambas IPs separadas ===
+    logging.info(
+        f"SISTEMA (g={g_id}) → Temp={cpu_temp_c:.1f}°C | RAM={memoria.percent}% | "
+        f"CPU={cpu_usage}% | IP_USB0={ip_usb_report} | IP_Ethernet={ip_eth_report}"
+    )
+
+    # === Payload ===
     estado_sistema = {
-                    "t": get__time_utc(),
-                    "g": g_id,
-                    "v": mensurados,
-                    "u": codigos_unidades  # 1 = °C, 2 = %RAM
-                }
-    # Retorno doble: el JSON y el estado de la puerta
-    return { "d": [estado_sistema] }
+        "t": get__time_utc(),
+        "g": g_id,
+        "v": mensurados,
+        "u": codigos_unidades
+    }
+    return {"d": [estado_sistema]}
+
 #-----------------------------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------------------------
