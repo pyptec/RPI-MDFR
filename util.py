@@ -270,7 +270,7 @@ def heal_usb0():
                                 b"AT+CFUN=1\r",
                                 b'AT+CGDCONT=1,"IP","internet.comcel.com"\r',
                                 b'AT+CGAUTH=1,1,"claro","claro"\r',
-                                b"AT+CGACT=1,1\r',
+                                b"AT+CGACT=1,1\r",
                                 b"AT+CUSBPIDSWITCH=9011,1,1\r",
                             ):
                                 f.write(cmd); time.sleep(0.3)
