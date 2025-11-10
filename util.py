@@ -754,3 +754,45 @@ def merge_payloads(*payloads):
         if isinstance(dl, list):
             merged.extend(dl)
     return {"d": merged}
+# --- DNS & conectividad ligera ---
+
+
+def dns_ok(host="google.com", timeout=2) -> bool:
+    try:
+        socket.setdefaulttimeout(timeout)
+        socket.gethostbyname(host)
+        return True
+    except Exception:
+        return False
+
+def icmp_ok(host="1.1.1.1", timeout=2) -> bool:
+    return subprocess.call(
+        ["ping", "-c", "1", f"-W{timeout}", host],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    ) == 0
+
+def repair_dns(prefer_iface="usb0"):
+    """
+    Repara DNS cuando hay ICMP pero no resolución:
+    - Fuerza /etc/resolv.conf con 8.8.8.8 y 1.1.1.1
+    - Refresca el lease de la interfaz preferida
+    - Limpia caches (systemd-resolved) si aplica
+    """
+    try:
+        with open("/etc/resolv.conf", "w") as f:
+            f.write("nameserver 8.8.8.8\nnameserver 1.1.1.1\n")
+        logging.info("DNS restaurado en /etc/resolv.conf → 8.8.8.8, 1.1.1.1")
+
+        if prefer_iface:
+            subprocess.run(["sudo", "dhcpcd", "-n", prefer_iface], check=False)
+            time.sleep(1.0)  # debounce
+
+        if shutil.which("resolvectl"):
+            subprocess.run(["resolvectl", "flush-caches"], check=False)
+        elif shutil.which("systemd-resolve"):
+            subprocess.run(["systemd-resolve", "--flush-caches"], check=False)
+
+        return True
+    except Exception as e:
+        logging.error(f"repair_dns() error: {e}")
+        return False

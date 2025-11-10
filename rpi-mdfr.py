@@ -170,6 +170,35 @@ def obtener_datos_medidores_y_sensor():
             'sensor_THT03R':  json.dumps(None)
         }
 
+def _dns_guard_loop(period=540):  # 9 minutos = 540 s
+    """
+    Guardia de DNS:
+      1) Garantiza conectividad (ETH→USB) con util.ensure_internet_failover().
+      2) Si hay ICMP pero no DNS, repara DNS.
+      3) Si DNS OK, intenta drenar la cola de eventos.
+    """
+    while True:
+        try:
+            ok = util.ensure_internet_failover()  # reusa tu failover (ETH primero, USB curado)
+            if ok:
+                if not util.dns_ok():
+                    if util.icmp_ok():
+                        util.logging.warning("Guardia DNS: ICMP OK pero DNS KO; reparando DNS…")
+                        util.repair_dns(prefer_iface="usb0")
+                # Si tras reparar hay DNS, drena cola
+                if util.dns_ok():
+                    try:
+                        process_event_queue()
+                    except Exception as e:
+                        util.logging.error(f"Guardia DNS: error al procesar cola: {e}")
+            else:
+                util.logging.warning("Guardia DNS: sin conectividad IP por eth0 ni usb0.")
+        except Exception as e:
+            util.logging.exception(f"Guardia DNS: excepción: {e}")
+        time.sleep(period)
+# Lanza el guardia DNS cada 9 minutos (daemon)
+threading.Thread(target=_dns_guard_loop, args=(540,), daemon=True).start()
+
 #-----------------------------------------------------------------------------------------------------------   
 # Lógica principal
 def main_loop():
