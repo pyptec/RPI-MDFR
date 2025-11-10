@@ -276,7 +276,7 @@ def ensure_internet_failover():
         logging.error(f"ensure_internet_failover() error: {e}")
         return False
 
-''''
+'''
 # Función para registrar eventos en un archivo
 import datetime
 import logging
@@ -1075,4 +1075,4 @@ def repair_dns(prefer_iface="usb0"):
     except Exception as e:
         logging.error(f"repair_dns() error: {e}")
         return False
-''''
+'''
