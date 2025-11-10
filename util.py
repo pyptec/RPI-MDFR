@@ -1,3 +1,282 @@
+
+# --- IMPORTS requeridos (asegura que están presentes arriba en util.py) ---
+import os, time, subprocess, pathlib, socket, shutil, logging
+
+# --- Guard / cooldowns para usb0 ---
+_USB_GUARD = {"last_dhcp": 0.0, "last_pdp": 0.0, "last_rebind": 0.0, "fails": 0}
+CD_DHCP, CD_PDP, CD_REBIND = 30.0, 90.0, 180.0
+
+def _now(): return time.monotonic()
+
+# --------- Lectura de IPs robusta ----------
+def iface_ip4(iface: str) -> str | None:
+    """IPv4 de una interfaz (usb0, eth0…) de forma robusta (sin tocar DHCP)."""
+    try:
+        out = subprocess.check_output(["ip", "-4", "-o", "addr", "show", "dev", iface], text=True)
+        for tok in out.split():
+            if tok.count(".") == 3 and "/" in tok:
+                return tok.split("/")[0]
+    except Exception:
+        pass
+    return None
+
+def _usb0_ip_quiet() -> str | None:
+    return iface_ip4("usb0")
+
+def usb0_ip_fallback() -> str | None:
+    """Si iface_ip4('usb0') no devuelve aún (ventana de renovación), lee 'src' en rutas."""
+    try:
+        s = subprocess.check_output(["ip", "route", "show", "default"], text=True)
+        for ln in s.splitlines():
+            if " dev usb0 " in ln and " src " in ln:
+                p = ln.split(); return p[p.index("src")+1]
+    except Exception:
+        pass
+    try:
+        s = subprocess.check_output(["ip", "route", "show", "dev", "usb0"], text=True)
+        for ln in s.splitlines():
+            if " src " in ln:
+                p = ln.split(); return p[p.index("src")+1]
+    except Exception:
+        pass
+    return None
+
+# --------- Estado y tests de red ----------
+def _iface_up(iface: str) -> bool:
+    try:
+        state = pathlib.Path(f"/sys/class/net/{iface}/operstate").read_text().strip()
+        return state in ("up","unknown")  # unknown en algunos drivers
+    except Exception:
+        return False
+
+def _has_net_iface(iface: str, host="1.1.1.1", timeout=2) -> bool:
+    return subprocess.call(["ping","-I",iface,"-c","1",f"-W{timeout}",host],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0
+
+def _has_net_any(host="1.1.1.1", timeout=2) -> bool:
+    return subprocess.call(["ping","-c","1",f"-W{timeout}",host],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0
+
+def dns_ok(host="google.com", timeout=2) -> bool:
+    try:
+        socket.setdefaulttimeout(timeout)
+        socket.gethostbyname(host)
+        return True
+    except Exception:
+        return False
+
+def icmp_ok(host="1.1.1.1", timeout=2) -> bool:
+    return _has_net_any(host=host, timeout=timeout)
+
+# --------- Rutas/Gateway ----------
+def _default_is_usb0() -> bool:
+    try:
+        s = subprocess.check_output(["ip","route","show","default"], text=True)
+        return " dev usb0" in s
+    except Exception:
+        return False
+
+def _learn_usb0_gw() -> str | None:
+    """Aprende el GW real de usb0 desde la tabla de rutas."""
+    try:
+        s = subprocess.check_output(["ip","route","show","dev","usb0"], text=True)
+        for ln in s.splitlines():
+            if ln.startswith("default ") and " via " in ln:
+                return ln.split()[2]
+    except Exception:
+        pass
+    return None
+
+def _set_default_for_usb0_safe() -> bool:
+    """
+    Asegura default via usb0 usando 'replace' con métrica 150.
+    NUNCA usa 1.1.1.1 como gateway.
+    """
+    gw = _learn_usb0_gw()
+    if not gw:
+        for cand in ("192.168.225.1","192.168.100.1"):
+            if subprocess.call(["sudo","ip","route","replace","default","via",cand,"dev","usb0","metric","150"]) == 0:
+                return True
+        return False
+    return subprocess.call(["sudo","ip","route","replace","default","via",gw,"dev","usb0","metric","150"]) == 0
+
+def switch_default_route_to(iface: str):
+    """Mover default a iface (si ya hay GW aprendido, usa replace; no borra a ciegas)."""
+    try:
+        if iface == "usb0":
+            _set_default_for_usb0_safe()
+        else:
+            # Para eth0 confiamos en dhcpcd; aquí un replace sin 'via' para no romper.
+            subprocess.run(["sudo","ip","route","replace","default","dev",iface], check=False)
+    except Exception as e:
+        logging.warning(f"switch_default_route_to({iface}) warn: {e}")
+
+# --------- DNS ----------
+def repair_dns(prefer_iface="usb0") -> bool:
+    """
+    Repara DNS cuando hay ICMP pero no resolución:
+      - /etc/resolv.conf → 8.8.8.8 y 1.1.1.1
+      - dhcpcd -n <iface> (debounce)
+      - flush cache systemd-resolved (si existe)
+    """
+    try:
+        with open("/etc/resolv.conf","w") as f:
+            f.write("nameserver 8.8.8.8\nnameserver 1.1.1.1\n")
+        logging.info("DNS restaurado → 8.8.8.8, 1.1.1.1")
+        if prefer_iface:
+            subprocess.run(["sudo","dhcpcd","-n",prefer_iface], check=False)
+            time.sleep(1.0)
+        if shutil.which("resolvectl"):
+            subprocess.run(["resolvectl","flush-caches"], check=False)
+        elif shutil.which("systemd-resolve"):
+            subprocess.run(["systemd-resolve","--flush-caches"], check=False)
+        return True
+    except Exception as e:
+        logging.error(f"repair_dns() error: {e}")
+        return False
+
+# --------- DHCP/route “ligero” para usb0 ----------
+def check_usb_connection():
+    """
+    Renovar DHCP en usb0 y asegurar default ‘segura’ por usb0 (sin gateways inválidos).
+    """
+    try:
+        out = subprocess.check_output(["ip","addr","show","usb0"], text=True)
+        if "usb0:" not in out:
+            logging.warning("'usb0' no está presente.")
+            return
+        logging.info("'usb0' detectado. Renovando DHCP (dhcpcd -n usb0)…")
+        subprocess.run(["sudo","dhcpcd","-n","usb0"], check=False)
+        time.sleep(1.0)  # debounce
+        if not _default_is_usb0():
+            _set_default_for_usb0_safe()
+    except Exception as e:
+        logging.error(f"check_usb_connection() error: {e}")
+
+def heal_usb0():
+    """
+    Mantiene usb0 estable por escalones con cooldowns:
+      A) DHCP + ruta segura
+      B) PDP/ECM por AT (SIM7600)
+      C) Re-enumeración USB
+    Sin repetir lógica, sin gateways inválidos, y con DNS restaurado si corresponde.
+    """
+    try:
+        # 0) Si ya hay Internet por cualquier interfaz, no tocar.
+        if _has_net_any():
+            _USB_GUARD["fails"] = 0
+            return True
+
+        # 1) Si usb0 tiene IP y ping, listo.
+        ip_now = _usb0_ip_quiet()
+        if ip_now and _has_net_iface("usb0"):
+            _USB_GUARD["fails"] = 0
+            return True
+
+        # A) DHCP + default via usb0 (cooldown)
+        if _now() - _USB_GUARD["last_dhcp"] >= CD_DHCP:
+            _USB_GUARD["last_dhcp"] = _now()
+            check_usb_connection()
+            if _usb0_ip_quiet() and _has_net_iface("usb0"):
+                _USB_GUARD["fails"] = 0
+                if not dns_ok() and icmp_ok(): repair_dns("usb0")
+                logging.info("usb0 OK tras DHCP/route.")
+                return True
+
+        # B) PDP/ECM por AT (cooldown)
+        if _now() - _USB_GUARD["last_pdp"] >= CD_PDP:
+            _USB_GUARD["last_pdp"] = _now()
+            logging.warning("usb0 sin salida; reactivando PDP/ECM por AT…")
+            for tty in ("/dev/ttyUSB2","/dev/ttyUSB3"):
+                if os.path.exists(tty):
+                    try:
+                        with open(tty, "wb", buffering=0) as f:
+                            for cmd in (
+                                b"AT\r",
+                                b"AT+CFUN=1\r",
+                                b'AT+CGDCONT=1,"IP","internet.comcel.com"\r',
+                                b'AT+CGAUTH=1,1,"claro","claro"\r',
+                                b"AT+CGACT=1,1\r",
+                                b"AT+CUSBPIDSWITCH=9011,1,1\r",
+                            ):
+                                f.write(cmd); time.sleep(0.3)
+                        break
+                    except Exception as e:
+                        logging.debug(f"AT por {tty} fallo: {e}")
+            time.sleep(8)
+            check_usb_connection()
+            if _usb0_ip_quiet() and _has_net_iface("usb0"):
+                _USB_GUARD["fails"] = 0
+                if not dns_ok() and icmp_ok(): repair_dns("usb0")
+                logging.info("usb0 volvió tras PDP/ECM.")
+                return True
+
+        # C) Rebind USB (cooldown) — usando bus-id correcto
+        if _now() - _USB_GUARD["last_rebind"] >= CD_REBIND:
+            _USB_GUARD["last_rebind"] = _now()
+            try:
+                dev = pathlib.Path("/sys/class/net/usb0")
+                if dev.exists():
+                    bus = os.path.basename(os.path.realpath(dev / "device")).split(":")[0]  # ej. '1-1.2'
+                    unbind = "/sys/bus/usb/drivers/usb/unbind"
+                    bind   = "/sys/bus/usb/drivers/usb/bind"
+                    os.system(f"echo {bus} | sudo tee {unbind} >/dev/null")
+                    time.sleep(1.0)
+                    os.system(f"echo {bus} | sudo tee {bind}   >/dev/null")
+                    time.sleep(3.0)
+                    check_usb_connection()
+                    if _usb0_ip_quiet() and _has_net_iface("usb0"):
+                        _USB_GUARD["fails"] = 0
+                        if not dns_ok() and icmp_ok(): repair_dns("usb0")
+                        logging.info("usb0 volvió tras rebind USB.")
+                        return True
+            except Exception as e:
+                logging.warning(f"usb rebind falló: {e}")
+
+        _USB_GUARD["fails"] = min(_USB_GUARD["fails"] + 1, 999)
+        logging.error("usb0 sigue sin Internet (esperando cooldowns).")
+        return False
+
+    except Exception as e:
+        logging.error(f"heal_usb0() error: {e}")
+        return False
+
+def ensure_internet_failover():
+    """
+    Prioridad: eth0 > usb0.
+    - Si ya hay Internet real (DNS OK), no tocar.
+    - Si ICMP OK pero DNS KO → repara DNS.
+    - Si no hay ICMP → intenta ETH; si no, cura usb0.
+    """
+    try:
+        # Internet real
+        if dns_ok():
+            return True
+
+        # ICMP sí, DNS no → reparar DNS (preferir usb0 si está activo)
+        if icmp_ok():
+            logging.warning("ICMP OK pero DNS KO; reparando DNS…")
+            if repair_dns(prefer_iface="usb0"):
+                return dns_ok()
+
+        # Sin ICMP → preferir ETH si tiene salida
+        if _iface_up("eth0") and _has_net_iface("eth0"):
+            switch_default_route_to("eth0")
+            return dns_ok() or icmp_ok()
+
+        # Curar usb0 (SIM7600)
+        ok = heal_usb0()
+        if ok and not _default_is_usb0():
+            _set_default_for_usb0_safe()
+        if ok and not dns_ok():
+            repair_dns(prefer_iface="usb0")
+        return dns_ok() or icmp_ok()
+
+    except Exception as e:
+        logging.error(f"ensure_internet_failover() error: {e}")
+        return False
+
+''''
 # Función para registrar eventos en un archivo
 import datetime
 import logging
@@ -796,3 +1075,4 @@ def repair_dns(prefer_iface="usb0"):
     except Exception as e:
         logging.error(f"repair_dns() error: {e}")
         return False
+''''
