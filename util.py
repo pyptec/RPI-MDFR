@@ -276,6 +276,15 @@ def ensure_internet_failover():
         logging.error(f"ensure_internet_failover() error: {e}")
         return False
 
+#-----------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------
+def cargar_configuracion(path, medidor='meatrolME337'):
+    with open(path, 'r') as file:
+        config = yaml.safe_load(file)
+        #print(config)  # Imprimir la configuración para verificar la estructura
+        return config['medidores'].get(medidor, {})
+
 '''
 # Función para registrar eventos en un archivo
 import datetime
