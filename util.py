@@ -38,6 +38,10 @@ CD_DHCP   = 30.0     # segundos entre dhcpcd -n usb0
 CD_PDP    = 90.0     # segundos entre secuencias AT
 CD_REBIND = 180.0    # segundos entre unbind/bind USB
 
+_USB_GUARD = {"last_dhcp": 0.0, "last_pdp": 0.0, "last_rebind": 0.0, "fails": 0}
+# Ventana de fallo DNS con IP activa (0.0 = sin fallo en curso)
+_DNS_GUARD = {"since": 0.0}
+
 def _now(): return time.monotonic()
 
 
@@ -83,6 +87,26 @@ def _usb0_ip_quiet():
         pass
     return None
 
+def usb0_reenumerate() -> bool:
+    """Re-enumera el SIM7600 (unbind/bind) usando el bus-id correcto."""
+    try:
+        dev = pathlib.Path("/sys/class/net/usb0")
+        if not dev.exists():
+            logging.error("usb0_reenumerate(): /sys/class/net/usb0 no existe.")
+            return False
+        bus = os.path.basename(os.path.realpath(dev / "device")).split(":")[0]  # p.ej. '1-1.2'
+        unbind = "/sys/bus/usb/drivers/usb/unbind"
+        bind   = "/sys/bus/usb/drivers/usb/bind"
+        subprocess.run(["sudo", "tee", unbind], input=f"{bus}\n", text=True,
+                       stdout=subprocess.DEVNULL, check=False)
+        time.sleep(1.0)
+        subprocess.run(["sudo", "tee", bind],   input=f"{bus}\n", text=True,
+                       stdout=subprocess.DEVNULL, check=False)
+        time.sleep(3.0)
+        return True
+    except Exception as e:
+        logging.error(f"usb0_reenumerate() error: {e}")
+        return False
 
 def _has_net_iface(iface, host="1.1.1.1", timeout=2):
     return subprocess.call(
@@ -298,43 +322,69 @@ def _set_default_via(gw, iface, metric=None):
 
 def heal_usb0():
     """
-    Mantiene usb0 estable:
-      - Si ya hay Internet (por cualquier interfaz) o usb0 tiene IP+ping, NO toca nada.
-      - Si falla, repara por escalones con cooldowns: DHCP → PDP/ECM → rebind.
+    Escalones con cooldowns:
+      A) DHCP + ruta segura
+      B) PDP/ECM por AT (SIM7600)
+      C) Re-enumeración USB
+
+    Extra: si hay ICMP (IP viva) pero DNS KO > 5 min → reparar DNS y, si persiste, re-enumerar.
     """
     try:
-        # ✅ Si hay Internet por cualquier interfaz, no resetees nada
-        if _has_net_any():
+        # --- Internet real ---
+        if dns_ok():
+            _DNS_GUARD["since"] = 0.0
             _USB_GUARD["fails"] = 0
             return True
 
-        # ✅ Si usb0 tiene IP y ping, no lo toques
-        ip_now = _usb0_ip_quiet()
-        if ip_now and _has_net_iface("usb0"):
-            _USB_GUARD["fails"] = 0
-            return True
+        icmp = icmp_ok()              # ¿hay salida IP a 1.1.1.1?
+        ip_u = iface_ip4("usb0")      # IP actual de usb0 (puede ser None)
 
-        # --- A) DHCP/route (cooldown) ---
-        if _now() - _USB_GUARD["last_dhcp"] >= CD_DHCP:
-            _USB_GUARD["last_dhcp"] = _now()
-            try:
-                check_usb_connection()
-            except Exception:
-                pass
-            time.sleep(1.0)  # debounce
-            ip_now = _usb0_ip_quiet()
-            if not _default_is_usb0():
-                _set_default_if_missing_for_usb0()
-            if ip_now and _has_net_iface("usb0"):
+        # --- Ventana "IP viva + DNS KO" ---
+        if icmp and not dns_ok():
+            if _DNS_GUARD["since"] == 0.0:
+                _DNS_GUARD["since"] = _now()
+
+            logging.warning("ICMP OK pero DNS KO; intentando reparar DNS…")
+            repair_dns("usb0")
+            if dns_ok():
+                _DNS_GUARD["since"] = 0.0
                 _USB_GUARD["fails"] = 0
-                restaurar_dns()
-                logging.info(f"usb0 OK (IP {ip_now}) tras DHCP/route.")
                 return True
 
-        # --- B) PDP/ECM por AT (cooldown) ---
+            if _now() - _DNS_GUARD["since"] > 300.0:  # > 5 minutos
+                logging.warning("DNS KO >5 min con IP; re-enumerando SIM7600…")
+                if usb0_reenumerate():
+                    check_usb_connection()
+                    repair_dns("usb0")
+                    _DNS_GUARD["since"] = 0.0
+                    if dns_ok() or icmp_ok():
+                        _USB_GUARD["fails"] = 0
+                        return True
+        else:
+            _DNS_GUARD["since"] = 0.0
+
+        # --- Si ya hay conectividad IP por cualquier interfaz, no tocar ---
+        if icmp:
+            _USB_GUARD["fails"] = 0
+            return True
+
+        # ===== Escalones normales de recuperación usb0 =====
+
+        # A) DHCP + default via usb0 (cooldown)
+        if _now() - _USB_GUARD["last_dhcp"] >= CD_DHCP:
+            _USB_GUARD["last_dhcp"] = _now()
+            check_usb_connection()
+            if iface_ip4("usb0") and _has_net_iface("usb0"):
+                if not dns_ok() and icmp_ok():
+                    repair_dns("usb0")
+                _USB_GUARD["fails"] = 0
+                logging.info("usb0 OK tras DHCP/route.")
+                return True
+
+        # B) PDP/ECM por AT (cooldown)
         if _now() - _USB_GUARD["last_pdp"] >= CD_PDP:
             _USB_GUARD["last_pdp"] = _now()
-            logging.warning("usb0 sin salida; reactivando PDP/ECM por AT …")
+            logging.warning("usb0 sin salida; reactivando PDP/ECM por AT…")
             for tty in ("/dev/ttyUSB2", "/dev/ttyUSB3"):
                 if os.path.exists(tty):
                     try:
@@ -344,62 +394,42 @@ def heal_usb0():
                                 b"AT+CFUN=1\r",
                                 b'AT+CGDCONT=1,"IP","internet.comcel.com"\r',
                                 b'AT+CGAUTH=1,1,"claro","claro"\r',
-                                b"AT+CGACT=1,1\r",
-                                b"AT+CUSBPIDSWITCH=9011,1,1\r",
+                                b"AT+CGACT=1,1\r',
+                                b'AT+CUSBPIDSWITCH=9011,1,1\r',
                             ):
                                 f.write(cmd); time.sleep(0.3)
                         break
                     except Exception as e:
                         logging.debug(f"AT por {tty} fallo: {e}")
             time.sleep(8)
-            try:
-                check_usb_connection()
-            except Exception:
-                pass
-            if not _default_is_usb0():
-                _set_default_if_missing_for_usb0()
-            if _usb0_ip_quiet() and _has_net_iface("usb0"):
+            check_usb_connection()
+            if iface_ip4("usb0") and _has_net_iface("usb0"):
+                if not dns_ok() and icmp_ok():
+                    repair_dns("usb0")
                 _USB_GUARD["fails"] = 0
-                restaurar_dns()
                 logging.info("usb0 volvió tras PDP/ECM.")
                 return True
 
-        # --- C) Re-enumeración USB (cooldown) ---
+        # C) Rebind USB con bus-id correcto (cooldown)
         if _now() - _USB_GUARD["last_rebind"] >= CD_REBIND:
             _USB_GUARD["last_rebind"] = _now()
-            try:
-                dev = pathlib.Path("/sys/class/net/usb0")
-                if dev.exists():
-                    bus = os.path.basename(os.path.realpath(dev / "device")).split(":")[0]
+            if usb0_reenumerate():
+                check_usb_connection()
+                if iface_ip4("usb0") and _has_net_iface("usb0"):
+                    if not dns_ok() and icmp_ok():
+                        repair_dns("usb0")
+                    _USB_GUARD["fails"] = 0
+                    logging.info("usb0 volvió tras rebind USB.")
+                    return True
 
-                    #bus = os.path.basename(os.path.realpath(dev / "device"))  # ej. "1-1.2"
-                    unbind = "/sys/bus/usb/drivers/usb/unbind"
-                    bind   = "/sys/bus/usb/drivers/usb/bind"
-                    os.system(f"echo {bus} | sudo tee {unbind} >/dev/null")
-                    time.sleep(1.0)
-                    os.system(f"echo {bus} | sudo tee {bind} >/dev/null")
-                    time.sleep(3.0)
-                    try:
-                        check_usb_connection()
-                    except Exception:
-                        pass
-                    if not _default_is_usb0():
-                        _set_default_if_missing_for_usb0()
-                    if _usb0_ip_quiet() and _has_net_iface("usb0"):
-                        _USB_GUARD["fails"] = 0
-                        restaurar_dns()
-                        logging.info("usb0 volvió tras rebind USB.")
-                        return True
-            except Exception as e:
-                logging.warning(f"usb rebind falló: {e}")
-
-        _USB_GUARD["fails"] = min(_USB_GUARD["fails"] + 1, 1000)
+        _USB_GUARD["fails"] = min(_USB_GUARD["fails"] + 1, 999)
         logging.error("usb0 sigue sin Internet (esperando cooldowns).")
         return False
 
     except Exception as e:
         logging.error(f"heal_usb0() error: {e}")
         return False
+
 
 def ensure_internet_failover():
     """
