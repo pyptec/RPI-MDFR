@@ -26,7 +26,7 @@ def ejecutar_datos_iniciales(obtener_datos_medidores_y_sensor):
         Temp.iniciar_wdt()
 
         # === Verificar conexión a Internet ===
-        if util.check_internet_connection():
+        if util.ensure_internet_failover():
             mqtt_client = awsaccess.connect_to_mqtt()
             if mqtt_client:
                 util.logging.info("[INICIO] Conectado a AWS IoT. Publicando datos iniciales...")
