@@ -395,8 +395,10 @@ def restablecer_sistema_post_puerta():
 
         # 2) Asegura sirena y baliza en OFF
         try:
-            setsirena(False)
-            setbaliza(False)
+            setsirena(True)
+            setbaliza(True)
+            #setsirena(False)
+            #setbaliza(False)
         except Exception as e:
             util.logging.error(f"[DOOR] Apagar sirena/baliza falló: {type(e).__name__}: {e}")
 
