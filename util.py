@@ -824,24 +824,59 @@ def repair_dns(prefer_iface="usb0"):
     """
     Repara DNS cuando hay ICMP pero no resolución:
     - Fuerza /etc/resolv.conf con 8.8.8.8 y 1.1.1.1
-    - Refresca el lease de la interfaz preferida
+    - Refresca el lease de la interfaz preferida (dhcpcd)
     - Limpia caches (systemd-resolved) si aplica
+    Tiene fallback con 'sudo tee' si no hay permisos de escritura.
     """
     try:
-        with open("/etc/resolv.conf", "w") as f:
-            f.write("nameserver 8.8.8.8\nnameserver 1.1.1.1\n")
-        logging.info("DNS restaurado en /etc/resolv.conf → 8.8.8.8, 1.1.1.1")
+        content = "nameserver 8.8.8.8\nnameserver 1.1.1.1\n"
 
+        # 1) Intento directo (si el servicio corre como root o el archivo es escribible)
+        try:
+            with open("/etc/resolv.conf", "w") as f:
+                f.write(content)
+            logging.info("DNS restaurado en /etc/resolv.conf → 8.8.8.8, 1.1.1.1 (write directo)")
+        except PermissionError:
+            # 2) Fallback con sudo tee (soporta symlink o permisos root)
+            try:
+                # Log de ayuda si es symlink (común en systemd-resolved)
+                try:
+                    if os.path.islink("/etc/resolv.conf"):
+                        target = os.path.realpath("/etc/resolv.conf")
+                        logging.warning(f"/etc/resolv.conf es symlink → {target}; se forzará con sudo tee")
+                except Exception:
+                    pass
+
+                proc = subprocess.run(
+                    ["sudo", "tee", "/etc/resolv.conf"],
+                    input=content, text=True, check=False,
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                )
+                if proc.returncode != 0:
+                    logging.error("sudo tee /etc/resolv.conf falló (rc != 0)")
+                    return False
+                logging.info("DNS restaurado en /etc/resolv.conf → 8.8.8.8, 1.1.1.1 (via sudo tee)")
+            except Exception as ee:
+                logging.error(f"repair_dns(): fallback sudo tee error: {ee}")
+                return False
+
+        # 3) Refrescar lease de la interfaz preferida (útil si dhcpcd gestiona resolv)
         if prefer_iface:
             subprocess.run(["sudo", "dhcpcd", "-n", prefer_iface], check=False)
-            time.sleep(1.0)  # debounce
+            time.sleep(1.0)  # pequeño debounce
 
-        if shutil.which("resolvectl"):
-            subprocess.run(["resolvectl", "flush-caches"], check=False)
-        elif shutil.which("systemd-resolve"):
-            subprocess.run(["systemd-resolve", "--flush-caches"], check=False)
+        # 4) Limpiar caché de resolved si existe (no es crítico si falla)
+        try:
+            if shutil.which("resolvectl"):
+                subprocess.run(["resolvectl", "flush-caches"], check=False)
+            elif shutil.which("systemd-resolve"):
+                subprocess.run(["systemd-resolve", "--flush-caches"], check=False)
+        except Exception:
+            pass
 
         return True
+
     except Exception as e:
         logging.error(f"repair_dns() error: {e}")
         return False
+
