@@ -38,7 +38,6 @@ CD_DHCP   = 30.0     # segundos entre dhcpcd -n usb0
 CD_PDP    = 90.0     # segundos entre secuencias AT
 CD_REBIND = 180.0    # segundos entre unbind/bind USB
 
-_USB_GUARD = {"last_dhcp": 0.0, "last_pdp": 0.0, "last_rebind": 0.0, "fails": 0}
 # Ventana de fallo DNS con IP activa (0.0 = sin fallo en curso)
 _DNS_GUARD = {"since": 0.0}
 
@@ -124,24 +123,38 @@ def _has_net_any():
 def _default_is_usb0():
     try:
         s = subprocess.check_output(["ip", "route", "show", "default"], text=True)
-        return " dev usb0" in s
+        # Debe ser por usb0 y con 'via' (gateway real)
+        return (" dev usb0 " in s) and (" via " in s)
     except Exception:
         return False
 
 def _set_default_if_missing_for_usb0():
     """
-    Si no hay default via usb0, intenta aprenderla; si no, usa gateway ECM.
-    Usa 'replace' y metric 150. Nunca 1.1.1.1.
+    Asegura default por usb0 con 'via' válida.
+    - Si existe 'default dev usb0' sin 'via', la elimina.
+    - Intenta aprender 'via' de 'ip route show dev usb0'
+    - Si no encuentra, usa heurística ECM (192.168.225.1 / 192.168.100.1)
     """
     try:
-        s = subprocess.check_output(["ip", "route"], text=True)
+        # 1) Si hay default por usb0 sin 'via', elimínala
+        s = subprocess.check_output(["ip", "route", "show", "default"], text=True)
         for line in s.splitlines():
-            if line.startswith("default ") and " dev usb0 " in line:
+            if line.startswith("default ") and " dev usb0" in line and " via " not in line:
+                subprocess.run(["sudo","ip","route","del","default","dev","usb0"], check=False)
+                break
+    except Exception:
+        pass
+
+    # 2) ¿Ya existe una default buena (con via)?
+    try:
+        s = subprocess.check_output(["ip", "route", "show", "default"], text=True)
+        for line in s.splitlines():
+            if line.startswith("default ") and " dev usb0 " in line and " via " in line:
                 return True
     except Exception:
         pass
 
-    # aprender via real
+    # 3) Intentar aprender via real desde usb0
     try:
         s = subprocess.check_output(["ip", "route", "show", "dev", "usb0"], text=True)
         for line in s.splitlines():
@@ -153,13 +166,14 @@ def _set_default_if_missing_for_usb0():
     except Exception:
         pass
 
-    # heurística ECM correcta
+    # 4) Heurística ECM típica
     for gw in ("192.168.225.1", "192.168.100.1"):
         if subprocess.call(
             ["sudo","ip","route","replace","default","via",gw,"dev","usb0","metric","150"]
         ) == 0:
             return True
     return False
+
 
 
 
@@ -255,7 +269,7 @@ def switch_default_route_to(iface: str):
     try:
         if iface == "usb0":
             # usa gateway real si existe; si no, heurística ECM
-            _set_default_for_usb0_safe()
+             _set_default_if_missing_for_usb0()
         else:
             subprocess.run(["sudo","ip","route","replace","default","dev",iface], check=False)
         logging.info(f"Ruta predeterminada ahora por {iface}")
@@ -489,9 +503,7 @@ def restaurar_dns():
 #-----------------------------------------------------------------------------------------------------------
 def check_usb_connection():
     """
-    Si existe usb0, renueva DHCP (dhcpcd -n usb0) y, si falta,
-    asegura default vía gateway real de usb0 (o heurística ECM).
-    NUNCA usa 1.1.1.1 como gateway.
+    Si existe usb0, renueva DHCP y asegura default 'via' válida por usb0.
     """
     try:
         out = subprocess.check_output(["ip", "addr", "show", "usb0"], text=True)
@@ -501,36 +513,21 @@ def check_usb_connection():
 
         logging.info("'usb0' detectado. Renovando DHCP (dhcpcd -n usb0)…")
         subprocess.run(["sudo", "dhcpcd", "-n", "usb0"], check=False)
-        time.sleep(1.0)  # debounce: que dhcpcd termine
+        time.sleep(1.0)
 
-        # ¿ya hay default por usb0?
-        route = subprocess.check_output(["ip", "route"], text=True)
-        if "default " in route and " dev usb0 " in route:
-            return  # ya está
+        # ¿Hay default por usb0 y con 'via'?
+        s = subprocess.check_output(["ip", "route", "show", "default"], text=True)
+        ok = False
+        for line in s.splitlines():
+            if line.startswith("default ") and " dev usb0 " in line:
+                ok = (" via " in line)
+                break
+        if ok:
+            return  # ya está bien
 
-        # aprender 'via' real en usb0
-        try:
-            rdev = subprocess.check_output(["ip", "route", "show", "dev", "usb0"], text=True)
-            gw = None
-            for line in rdev.splitlines():
-                if line.startswith("default ") and " via " in line:
-                    gw = line.split()[2]
-                    break
-            if gw:
-                subprocess.run(
-                    ["sudo","ip","route","replace","default","via",gw,"dev","usb0","metric","150"],
-                    check=False
-                )
-                return
-        except Exception:
-            pass
+        # Si no está bien, arréglala
+        _set_default_if_missing_for_usb0()
 
-        # heurística típica SIM7600 ECM
-        for gw in ("192.168.225.1", "192.168.100.1"):
-            if subprocess.call(
-                ["sudo","ip","route","replace","default","via",gw,"dev","usb0","metric","150"]
-            ) == 0:
-                return
     except Exception as e:
         logging.error(f"check_usb_connection() error: {e}")
 
