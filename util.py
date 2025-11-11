@@ -164,7 +164,7 @@ def get__time_utc():
 def signal_handler(sig, frame):
     sys.exit(0)
 
-
+'''
 def check_internet_connection():
     try:
         # Definición de parámetros
@@ -223,10 +223,22 @@ def _internet_failoverensure():
     except Exception as e:
         logging.error(f"ensure_internet_failover() fallo: {e}")
         return False
-
+'''
 #-----------------------------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------------------------    
+def switch_default_route_to(iface: str):
+    try:
+        if iface == "usb0":
+            # usa gateway real si existe; si no, heurística ECM
+            _set_default_for_usb0_safe()
+        else:
+            subprocess.run(["sudo","ip","route","replace","default","dev",iface], check=False)
+        logging.info(f"Ruta predeterminada ahora por {iface}")
+    except Exception as e:
+        logging.warning(f"switch_default_route_to({iface}) warn: {e}")
+
+'''
 def switch_default_route_to(active_interface):
  
 
@@ -248,7 +260,7 @@ def switch_default_route_to(active_interface):
     except Exception as e:
         logging.error(f"Error al cambiar ruta a {active_interface}: {e}")
         return False
-
+'''
 
 
 def _run(cmd, check=False):
@@ -358,7 +370,9 @@ def heal_usb0():
             try:
                 dev = pathlib.Path("/sys/class/net/usb0")
                 if dev.exists():
-                    bus = os.path.basename(os.path.realpath(dev / "device"))  # ej. "1-1.2"
+                    bus = os.path.basename(os.path.realpath(dev / "device")).split(":")[0]
+
+                    #bus = os.path.basename(os.path.realpath(dev / "device"))  # ej. "1-1.2"
                     unbind = "/sys/bus/usb/drivers/usb/unbind"
                     bind   = "/sys/bus/usb/drivers/usb/bind"
                     os.system(f"echo {bus} | sudo tee {unbind} >/dev/null")
@@ -507,6 +521,7 @@ def actualizar_temporizadores(tempRaspberry, tempMedidor, tempQueue, tempPing, t
 #-----------------------------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------------------------
+'''
 def enable_interface(interface, hostname="google.com"):
     try:
         # Verificar si la interfaz está activa
@@ -536,13 +551,16 @@ def enable_interface(interface, hostname="google.com"):
     except Exception as e:
         logging.error(f"Error al habilitar o verificar la interfaz {interface}: {e}")
         return False 
+'''
 #-----------------------------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------------------------    
+'''
 def run_in_thread(interface):
     thread = threading.Thread(target=enable_interface, args=(interface,))
     thread.start()
     return thread
+'''
 #-----------------------------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------------------------
@@ -584,6 +602,7 @@ def primera_eth_disponible() -> str | None:
 #-----------------------------------------------------------------------------------------------------------
 #Resetea la interfaz usb0
 #-----------------------------------------------------------------------------------------------------------
+'''
 def reset_usb0():
     """
     Baja y sube la interfaz usb0, o bien libera y renueva DHCP.
@@ -599,6 +618,7 @@ def reset_usb0():
     # time.sleep(1)
     # subprocess.run(["sudo", "dhclient", "usb0"], check=False)
     time.sleep(5)  # espera a que vuelva a negociar IP
+'''
 #-----------------------------------------------------------------------------------------------------------
 # Función para convertir una IP en número eliminando los puntos
 #-----------------------------------------------------------------------------------------------------------
@@ -702,6 +722,7 @@ def payload_estado_sistema_y_medidor():
 #-----------------------------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------------------------
+'''
 def renovar_ip_usb0():
     """
     Renueva IP de usb0 con dhcpcd y devuelve la IP IPv4 (o None).
@@ -721,7 +742,7 @@ def renovar_ip_usb0():
         logging.warning(f"renovar_ip_usb0() error: {e}")
         return None
 
-    
+'''  
 
 
 def _normalize_payload(p):
