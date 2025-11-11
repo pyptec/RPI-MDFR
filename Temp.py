@@ -288,7 +288,7 @@ def _payload_ivu(i_value: int, v_list, u_list):
 def _publish_ivu(i_value: int, v_list, u_list):
     try:
         msg = json.dumps(_payload_ivu(i_value, v_list, u_list))
-        if util.check_internet_connection():
+        if util.ensure_internet_failover():
             cli = awsaccess.connect_to_mqtt()
             if cli:
                 awsaccess.publish_mediciones(cli, msg)

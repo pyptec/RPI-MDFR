@@ -259,6 +259,8 @@ def main_loop():
         if Temp.door_is_open():
             util.logging.warning("[LOOP] Puerta ABIERTA → restablecer sistema y saltar ciclo.")
             Temp.restablecer_sistema_post_puerta()
+            Temp.setsirena(True)
+            Temp.setbaliza(True)
             Temp.iniciar_wdt()
             time.sleep(0.5)
             continue
