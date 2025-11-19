@@ -133,7 +133,7 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                             acted = True
                         if TEMP_LOW is not None and temp_c <= float(TEMP_LOW):
                             util.logging.info("[MDFR] TEMP→ EXTRACTOR OFF (baja T°)")
-                            Temp.setrecircular(False) #false
+                            Temp.setrecircular(True) #false
                             acted = True
                         if not acted:
                             util.logging.info("[MDFR] TEMP en banda (sin cambio)")
