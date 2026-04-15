@@ -48,7 +48,23 @@ def _failover_loop(period=30):
 # Lanza el watcher
 threading.Thread(target=_failover_loop, args=(30,), daemon=True).start()
 # --------------------------------------------------------------------------------------
+#prueba de relay
+# --------------------------------------------------------------------------------------
+def prueba_relays():
+    cfg = Temp._cfg_relays()
 
+    util.logging.info("=== PRUEBA MANUAL DE RELAYS ===")
+
+    for nombre in ['recircular', 'extractor', 'humidificador', 'etileno']:
+        util.logging.info(f"Prueba {nombre} ON")
+        modbusdevices.relay_set(cfg, nombre, True)
+        time.sleep(3)
+
+        util.logging.info(f"Prueba {nombre} OFF")
+        modbusdevices.relay_set(cfg, nombre, False)
+        time.sleep(2)
+
+    util.logging.info("=== FIN PRUEBA MANUAL DE RELAYS ===")
 #-----------------------------------------------------------------------------------------------------------    
 # Función para procesar eventos en la cola
 #-----------------------------------------------------------------------------------------------------------
@@ -134,22 +150,43 @@ def obtener_datos_medidores_y_sensor():
                 'tht03r_sensor'
             )
             g_tht03r = config_THT03R.get('id_device')
-            medicion_THT03R = modbusdevices.payload_event_modbus(config_THT03R)
-            
-            if medicion_THT03R is None:
-                util.logging.warning("THT03R sin respuesta.")
-                medicion_THT03R = {
-                    "d": [{"t": util.get__time_utc(), "g":  g_tht03r, "v": [None, None], "u": [None, None]}]
-                }
-            else:
-                valores = medicion_THT03R["d"][0]["v"]
-                temp = valores[0] if len(valores) > 0 else None
-                hum  = valores[1] if len(valores) > 1 else None
+            simular = bool(config_THT03R.get('simular', False))
 
-                if temp not in [None, "None"] or hum not in [None, "None"]:
-                    util.logging.info(f"THT03R → Temp={temp} °C, Hum={hum} %")
+            if simular:
+                import random
+                temp_simulada = round(random.uniform(17.5, 19.5), 1)
+                hum_simulada = round(random.uniform(85.0, 95.0), 1)
+                regs = config_THT03R.get('registers', [])
+                unidades = [str(r.get('unit')) for r in regs]
+                
+                util.logging.info(f"[THT03R] SIM → Temp={temp_simulada} °C, Hum={hum_simulada} %")
+                
+                medicion_THT03R = {
+                    "d": [{
+                        "t": util.get__time_utc(),
+                        "g": g_tht03r,
+                        "v": [str(temp_simulada), str(hum_simulada)],
+                        "u": unidades
+                    }]
+                }
+                
+            else:
+                medicion_THT03R = modbusdevices.payload_event_modbus(config_THT03R)
+            
+                if medicion_THT03R is None:
+                    util.logging.warning("THT03R sin respuesta.")
+                    medicion_THT03R = {
+                        "d": [{"t": util.get__time_utc(), "g":  g_tht03r, "v": [None, None], "u": [None, None]}]
+                    }
                 else:
-                    util.logging.warning("THT03R sin valores válidos (None)")
+                    valores = medicion_THT03R["d"][0]["v"]
+                    temp = valores[0] if len(valores) > 0 else None
+                    hum  = valores[1] if len(valores) > 1 else None
+
+                    if temp not in [None, "None"] or hum not in [None, "None"]:
+                        util.logging.info(f"THT03R → Temp={temp} °C, Hum={hum} %")
+                    else:
+                        util.logging.warning("THT03R sin valores válidos (None)")
         except Exception as e:
             util.logging.error(f"Error THT03R: {e}")
             medicion_THT03R = {
@@ -336,4 +373,6 @@ def main_loop():
 
 # Punto de entrada principal
 if __name__ == '__main__':
+    #prueba_relays()
+    
     main_loop()

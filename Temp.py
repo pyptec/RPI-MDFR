@@ -209,6 +209,12 @@ def door_is_open() -> bool:
     except Exception:
         pass
     return _door_read_active(invert)
+
+def door_is_closed() -> bool:
+    """
+    True si la puerta está cerrada.
+    """
+    return not door_is_open()
 #-----------------------------------------------------------------------------------------------------------
 # Busca en registers por alias o name; devuelve u en str.
 #-----------------------------------------------------------------------------------------------------------
@@ -243,37 +249,41 @@ def _door_callback(channel):
     u_open = _get_unit(regs, {"door_open", "estado_puerta"}, "138")
     u_dur  = _get_unit(regs, {"door_open_duration_s", "duracion_abierta"}, "145")
 
-    invert = bool(door.get('invert_active_low', True))
-    active = _door_read_active(invert)  # True = abierta
+    #invert = bool(door.get('invert_active_low', True))
+    #active = _door_read_active(invert)  # True = abierta
     now = time.monotonic()
-
+    is_open = door_is_open()   # True = abierta
     last = _door_state.get("active")
     if last is None:
-        _door_state["active"] = active
+        _door_state["active"] = is_open
         _door_state["changed_ts"] = now
         # opcional: publicar estado inicial solo si está abierta
-        if active:
+        if is_open:
+            util.logging.warning("[DOOR] ABIERTA")
+            _publish_ivu(i_value, ["0"], [u_open])
+        else:
+            util.logging.info("[DOOR] CERRADA")
             _publish_ivu(i_value, ["1"], [u_open])
         return
 
-    if active == last:
+    if is_open == last:
         return
 
     prev_ts = _door_state["changed_ts"]
-    _door_state["active"] = active
+    _door_state["active"] = is_open
     _door_state["changed_ts"] = now
 
-    if active:
+    if is_open:
         util.logging.warning("[DOOR] ABIERTA → apagar relés Modbus.")
         restablecer_sistema_post_puerta()
-        _publish_ivu(i_value, ["1"], [u_open])  # v=1, u=138
+        _publish_ivu(i_value, ["0"], [u_open])  # v=1, u=138
         _man_state["last_pressed"] = _btn_read_active(True)  # activo-bajo
     else:
         global _door_restored
         _door_restored = False
         dur = round(now - prev_ts, 1)
         util.logging.info(f"[DOOR] CERRADA. Abierta {dur}s")
-        _publish_ivu(i_value, [str(dur)], [u_dur])  # evento “cerrada” (solo duración)
+        _publish_ivu(i_value, ["1", str(dur)], [u_open, u_dur])  # cerrada = 1
 
 #-----------------------------------------------------------------------------------------------------------
 # Prepara el payload JSON para IVU puerta esta abierta
@@ -529,11 +539,9 @@ def snapshot_puerta():
 
         # Usa TU helper existente (no redefinimos nada):
         u_open = _get_unit(regs, {"door_open", "estado_puerta"}, "138")
+        is_closed = door_is_closed()
 
-        invert = bool(door.get('invert_active_low', True))
-        is_open = _door_read_active(invert)  # True si abierta
-
-        v = ["0" if is_open else "1"]
+        v = ["1" if is_closed else "0"]
         return {"d": [{"t": util.get__time_utc(), "i": i_value, "v": v, "u": [u_open]}]}
     except Exception as e:
         util.logging.error(f"[SNAP] puerta: {type(e).__name__}: {e}")
