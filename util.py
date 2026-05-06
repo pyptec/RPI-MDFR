@@ -13,6 +13,7 @@ import yaml
 import Temp
 import json
 import shlex, pathlib
+import shutil
 # Configuración básica de logging
 logging.basicConfig(
     level=logging.INFO,  # Nivel mínimo de los mensajes que se registrarán
@@ -198,70 +199,10 @@ def get__time_utc():
     now = datetime.datetime.now()
     timestamp = datetime.datetime.timestamp(now)
     return str(int(timestamp))
-#
+
 def signal_handler(sig, frame):
     sys.exit(0)
 
-'''
-def check_internet_connection():
-    try:
-        # Definición de parámetros
-        hostname = "google.com"
-        interfaces = {"eth0": "Ethernet", "usb0": "USB"}
-
-        # Intento de conexión en cada interfaz
-        for interface, name in interfaces.items():
-            response = os.system(f"ping -I {interface} -c 1 {hostname} > /dev/null 2>&1")
-            if response == 0:
-                # Si hay conexión en la interfaz actual, cambiar la ruta predeterminada
-                if switch_default_route_to(interface):
-                    logging.info(f"Internet: Conectado a través de {name}")
-                return True
-
-        # Si ninguna interfaz tiene conexión
-        logging.warning("Internet: No hay conexión en ninguna interfaz.")
-        renovar_ip_usb0()
-        return False
-
-    except Exception as e:
-        logging.error(f"Error al intentar verificar la conexión: {e}")
-        return False
-    
-def _internet_failoverensure():
-    """
-    Prioridad: eth0 > usb0.
-    - Si eth0 tiene Internet, deja default por eth0.
-    - Si no, intenta usb0: renueva DHCP, pone gateway si falta y cambia default.
-    Devuelve True si hay Internet por alguna.
-    """
-    try:
-        # 1) ¿Hay internet por ETH?
-        if os.system("ping -I eth0 -c 1 -W 2 1.1.1.1 > /dev/null 2>&1") == 0:
-            switch_default_route_to("eth0")
-            logging.info("Failover: usando Ethernet (eth0).")
-            return True
-
-        logging.warning("ETH sin salida. Probando USB (SIM7600)…")
-
-        # 2) Intentar levantar usb0
-        check_usb_connection()  # dhcpcd -n usb0 + default via 192.168.225.1 si falta
-
-        # 3) ¿Ya hay default por usb0?
-        route = os.popen("ip route").read()
-        if "default via" in route and "usb0" in route:
-            # prueba IP y DNS
-            if os.system("ping -I usb0 -c 1 -W 2 1.1.1.1 > /dev/null 2>&1") == 0:
-                restaurar_dns()  # 8.8.8.8 / 8.8.4.4
-                logging.info("Failover: usando módem 4G (usb0).")
-                return True
-
-        logging.error("Sin salida por eth0 ni usb0 (tras intento de recuperación).")
-        return False
-
-    except Exception as e:
-        logging.error(f"ensure_internet_failover() fallo: {e}")
-        return False
-'''
 #-----------------------------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------------------------    
@@ -275,30 +216,6 @@ def switch_default_route_to(iface: str):
         logging.info(f"Ruta predeterminada ahora por {iface}")
     except Exception as e:
         logging.warning(f"switch_default_route_to({iface}) warn: {e}")
-
-'''
-def switch_default_route_to(active_interface):
- 
-
-    """
-    Cambia la ruta por defecto al dispositivo dado sin bajar otras interfaces.
-    """
-    try:
-        current_route = os.popen("ip route show default").read()
-        if "default via" in current_route and active_interface in current_route:
-            logging.info(f"La ruta predeterminada ya está en {active_interface}.")
-            return False
-        # limpia default y pone por dispositivo (el GW lo aporta dhcpcd)
-        os.system("sudo ip route del default 2>/dev/null")
-        cmd = f"sudo ip route add default dev {active_interface}"
-        os.system(cmd)
-        restaurar_dns()
-        logging.info(f"Ruta predeterminada cambiada a {active_interface}")
-        return True
-    except Exception as e:
-        logging.error(f"Error al cambiar ruta a {active_interface}: {e}")
-        return False
-'''
 
 
 def _run(cmd, check=False):

@@ -1,0 +1,118 @@
+medidores:
+  samsung_mim_b19n:
+    id: 21
+    name: "Samsung MIM-B19N HVAC"
+    slave: 1
+    port: "/dev/ttyS0"
+    baudrate: 9600
+    bytesize: 8
+    parity: "N"
+    stopbits: 1
+    timeout: 1
+    debug: false
+
+    description: >
+      Controlador Modbus RTU Samsung MIM-B19N/MIM-B19NT
+      para sistema HVAC del proyecto RPI-MDFR.
+
+    variables:
+
+      # ---------------------------------------------------
+      # Estado de comunicación
+      # ---------------------------------------------------
+      - name: Communication status
+        alias: comm_status
+        address: 0
+        fc: 3
+        type: uint16
+        readWrite: "R"
+        unit: 200
+        description: "Estado de comunicación de la unidad interior"
+
+      # ---------------------------------------------------
+      # Encendido / apagado
+      # ---------------------------------------------------
+      - name: OnOff
+        alias: hvac_onoff
+        address: 2
+        fc: 3
+        type: uint16
+        readWrite: "RW"
+        unit: 201
+        description: "1=ON, 0=OFF"
+
+      # ---------------------------------------------------
+      # Modo de operación
+      # ---------------------------------------------------
+      - name: Operation mode
+        alias: hvac_mode
+        address: 3
+        fc: 3
+        type: uint16
+        readWrite: "RW"
+        unit: 202
+        description: >
+          0=Auto
+          1=Cool
+          2=Dry
+          3=Fan
+          4=Heat
+
+      # ---------------------------------------------------
+      # Velocidad ventilador
+      # ---------------------------------------------------
+      - name: Fan speed
+        alias: hvac_fan_speed
+        address: 4
+        fc: 3
+        type: uint16
+        readWrite: "RW"
+        unit: 203
+        description: >
+          0=Auto
+          1=Low
+          2=Medium
+          3=High
+
+      # ---------------------------------------------------
+      # Temperatura de consigna
+      # ---------------------------------------------------
+      - name: Set temperature
+        alias: hvac_setpoint
+        address: 8
+        fc: 3
+        type: int16
+        scale: 0.1
+        readWrite: "RW"
+        unit: 1
+        description: >
+          Temperatura de consigna del aire acondicionado.
+          El valor Modbus se maneja en décimas.
+          Ejemplo:
+          170 = 17.0 °C
+          200 = 20.0 °C
+
+      # ---------------------------------------------------
+      # Temperatura ambiente reportada por Samsung
+      # ---------------------------------------------------
+      - name: Room temperature
+        alias: hvac_room_temp
+        address: 9
+        fc: 3
+        type: int16
+        scale: 0.1
+        readWrite: "R"
+        unit: 1
+        description: "Temperatura ambiente medida por la unidad interior"
+
+      # ---------------------------------------------------
+      # Código de error
+      # ---------------------------------------------------
+      - name: Error code
+        alias: hvac_error_code
+        address: 10
+        fc: 3
+        type: uint16
+        readWrite: "R"
+        unit: 204
+        description: "Código de error reportado por la unidad Samsung"
