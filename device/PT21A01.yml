@@ -5,7 +5,7 @@ medidores:
     port: "/dev/ttyS0"
     debug: false
 
-    slave_id: 1
+    slave_id: 3
     baudrate: 9600
     bytesize: 8
     parity: N
