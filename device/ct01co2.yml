@@ -11,7 +11,7 @@ medidores:
     stopbits: 1
     timeout: 1
     
-    simular: False  # <--- NUEVO FLAG para activar la simulación
+    simular: True  # <--- NUEVO FLAG para activar la simulación
 
     registers:
       - name: co2
