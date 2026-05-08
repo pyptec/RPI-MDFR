@@ -3,7 +3,8 @@ import os
 import util
 
 # Nombre del archivo que almacenará los eventos
-archivo_eventos = '/home/pi/.scr/eventos/eventos.txt'
+archivo_eventos = os.getenv("EVENT_QUEUE_FILE", "/home/pi/.scr/eventos/eventos.txt")
+#archivo_eventos = '/home/pi/.scr/eventos/eventos.txt'
 
 # Función para agregar eventos al archivo
 def agregar_evento(evento):

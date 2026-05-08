@@ -640,10 +640,8 @@ def payload_estado_sistema_y_medidor():
     Temp.check_temp()
 
     # === YAML de variables del sistema ===
-    cfg = cargar_configuracion(
-        '/home/pi/.scr/.scr/RPI-MDFR/device/sistema.yml',
-        'variables_del_sistema'
-    )
+    cfg = cargar_configuracion(os.getenv("CFG_SISTEMA"), os.getenv("CFG_SISTEMA_SECTION"))
+    #cfg = cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/sistema.yml','variables_del_sistema')
     g_id = cfg.get('id_device')
     unidades_cfg = cfg.get('unidades', [])
     codigos_unidades = [u['codigo'] for u in unidades_cfg]

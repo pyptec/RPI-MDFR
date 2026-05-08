@@ -16,6 +16,7 @@ import eventHandler
 import shared
 import subprocess
 import modbusdevices
+import random
 # import tunel_watcher
 
 # Dispatcher simple
@@ -93,22 +94,26 @@ def process_event_queue():
 #-----------------------------------------------------------------------------------------------------------    
 def obtener_datos_medidores_y_sensor():
     """
-    Lee los sensores CT01CO2 y THT03R.
-    Si alguno no responde, deja sus valores en None y lo registra en el log.
-    Devuelve un diccionario donde cada valor es una cadena JSON.
+    Lee los sensores:
+    - CT01CO2
+    - THT03R
+    - PT21A01
+
+    Si alguno no responde:
+    - deja valores en None
+    - registra error en log
+
+    Devuelve un diccionario donde cada valor es JSON.
     """
     try:
         # === SENSOR 1 — CT01CO2 ===
         try:
-            config_CT01CO2 = util.cargar_configuracion(
-                '/home/pi/.scr/.scr/RPI-MDFR/device/ct01co2.yml',
-                'ct01co2_sensor'
-            )
+            config_CT01CO2  = util.cargar_configuracion(os.getenv("CFG_CT01CO2"), os.getenv("CFG_CT01CO2_SECTION"))
+            #config_CT01CO2 = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/ct01co2.yml','ct01co2_sensor')            
             g_ct01 = config_CT01CO2.get('id_device')
             simular = bool(config_CT01CO2.get('simular', False))
             
             if simular:
-                import random
                 co2_simulado = random.randint(800, 9600)
                 util.logging.info(f"[CT01CO2] SIM → CO₂ = {co2_simulado} ppm")
                 medicion_CT01CO2 = {
@@ -145,15 +150,13 @@ def obtener_datos_medidores_y_sensor():
 
         # === SENSOR 2 — THT03R ===
         try:
-            config_THT03R = util.cargar_configuracion(
-                '/home/pi/.scr/.scr/RPI-MDFR/device/tht03r.yml',
-                'tht03r_sensor'
-            )
+            config_THT03R = util.cargar_configuracion(os.getenv("CFG_THT03R"),os.getenv("CFG_THT03R_SECTION"))
+            #config_THT03R = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/tht03r.yml', 'tht03r_sensor')
             g_tht03r = config_THT03R.get('id_device')
             simular = bool(config_THT03R.get('simular', False))
 
             if simular:
-                import random
+                
                 temp_simulada = round(random.uniform(17.5, 19.5), 1)
                 hum_simulada = round(random.uniform(85.0, 95.0), 1)
                 regs = config_THT03R.get('registers', [])
@@ -194,17 +197,107 @@ def obtener_datos_medidores_y_sensor():
             }
 
         medicionSensorTHT03R = json.dumps(medicion_THT03R)
+        # =========================================================
+        # SENSOR 3 — PT21A01
+        # =========================================================
+        try:
+
+            config_PT21A01 = util.cargar_configuracion(os.getenv("CFG_PT21A01"), os.getenv("CFG_PT21A01_SECTION"))          
+
+            g_pt21 = config_PT21A01.get('id_device')
+
+            simular = bool(config_PT21A01.get('simular', False))
+
+            if simular:
+
+                temp_pulpa = round(random.uniform(16.0, 20.0), 1)
+                resistencia = round(random.uniform(100.0, 120.0), 1)
+
+                regs = config_PT21A01.get('registers', [])
+
+                unidades = [
+                    str(r.get('unit'))
+                    for r in regs
+                ]
+
+                util.logging.info(f"[PT21A01] SIM → " f"Temp={temp_pulpa} °C, " f"R={resistencia} Ω")
+
+                medicion_PT21A01 = {
+                    "d": [{
+                        "t": util.get__time_utc(),
+                        "g": g_pt21,
+                        "v": [
+                            str(temp_pulpa),
+                            str(resistencia)
+                        ],
+                        "u": unidades
+                    }]
+                }
+
+            else:
+
+                medicion_PT21A01 = (modbusdevices.payload_event_modbus(config_PT21A01))
+
+                if medicion_PT21A01 is None:
+
+                    util.logging.warning("PT21A01 sin respuesta.")
+
+                    medicion_PT21A01 = {
+                        "d": [{
+                            "t": util.get__time_utc(),
+                            "g": g_pt21,
+                            "v": [None, None],
+                            "u": [None, None]
+                        }]
+                    }
+
+                else:
+
+                    valores = (medicion_PT21A01["d"][0]["v"])
+
+                    temp = (valores[0] if len(valores) > 0 else None)
+
+                    resistencia = (valores[1] if len(valores) > 1 else None)
+
+                    if (temp not in [None, "None"] or resistencia not in [None, "None"]):
+
+                        util.logging.info(f"PT21A01 → " f"Temp={temp} °C, " f"R={resistencia} Ω" )
+
+                    else:
+
+                        util.logging.warning("PT21A01 sin valores válidos (None)")
+
+        except Exception as e:
+
+            util.logging.error(f"Error PT21A01: {e}")
+
+            medicion_PT21A01 = {
+                "d": [{
+                    "t": util.get__time_utc(),
+                    "g": g_pt21,
+                    "v": [None, None],
+                    "u": [None, None]
+                }]
+            }
+
+        medicionSensorPT21A01 = json.dumps(medicion_PT21A01)
+        # =========================================================
+        # RETORNO
+        # =========================================================
+        
 
         return {
             'sensor_CT01CO2': medicionSensorCT01CO2,
-            'sensor_THT03R':  medicionSensorTHT03R
+            'sensor_THT03R':  medicionSensorTHT03R,
+            'sensor_PT21A01': medicionSensorPT21A01
         }
 
     except Exception as e:
         util.logging.error(f"Error general en obtener_datos_medidores_y_sensor: {e}")
         return {
             'sensor_CT01CO2': json.dumps(None),
-            'sensor_THT03R':  json.dumps(None)
+            'sensor_THT03R':  json.dumps(None),
+            'sensor_PT21A01': json.dumps(None)
         }
 
 def _dns_guard_loop(period=540):  # 9 minutos = 540 s
@@ -325,10 +418,8 @@ def main_loop():
             snap_puerta = Temp.snapshot_puerta()
             snap_man    = Temp.snapshot_hombre_atrapado()
 
-            cfg_rel = util.cargar_configuracion(
-                '/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml',
-                'relayDioustou_4r'
-            )
+            #cfg_rel = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml', 'relayDioustou_4r' )
+            cfg_rel = util.cargar_configuracion(os.getenv("CFG_RELAY"), os.getenv("CFG_RELAY_SECTION"))
             p_relays = modbusdevices.payload_relays_many_packed(
                 cfg_rel, ['recircular','extractor','humidificador','etileno']
             )

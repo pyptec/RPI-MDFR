@@ -1,3 +1,4 @@
+import os
 import subprocess
 import time, json
 import RPi.GPIO as GPIO
@@ -6,8 +7,8 @@ import threading
 import signal
 import modbusdevices, awsaccess, fileventqueue, modbusdevices
 
-
-RELAY_YAML = '/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml'
+RELAY_YAML = os.getenv("RELAY_YAML","/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml")
+#RELAY_YAML = '/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml'
 RELAY_KEY  = 'relayDioustou_4r'
 # constantes de programa
 FORMATO_DATE="%d/%m/%Y %H:%M "
@@ -185,7 +186,8 @@ def _door_read_active(invert_low: bool) -> bool:
 #-----------------------------------------------------------------------------------------------------------
 def _door_cfg():
     try:
-        cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/door.yml')
+        cfg = util.cargar_configuracion(os.getenv("CFG_DOOR"), os.getenv("CFG_DOOR_SECTION"))
+        #cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/door.yml')
         return cfg.get('medidores', {}).get('door_sensor', {}) if isinstance(cfg, dict) else {}
     except Exception as e:
         util.logging.error(f"[DOOR] No se pudo cargar door.yml: {e}")
@@ -377,7 +379,8 @@ def setup_door_interrupt():
 #-----------------------------------------------------------------------------------------------------------   
 def _btn_cfg():
     try:
-        cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/door.yml')
+        cfg = util.cargar_configuracion(os.getenv("CFG_DOOR"), os.getenv("CFG_DOOR_SECTION"))
+        #cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/door.yml')
         return cfg.get('medidores', {}).get('man_trapped', {}) if isinstance(cfg, dict) else {}
     except Exception:
         return {}
