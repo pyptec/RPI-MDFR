@@ -1,0 +1,37 @@
+medidores:
+  pt21a01_sensor:
+    device_name: "PT21A01"
+    id_device: 33
+    port: "/dev/ttyS0"
+    debug: false
+
+    slave_id: 1
+    baudrate: 9600
+    bytesize: 8
+    parity: N
+    stopbits: 1
+    timeout: 1
+    tipo: "g"
+
+    registers:
+      # =========================
+      # TEMPERATURA PT100
+      # =========================
+      - name: CH0 Temperature value
+        address: 0
+        fc: 3
+        decimals: 1
+        signed: true
+        unit: 1
+        alias: banana_internal_temp
+
+      # =========================
+      # RESISTENCIA PT100
+      # =========================
+      - name: CH0 PT100 resistance value
+        address: 32
+        fc: 3
+        decimals: 1
+        signed: false
+        unit: 146
+        alias: pt100_resistance
