@@ -1,4 +1,5 @@
 import json
+import os
 import util
 import Temp
 import modbusdevices
@@ -17,11 +18,13 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
             # CONTROL POR CO2 (CT01CO2)
             # -------------------------------
             try:
-                cfg_raw = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/ct01co2.yml', 'ct01co2_sensor')
+                cfg_raw = util.cargar_configuracion(os.getenv("CFG_CT01CO2"), os.getenv("CFG_CT01CO2_SECTION"))
+                #cfg_raw = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/ct01co2.yml', 'ct01co2_sensor')
                 if isinstance(cfg_raw, dict) and 'control' in cfg_raw:
                     cfg_ct01 = cfg_raw
                 else:
-                    cfg_full = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/ct01co2.yml')
+                    cfg_full =util.cargar_configuracion(os.getenv("CFG_CT01CO2"))
+                    #cfg_full = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/ct01co2.yml')
                     cfg_ct01 = cfg_full.get('medidores', {}).get('ct01co2_sensor', {})
 
                 ctl_co2 = cfg_ct01.get('control', {})
@@ -62,11 +65,13 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
             # CONTROL POR HUMEDAD/TEMPERATURA (THT03R)
             # -------------------------------
             try:
-                cfg_raw_t = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/tht03r.yml', 'tht03r_sensor')
+                cfg_raw_t = util.cargar_configuracion(os.getenv("CFG_THT03R"), os.getenv("CFG_THT03R_SECTION"))
+                #cfg_raw_t = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/tht03r.yml', 'tht03r_sensor')
                 if isinstance(cfg_raw_t, dict) and 'control' in cfg_raw_t:
                     cfg_tht = cfg_raw_t
                 else:
-                    cfg_full_t = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/tht03r.yml')
+                    cfg_full_t = util.cargar_configuracion(os.getenv("CFG_THT03R"))
+                    #cfg_full_t = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/tht03r.yml')
                     cfg_tht = cfg_full_t.get('medidores', {}).get('tht03r_sensor', {})
 
                 ctl_env = cfg_tht.get('control', {})  # aquí esperamos hu_ppm_low, hu_ppm_high, temp_c_low, temp_c_high (opc.)

@@ -102,7 +102,7 @@ def iniciar_wdt():
 #-----------------------------------------------------------------------------------------------------------    
 def _cfg_relays():
     cfg = util.cargar_configuracion(RELAY_YAML, RELAY_KEY)
-    util.logging.info(f"[RELAYS] cfg: dev={cfg.get('device_name')} port={cfg.get('port')} slave={cfg.get('slave_id')}")
+    util.logging.info(f"[RELAYS] {cfg.get('device_name')} port={cfg.get('port')} slave={cfg.get('slave_id')}")
     return cfg
 #-----------------------------------------------------------------------------------------------------------
 # inyecta gas etileno
