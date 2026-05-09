@@ -261,7 +261,7 @@ def obtener_datos_medidores_y_sensor():
 
                     if (temp not in [None, "None"] or resistencia not in [None, "None"]):
 
-                        util.logging.info(f"PT21A01 → " f"Temp={temp} °C, " f"R={resistencia} Ω" )
+                        util.logging.info(f"[PT21A01] → " f"Temp={temp} °C, " f"R={resistencia} Ω" )
 
                     else:
 

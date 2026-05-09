@@ -4,6 +4,7 @@ medidores:
     id_device: 33
     port: "/dev/ttyS0"
     debug: True
+    simular: False
 
     slave_id: 3
     baudrate: 9600
