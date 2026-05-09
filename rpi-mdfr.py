@@ -294,11 +294,17 @@ def obtener_datos_medidores_y_sensor():
 
     except Exception as e:
         util.logging.error(f"Error general en obtener_datos_medidores_y_sensor: {e}")
-        return {
-            'sensor_CT01CO2': json.dumps(None),
-            'sensor_THT03R':  json.dumps(None),
-            'sensor_PT21A01': json.dumps(None)
-        }
+        resultado = {'sensor_CT01CO2': json.dumps(None),'sensor_THT03R':  json.dumps(None),'sensor_PT21A01': json.dumps(None)}
+
+        util.logging.info(f"[SENSORES] Resultado → {resultado}")
+
+        return resultado
+        
+        #return {
+        #    'sensor_CT01CO2': json.dumps(None),
+        #    'sensor_THT03R':  json.dumps(None),
+        #    'sensor_PT21A01': json.dumps(None)
+        #}
 
 def _dns_guard_loop(period=540):  # 9 minutos = 540 s
     """

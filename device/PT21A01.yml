@@ -22,7 +22,7 @@ medidores:
         fc: 3
         decimals: 1
         signed: true
-        unit: 1
+        unit: 158
         alias: banana_internal_temp
 
       # =========================
@@ -33,5 +33,5 @@ medidores:
         fc: 3
         decimals: 1
         signed: false
-        unit: 146
+        unit: 159
         alias: pt100_resistance
