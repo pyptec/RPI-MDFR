@@ -51,7 +51,8 @@ def recibir_mensaje(payload):
 
 def connect_to_aws_iot(client_id, endpoint, root_ca, private_key, certificate, port=8883):
     # Crear el cliente MQTT con el ID del cliente
-    mqtt_client = AWSIoTMQTTClient(client_id + str(random.randrange(255)))
+    mqtt_client = AWSIoTMQTTClient(client_id)
+    #mqtt_client = AWSIoTMQTTClient(client_id + str(random.randrange(255)))
 
     # Configurar el endpoint (el host o dirección de AWS IoT)
     mqtt_client.configureEndpoint(endpoint, port)
@@ -136,14 +137,16 @@ def publish_mediciones(mqtt_client, mediciones):
         util.logging.error(f"Error al publicar mensaje: {str(e)}")
         fileventqueue.agregar_evento(mediciones)  # Guardar el mensaje en la cola para reintento
 def iniciar_recepcion_mensajes():
-    client_id = os.getenv("CLIENT_ID") + str(random.randrange(255)) #+ str(random.randrange(255))
+    client_id = os.getenv("CLIENT_ID") + "_RX"
+    #client_id = os.getenv("CLIENT_ID") + str(random.randrange(255)) #+ str(random.randrange(255))
     endpoint = os.getenv("ENDPOINT")
     root_ca = os.getenv("ROOT_CA")
     private_key = os.getenv("PRIVATE_KEY")
     certificate = os.getenv("CERTIFICATE")
     topic = os.getenv("TUTOPIC")
 
-    mqtt_client = AWSIoTMQTTClient(client_id + str(random.randint(0, 100)))
+    mqtt_client = AWSIoTMQTTClient(client_id)
+    #mqtt_client = AWSIoTMQTTClient(client_id + str(random.randint(0, 100)))
     mqtt_client.configureEndpoint(endpoint, 8883)
     mqtt_client.configureCredentials(root_ca, private_key, certificate)
     mqtt_client.configureOfflinePublishQueueing(-1)
