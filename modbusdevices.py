@@ -1,3 +1,5 @@
+from logging import config
+
 import minimalmodbus
 import serial
 import util  # si usas util.get__time_utc() o logging
@@ -52,12 +54,14 @@ def payload_event_modbus(config):
             instrumento.serial.parity = parity_map.get(config['parity'].upper(), serial.PARITY_NONE)
 
             device_name = config.get('device_name')
+            # ACTIVAR DEBUG MINIMALMODBUS DESDE YAML
+            instrumento.debug = bool(config.get('debug', False))
 
             for reg in config['registers']:
                 address = reg['address']
                 fc = reg.get('fc')
                 decimals = reg.get('decimals')
-                signed = False
+                signed = bool(reg.get('signed', False))
 
                 val = instrumento.read_register(address, decimals, functioncode=fc, signed=signed)
                 val = round(val, 1)
