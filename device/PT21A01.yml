@@ -28,10 +28,10 @@ medidores:
       # =========================
       # RESISTENCIA PT100
       # =========================
-      - name: CH0 PT100 resistance value
-        address: 32
-        fc: 3
-        decimals: 1
-        signed: false
-        unit: 159
-        alias: pt100_resistance
+      #- name: CH0 PT100 resistance value
+      #  address: 32
+      #  fc: 3
+      #  decimals: 1
+      #  signed: false
+      #  unit: 159
+      #  alias: pt100_resistance
