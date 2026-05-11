@@ -10,7 +10,8 @@ medidores:
     stopbits: 1
     timeout: 1
     debug: false
-
+    simular: true
+    
     description: >
       Controlador Modbus RTU Samsung MIM-B19N/MIM-B19NT
       para sistema HVAC del proyecto RPI-MDFR.
