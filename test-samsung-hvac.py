@@ -11,7 +11,7 @@ from pathlib import Path
 # ARCHIVOS
 # =========================================================
 
-YAML_FILE = "/home/pi/.scr/.scr/RPI-MDFR/device/samsung_mim_b19n.yml"
+YAML_FILE = "/home/pi/.scr/.scr/RPI-MDFR/device/Samsung_HVAC.yml"
 CAL_FILE = "/home/pi/.scr/.scr/RPI-MDFR/calibracion_pt21a01.json"
 
 # =========================================================
