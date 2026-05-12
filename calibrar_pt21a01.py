@@ -350,6 +350,25 @@ def calcular_regresion(muestras):
 
         errores.append(error)
 
+    # ==============================
+    # R CUADRADO
+    # ==============================
+
+    ss_res = sum(
+        (y[i] - ((m * x[i]) + b)) ** 2
+        for i in range(n)
+    )
+
+    ss_tot = sum(
+        (y[i] - y_mean) ** 2
+        for i in range(n)
+    )
+
+    if ss_tot == 0:
+        r2 = 1.0
+    else:
+        r2 = 1 - (ss_res / ss_tot)
+
     mae = statistics.mean(
         abs(e) for e in errores
     )
@@ -369,6 +388,8 @@ def calcular_regresion(muestras):
         "m": round(m, 8),
 
         "b": round(b, 8),
+
+        "r2": round(r2, 6),
 
         "numero_muestras": n,
 
@@ -502,6 +523,11 @@ def menu_calibrar():
                 )
 
                 print(
+                    f"\nR²: "
+                    f"{cal['r2']}"
+                )
+
+                print(
                     f"\nMuestras: "
                     f"{cal['numero_muestras']}"
                 )
@@ -561,6 +587,10 @@ def menu_medir():
         f"{calibracion['m']} * "
         f"T_PT21A01 + "
         f"{calibracion['b']}"
+    )
+
+    print(
+        f"R² = {calibracion.get('r2', 'N/A')}"
     )
 
     print(
