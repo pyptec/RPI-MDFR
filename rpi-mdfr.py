@@ -17,6 +17,7 @@ import shared
 import subprocess
 import modbusdevices
 import random
+import samsung_hvac
 # import tunel_watcher
 
 # Dispatcher simple

@@ -3,7 +3,7 @@ medidores:
     device_name: "CT01CO2"
     id_device: 35
     port: "/dev/ttyS0"
-    debug: False
+    debug: false
     slave_id: 1
     baudrate: 9600
     bytesize: 8
@@ -11,7 +11,7 @@ medidores:
     stopbits: 1
     timeout: 1
     
-    simular: True  # <--- NUEVO FLAG para activar la simulación
+    simular: false  # <--- NUEVO FLAG para activar la simulación
 
     registers:
       - name: co2

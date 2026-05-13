@@ -2,15 +2,15 @@ medidores:
   samsung_mim_b19n:
     id: 21
     name: "Samsung MIM-B19N HVAC"
-    slave: 1
-    port: "/dev/ttyS0"
+    slave_id: 01
+    port: "/dev/ttyUSB0"
     baudrate: 9600
     bytesize: 8
-    parity: "N"
+    parity: "E"
     stopbits: 1
     timeout: 1
-    debug: False
-    simular: True
+    debug: false
+    simular: false
 
     description: >
       Controlador Modbus RTU Samsung MIM-B19N/MIM-B19NT
@@ -28,7 +28,7 @@ medidores:
         type: uint16
         readWrite: "R"
         unit: 200
-        description: "Estado de comunicación de la unidad interior"
+        description: "Estado de comunicación de la unidad interior  7 = Ready."
 
       # ---------------------------------------------------
       # Encendido / apagado
@@ -52,13 +52,8 @@ medidores:
         type: uint16
         readWrite: "RW"
         unit: 202
-        description: >
-          0=Auto
-          1=Cool
-          2=Dry
-          3=Fan
-          4=Heat
-
+        description: "0=Auto, 1=Cool, 2=Dry, 3=Fan, 4=Heat"
+        
       # ---------------------------------------------------
       # Velocidad ventilador
       # ---------------------------------------------------
@@ -69,12 +64,8 @@ medidores:
         type: uint16
         readWrite: "RW"
         unit: 203
-        description: >
-          0=Auto
-          1=Low
-          2=Medium
-          3=High
-
+        description: "0=Auto, 1=Low, 2=Medium, 3=High"
+         
       # ---------------------------------------------------
       # Temperatura de consigna
       # ---------------------------------------------------
