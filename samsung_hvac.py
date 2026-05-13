@@ -314,4 +314,18 @@ def control_por_temperatura_banano(temp_banano):
 
 
 if __name__ == "__main__":
-    print(read_all())
+    print("\n=== TEST SAMSUNG HVAC ===\n")
+
+    status = read_status()
+
+    print(f"\nCommunication Status = {status}\n")
+
+    if status == 7:
+        print("HVAC READY")
+
+    elif status == 0:
+        print("HVAC NOT READY")
+
+    else:
+        print("HVAC estado intermedio")
+    #print(read_all())
