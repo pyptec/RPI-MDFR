@@ -4,7 +4,9 @@ import time
 import serial
 import minimalmodbus
 import util
+from dotenv import load_dotenv
 
+load_dotenv("/home/pi/.scr/.scr/RPI-MDFR/.env")
 
 def _cfg():
     return util.cargar_configuracion(
