@@ -163,7 +163,14 @@ def setairefresco(on:bool):
     GPIO10.
     """
     GPIO.output(GPIO10_RELAY_AIRE_FRESCO, bool(on))
- 
+#-----------------------------------------------------------------------------------------------------------
+#Rele interno del board que lee el estado el aire fresco
+#----------------------------------------------------------------------------------------------------------- 
+def getairefresco():
+    """
+    Lee estado de salida optoaislada aire fresco GPIO10.
+    """
+    return GPIO.input(GPIO10_RELAY_AIRE_FRESCO)
 #-----------------------------------------------------------------------------------------------------------
 #Informa el estado de los relays
 #----------------------------------------------------------------------------------------------------------- 

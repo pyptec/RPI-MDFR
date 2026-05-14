@@ -59,3 +59,12 @@ medidores:
         scale: 1
         unit: 0
         alias: OFFALL
+
+      - name: aire_fresco
+        alias: aire_fresco
+        address: 10
+        type: gpio
+        gpio: 10
+        unit: 160
+        readWrite: "R"
+        description: "Salida optoaislada HAT GPIO10 para inyección de aire fresco"

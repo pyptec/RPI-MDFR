@@ -431,6 +431,24 @@ def main_loop():
                 cfg_rel, ['recircular','extractor','humidificador','etileno']
             )
 
+            # Agregar aire fresco GPIO10 al mismo JSON de relays
+            try:
+                regs_by_name = {str(r.get('name')): r for r in cfg_rel.get('registers', [])}
+
+                reg_aire = regs_by_name.get('aire_fresco', {})
+
+                estado_aire = Temp.getairefresco()
+
+                p_relays["d"][0]["v"].append("1" if estado_aire else "0")
+                p_relays["d"][0]["u"].append(str(reg_aire.get("unit", "205")))
+
+                util.logging.info(
+                    f"[RELAYS] aire_fresco GPIO10 estado={'ON' if estado_aire else 'OFF'}"
+                )
+
+            except Exception as e:
+                util.logging.error(f"[RELAYS] Error agregando aire_fresco al payload: {e}")
+                
             if util.ensure_internet_failover():
                 mqtt_client = awsaccess.connect_to_mqtt()
                 if mqtt_client:
