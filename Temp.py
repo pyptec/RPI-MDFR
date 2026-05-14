@@ -16,7 +16,8 @@ GPIO11_VENTILADOR=11 #11 18
 GPIO5_PILOTO=5 #5 22
 GPIO23_WDI=23
 GPIO09_RELE2_SIRENA=9
-GPIO10_RELE1_BALIZA=10
+#GPIO10_RELE1_BALIZA=10
+GPIO10_RELAY_AIRE_FRESCO=10
 
 # Pines fijos del HAT
 DOOR_PIN_BCM = 13          # Puerta (entrada)
@@ -28,8 +29,8 @@ GPIO.setup(GPIO11_VENTILADOR, GPIO.OUT)
 GPIO.setup(GPIO5_PILOTO, GPIO.OUT)
 GPIO.setup(GPIO23_WDI, GPIO.OUT)
 GPIO.setup(GPIO09_RELE2_SIRENA, GPIO.OUT)
-GPIO.setup(GPIO10_RELE1_BALIZA, GPIO.OUT)
-
+#GPIO.setup(GPIO10_RELE1_BALIZA, GPIO.OUT)
+GPIO.setup(GPIO10_RELAY_AIRE_FRESCO, GPIO.OUT)
 
 # Estado interno puerta
 _door_state = {
@@ -150,8 +151,18 @@ def setsirena(on:bool):
 #-----------------------------------------------------------------------------------------------------------
 #Rele interno que activa la baliza
 #-----------------------------------------------------------------------------------------------------------
-def setbaliza(on:bool):
-	GPIO.output(GPIO10_RELE1_BALIZA, bool(on))  # 1 = cerrada, 0 = abierta (o viceversa según conexión)	
+#def setbaliza(on:bool):
+#	GPIO.output(GPIO10_RELE1_BALIZA, bool(on))  # 1 = cerrada, 0 = abierta (o viceversa según conexión)	
+
+#-----------------------------------------------------------------------------------------------------------
+#Rele interno del board que activa el aire fresco
+#----------------------------------------------------------------------------------------------------------- 
+def setairefresco(on:bool):
+    """
+    Salida optoaislada del HAT para inyección de aire fresco.
+    GPIO10.
+    """
+    GPIO.output(GPIO10_RELAY_AIRE_FRESCO, bool(on))
  
 #-----------------------------------------------------------------------------------------------------------
 #Informa el estado de los relays

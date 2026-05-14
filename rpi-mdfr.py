@@ -340,7 +340,7 @@ threading.Thread(target=_dns_guard_loop, args=(540,), daemon=True).start()
 # Lógica principal
 def main_loop():
     # Apagar relays y sirena al iniciar
-    Temp.setbaliza(False)
+    #Temp.setbaliza(False)
     Temp.setsirena(False)
     Temp.all_relay()
 
@@ -387,7 +387,7 @@ def main_loop():
             util.logging.warning("[LOOP] Hombre atrapado ACTIVO → sólo sirena/baliza; sin mediciones/control.")
             Temp.all_relay()
             Temp.setsirena(True)
-            Temp.setbaliza(True)
+            #Temp.setbaliza(True)
             Temp.iniciar_wdt()
             time.sleep(0.2)
             continue
@@ -401,7 +401,7 @@ def main_loop():
             Temp.iniciar_wdt()
             time.sleep(0.5)
             continue
-        Temp.setbaliza(False)
+        #Temp.setbaliza(False)
         Temp.setsirena(False)
         # Actualizar timers
         tempRaspberry, tempMedidor, tempQueue, tempPing, tempCheckusb, tempMdfr = util.actualizar_temporizadores(
