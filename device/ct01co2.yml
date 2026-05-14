@@ -1,7 +1,7 @@
 medidores:  
   ct01co2_sensor:
     device_name: "CT01CO2"
-    id_device: 35
+    id_device: 22
     port: "/dev/ttyS0"
     debug: false
     slave_id: 1
