@@ -436,6 +436,7 @@ def main_loop():
                 if mqtt_client:
                     awsaccess.publish_mediciones(mqtt_client, datos['sensor_CT01CO2'])
                     awsaccess.publish_mediciones(mqtt_client, datos['sensor_THT03R'])
+                    awsaccess.publish_mediciones(mqtt_client, datos['sensor_PT21A01'])
                     awsaccess.publish_mediciones(mqtt_client, json.dumps(snap_puerta))
                     awsaccess.publish_mediciones(mqtt_client, json.dumps(snap_man))
                     awsaccess.publish_mediciones(mqtt_client, json.dumps(p_relays))
@@ -443,12 +444,14 @@ def main_loop():
                 else:
                     fileventqueue.agregar_evento(datos['sensor_CT01CO2'])
                     fileventqueue.agregar_evento(datos['sensor_THT03R'])
+                    fileventqueue.agregar_evento(datos['sensor_PT21A01'])
                     fileventqueue.agregar_evento(json.dumps(snap_puerta))
                     fileventqueue.agregar_evento(json.dumps(snap_man))
                     fileventqueue.agregar_evento(json.dumps(p_relays))
             else:
                 fileventqueue.agregar_evento(datos['sensor_CT01CO2'])
                 fileventqueue.agregar_evento(datos['sensor_THT03R'])
+                fileventqueue.agregar_evento(datos['sensor_PT21A01'])
                 fileventqueue.agregar_evento(json.dumps(snap_puerta))
                 fileventqueue.agregar_evento(json.dumps(snap_man))
                 fileventqueue.agregar_evento(json.dumps(p_relays))
