@@ -1,7 +1,7 @@
 medidores:
   pt21a01_sensor:
     device_name: "PT21A01"
-    id_device: 33
+    id_device: 37
     port: "/dev/ttyS0"
     debug: False
     simular: False
