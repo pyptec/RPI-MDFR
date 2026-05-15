@@ -9,7 +9,7 @@ medidores:
     parity: "E"
     stopbits: 1
     timeout: 1
-    debug: true 
+    debug: True 
     simular: false
 
     description: >
