@@ -40,8 +40,26 @@ def _inst(cfg):
     inst.mode = minimalmodbus.MODE_RTU
     inst.clear_buffers_before_each_transaction = True
     inst.close_port_after_each_call = True
-    inst.debug = bool(cfg.get("debug", False))
+    #inst.debug = bool(cfg.get("debug", False))
+    debug_enabled = bool(cfg.get("debug", False))
 
+    if debug_enabled:
+        import sys
+
+        class StdoutLogger:
+            def write(self, msg):
+                try:
+                    if msg.strip():
+                        util.logging.info(f"[MINIMALMODBUS] {msg.strip()}")
+                except BrokenPipeError:
+                    pass
+
+            def flush(self):
+                pass
+
+        sys.stdout = StdoutLogger()
+
+    inst.debug = debug_enabled
     return inst
 
 
