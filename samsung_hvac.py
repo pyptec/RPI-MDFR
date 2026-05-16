@@ -8,10 +8,24 @@ from dotenv import load_dotenv
 
 load_dotenv("/home/pi/.scr/.scr/RPI-MDFR/.env")
 
+
 def _cfg():
     return util.cargar_configuracion(
         os.getenv("CFG_SAMSUNG"),
         os.getenv("CFG_SAMSUNG_SECTION")
+    )
+
+
+def _parity(value):
+    parity_map = {
+        "N": serial.PARITY_NONE,
+        "E": serial.PARITY_EVEN,
+        "O": serial.PARITY_ODD
+    }
+
+    return parity_map.get(
+        str(value).upper(),
+        serial.PARITY_EVEN
     )
 
 
@@ -20,46 +34,21 @@ def _inst(cfg):
     slave = int(cfg.get("slave_id", 1))
 
     inst = minimalmodbus.Instrument(port, slave)
+
     inst.serial.baudrate = int(cfg.get("baudrate", 9600))
     inst.serial.bytesize = int(cfg.get("bytesize", 8))
     inst.serial.stopbits = int(cfg.get("stopbits", 1))
     inst.serial.timeout = float(cfg.get("timeout", 1))
     inst.serial.inter_byte_timeout = 0.2
-
-    parity_map = {
-        "N": serial.PARITY_NONE,
-        "E": serial.PARITY_EVEN,
-        "O": serial.PARITY_ODD
-    }
-
-    inst.serial.parity = parity_map.get(
-        str(cfg.get("parity", "E")).upper(),
-        serial.PARITY_EVEN
-    )
+    inst.serial.parity = _parity(cfg.get("parity", "E"))
 
     inst.mode = minimalmodbus.MODE_RTU
     inst.clear_buffers_before_each_transaction = True
     inst.close_port_after_each_call = True
-    #inst.debug = bool(cfg.get("debug", False))
-    debug_enabled = bool(cfg.get("debug", False))
 
-    if debug_enabled:
-        import sys
+    # No usar debug de minimalmodbus porque puede producir BrokenPipeError.
+    inst.debug = False
 
-        class StdoutLogger:
-            def write(self, msg):
-                try:
-                    if msg.strip():
-                        util.logging.info(f"[MINIMALMODBUS] {msg.strip()}")
-                except BrokenPipeError:
-                    pass
-
-            def flush(self):
-                pass
-
-        sys.stdout = StdoutLogger()
-
-    inst.debug = debug_enabled
     return inst
 
 
@@ -100,17 +89,116 @@ def _write_register(address, value):
 
 
 # =========================================================
+# DEBUG RAW MODBUS RTU
+# =========================================================
+
+def _crc16_modbus(data: bytes) -> bytes:
+    crc = 0xFFFF
+
+    for b in data:
+        crc ^= b
+
+        for _ in range(8):
+            if crc & 0x0001:
+                crc = (crc >> 1) ^ 0xA001
+            else:
+                crc >>= 1
+
+    return crc.to_bytes(2, byteorder="little")
+
+
+def _modbus_read_raw(address, quantity=1):
+    cfg = _cfg()
+
+    port = cfg.get("port", "/dev/ttyUSB0")
+    slave = int(cfg.get("slave_id", 1))
+
+    pdu = bytes([
+        slave,
+        0x03,
+        (int(address) >> 8) & 0xFF,
+        int(address) & 0xFF,
+        (int(quantity) >> 8) & 0xFF,
+        int(quantity) & 0xFF
+    ])
+
+    frame = pdu + _crc16_modbus(pdu)
+
+    print("\n=== DEBUG RAW SAMSUNG HVAC ===")
+    print("TX:", frame.hex(" ").upper())
+
+    with serial.Serial(
+        port=port,
+        baudrate=int(cfg.get("baudrate", 9600)),
+        bytesize=int(cfg.get("bytesize", 8)),
+        parity=_parity(cfg.get("parity", "E")),
+        stopbits=int(cfg.get("stopbits", 1)),
+        timeout=float(cfg.get("timeout", 1))
+    ) as ser:
+        ser.reset_input_buffer()
+        ser.reset_output_buffer()
+
+        ser.write(frame)
+        ser.flush()
+
+        expected_len = 5 + (2 * int(quantity))
+        rx = ser.read(expected_len)
+
+    print("RX:", rx.hex(" ").upper())
+
+    if len(rx) < 5:
+        print("Respuesta incompleta o timeout.")
+        return None
+
+    data = rx[:-2]
+    crc_rx = rx[-2:]
+    crc_calc = _crc16_modbus(data)
+
+    print("CRC recibido :", crc_rx.hex(" ").upper())
+    print("CRC calculado:", crc_calc.hex(" ").upper())
+
+    if crc_rx != crc_calc:
+        print("CRC inválido.")
+        return None
+
+    if rx[1] & 0x80:
+        print(f"Respuesta de excepción Modbus. Código: {rx[2]}")
+        return None
+
+    value = int.from_bytes(rx[3:5], byteorder="big")
+
+    return value
+
+
+def read_status_debug_raw():
+    value = _modbus_read_raw(0, 1)
+
+    print("\nCommunication Status =", value)
+
+    if value == 7:
+        print("HVAC READY")
+    elif value == 0:
+        print("HVAC NOT READY")
+    elif value is None:
+        print("Sin respuesta válida")
+    else:
+        print("HVAC estado intermedio")
+
+    return value
+
+
+# =========================================================
 # SIMULACIÓN
 # =========================================================
 
 _SIM = {
-    0: 7,      # Communication status
-    2: 0,      # OnOff
-    3: 1,      # Mode Cool
-    4: 0,      # Fan Auto
-    8: 200,    # Setpoint 20.0 °C
-    9: 195,    # Room temp 19.5 °C
-    10: 0      # Error code
+    0: 7,
+    2: 0,
+    3: 1,
+    4: 0,
+    8: 200,
+    9: 195,
+    10: 0
 }
 
 
@@ -130,10 +218,6 @@ def _sim_write(address, value):
 # =========================================================
 
 def read_status():
-    """
-    Communication status:
-    7 = Ready
-    """
     try:
         status = _read_register(0)
         util.logging.info(f"[SAMSUNG_HVAC] Communication status={status}")
@@ -172,13 +256,6 @@ def set_onoff(on=True):
 
 
 def set_mode(mode=1):
-    """
-    0=Auto
-    1=Cool
-    2=Dry
-    3=Fan
-    4=Heat
-    """
     try:
         _write_register(3, int(mode))
         util.logging.info(f"[SAMSUNG_HVAC] Mode={mode}")
@@ -194,12 +271,6 @@ def set_mode_cool():
 
 
 def set_fan(fan=0):
-    """
-    0=Auto
-    1=Low
-    2=Medium
-    3=High
-    """
     try:
         if int(fan) not in [0, 1, 2, 3]:
             util.logging.warning(f"[SAMSUNG_HVAC] Fan inválido: {fan}")
@@ -215,12 +286,10 @@ def set_fan(fan=0):
 
 
 def set_temperature(temp_c):
-    """
-    Samsung usa décimas:
-    20.0 °C -> 200
-    """
     try:
-        value = int(round(float(temp_c) * 10))
+        temp_c = float(temp_c)
+        value = int(round(temp_c * 10))
+
         _write_register(8, value)
 
         util.logging.info(
@@ -264,9 +333,11 @@ def read_error_code():
 
 
 def read_all():
+    status = read_status()
+
     data = {
-        "status": read_status(),
-        "ready": is_ready(),
+        "status": status,
+        "ready": status == 7,
         "onoff": read_onoff(),
         "setpoint": read_setpoint(),
         "room_temperature": read_room_temperature(),
@@ -283,14 +354,6 @@ def read_all():
 # =========================================================
 
 def calcular_setpoint_por_banano(temp_banano):
-    """
-    RTD 15 °C -> HVAC 16 °C
-    RTD 16 °C -> HVAC 17 °C
-    RTD 17 °C -> HVAC 18 °C
-    RTD 18 °C -> HVAC 19 °C
-    RTD >=19 °C -> HVAC 20 °C fijo
-    """
-
     temp_banano = float(temp_banano)
 
     if temp_banano < 15.5:
@@ -306,14 +369,6 @@ def calcular_setpoint_por_banano(temp_banano):
 
 
 def control_por_temperatura_banano(temp_banano):
-    """
-    Control seguro:
-    - valida READY
-    - coloca COOL
-    - enciende
-    - envía setpoint
-    """
-
     setpoint = calcular_setpoint_por_banano(temp_banano)
 
     if not is_ready():
@@ -334,18 +389,5 @@ def control_por_temperatura_banano(temp_banano):
 
 
 if __name__ == "__main__":
-    print("\n=== TEST SAMSUNG HVAC ===\n")
-
-    status = read_status()
-
-    print(f"\nCommunication Status = {status}\n")
-
-    if status == 7:
-        print("HVAC READY")
-
-    elif status == 0:
-        print("HVAC NOT READY")
-
-    else:
-        print("HVAC estado intermedio")
-    #print(read_all())
+    print("\n=== TEST SAMSUNG HVAC RAW ===")
+    read_status_debug_raw()
