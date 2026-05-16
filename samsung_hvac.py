@@ -8,6 +8,14 @@ from dotenv import load_dotenv
 
 load_dotenv("/home/pi/.scr/.scr/RPI-MDFR/.env")
 
+
+def _cfg():
+    return util.cargar_configuracion(
+        os.getenv("CFG_SAMSUNG"),
+        os.getenv("CFG_SAMSUNG_SECTION")
+    )
+
+
 def _inst(cfg):
     port = cfg.get("port", "/dev/ttyUSB0")
     slave = int(cfg.get("slave_id", 1))
@@ -34,24 +42,14 @@ def _inst(cfg):
     inst.mode = minimalmodbus.MODE_RTU
     inst.clear_buffers_before_each_transaction = True
     inst.close_port_after_each_call = True
-
-    # DEBUG REAL MODBUS
     inst.debug = bool(cfg.get("debug", False))
 
     return inst
 
 
 def read_status():
-    """
-    Communication status:
-    7 = Ready
-    0 = Not Ready
-    """
-
     try:
         cfg = _cfg()
-
-        # fuerza debug para ver TX/RX
         cfg["debug"] = True
 
         inst = _inst(cfg)
@@ -65,43 +63,54 @@ def read_status():
             signed=False
         )
 
-        util.logging.info(
-            f"[SAMSUNG_HVAC] Communication status={status}"
-        )
-
         print(f"\nCommunication Status = {status}\n")
 
         if status == 7:
             print("HVAC READY")
-
         elif status == 0:
             print("HVAC NOT READY")
-
         else:
             print("HVAC estado intermedio")
 
         return status
 
-    except BrokenPipeError:
-
-        util.logging.error(
-            "[SAMSUNG_HVAC] BrokenPipeError en debug minimalmodbus."
-        )
-
-        return None
-
     except Exception as e:
-
         util.logging.error(
-            f"[SAMSUNG_HVAC] Error leyendo status: "
-            f"{type(e).__name__}: {e}"
+            f"[SAMSUNG_HVAC] Error leyendo status: {type(e).__name__}: {e}"
         )
-
         return None
+
+
+def is_ready():
+    return read_status() == 7
+
+
+def set_onoff(on=True):
+    cfg = _cfg()
+    inst = _inst(cfg)
+    value = 1 if on else 0
+    inst.write_register(2, value, functioncode=6)
+    time.sleep(0.2)
+    return True
+
+
+def set_mode_cool():
+    cfg = _cfg()
+    inst = _inst(cfg)
+    inst.write_register(3, 1, functioncode=6)
+    time.sleep(0.2)
+    return True
+
+
+def set_temperature(temp_c):
+    cfg = _cfg()
+    inst = _inst(cfg)
+    value = int(round(float(temp_c) * 10))
+    inst.write_register(8, value, functioncode=6)
+    time.sleep(0.2)
+    return True
 
 
 if __name__ == "__main__":
-
     print("\n=== TEST SAMSUNG HVAC ===\n")
-
     read_status()
