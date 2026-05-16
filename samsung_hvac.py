@@ -127,12 +127,31 @@ def _modbus_read_raw(address, quantity=1):
     print("\n=== DEBUG RAW SAMSUNG HVAC ===")
     print("TX:", frame.hex(" ").upper())
 
+    #with serial.Serial(
+    #    port=port,
+    #    baudrate=int(cfg.get("baudrate", 9600)),
+    #    bytesize=int(cfg.get("bytesize", 8)),
+    #    parity=_parity(cfg.get("parity", "E")),
+    #    stopbits=int(cfg.get("stopbits", 1)),
+    #    timeout=float(cfg.get("timeout", 1))
+    #) as ser:
+    stopbits_map = {
+        1: serial.STOPBITS_ONE,
+        1.5: serial.STOPBITS_ONE_POINT_FIVE,
+        2: serial.STOPBITS_TWO
+    }
+
+    stopbits = stopbits_map.get(
+        float(cfg.get("stopbits", 1)),
+        serial.STOPBITS_ONE
+    )
+
     with serial.Serial(
         port=port,
         baudrate=int(cfg.get("baudrate", 9600)),
-        bytesize=int(cfg.get("bytesize", 8)),
+        bytesize=serial.EIGHTBITS,
         parity=_parity(cfg.get("parity", "E")),
-        stopbits=int(cfg.get("stopbits", 1)),
+        stopbits=stopbits,
         timeout=float(cfg.get("timeout", 1))
     ) as ser:
         ser.reset_input_buffer()
