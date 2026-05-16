@@ -17,16 +17,40 @@ def _cfg():
 
 
 def _parity(value):
-    parity_map = {
-        "N": serial.PARITY_NONE,
-        "E": serial.PARITY_EVEN,
-        "O": serial.PARITY_ODD
-    }
+    value = str(value).upper()
 
-    return parity_map.get(
-        str(value).upper(),
-        serial.PARITY_EVEN
-    )
+    if value == "N":
+        return serial.PARITY_NONE
+    if value == "E":
+        return serial.PARITY_EVEN
+    if value == "O":
+        return serial.PARITY_ODD
+
+    return serial.PARITY_EVEN
+
+
+def _bytesize(value):
+    value = int(value)
+
+    if value == 5:
+        return serial.FIVEBITS
+    if value == 6:
+        return serial.SIXBITS
+    if value == 7:
+        return serial.SEVENBITS
+
+    return serial.EIGHTBITS
+
+
+def _stopbits(value):
+    value = float(value)
+
+    if value == 2:
+        return serial.STOPBITS_TWO
+    if value == 1.5:
+        return serial.STOPBITS_ONE_POINT_FIVE
+
+    return serial.STOPBITS_ONE
 
 
 def _inst(cfg):
@@ -36,8 +60,8 @@ def _inst(cfg):
     inst = minimalmodbus.Instrument(port, slave)
 
     inst.serial.baudrate = int(cfg.get("baudrate", 9600))
-    inst.serial.bytesize = int(cfg.get("bytesize", 8))
-    inst.serial.stopbits = int(cfg.get("stopbits", 1))
+    inst.serial.bytesize = _bytesize(cfg.get("bytesize", 8))
+    inst.serial.stopbits = _stopbits(cfg.get("stopbits", 1))
     inst.serial.timeout = float(cfg.get("timeout", 1))
     inst.serial.inter_byte_timeout = 0.2
     inst.serial.parity = _parity(cfg.get("parity", "E"))
@@ -45,8 +69,6 @@ def _inst(cfg):
     inst.mode = minimalmodbus.MODE_RTU
     inst.clear_buffers_before_each_transaction = True
     inst.close_port_after_each_call = True
-
-    # No usar debug de minimalmodbus porque puede producir BrokenPipeError.
     inst.debug = False
 
     return inst
@@ -125,35 +147,25 @@ def _modbus_read_raw(address, quantity=1):
     frame = pdu + _crc16_modbus(pdu)
 
     print("\n=== DEBUG RAW SAMSUNG HVAC ===")
+    print("Puerto:", port)
+    print("Serial:", f"{cfg.get('baudrate', 9600)},{cfg.get('parity', 'E')},{cfg.get('bytesize', 8)},{cfg.get('stopbits', 1)}")
+    print("Slave:", slave)
     print("TX:", frame.hex(" ").upper())
 
-    #with serial.Serial(
-    #    port=port,
-    #    baudrate=int(cfg.get("baudrate", 9600)),
-    #    bytesize=int(cfg.get("bytesize", 8)),
-    #    parity=_parity(cfg.get("parity", "E")),
-    #    stopbits=int(cfg.get("stopbits", 1)),
-    #    timeout=float(cfg.get("timeout", 1))
-    #) as ser:
-    stopbits_map = {
-        1: serial.STOPBITS_ONE,
-        1.5: serial.STOPBITS_ONE_POINT_FIVE,
-        2: serial.STOPBITS_TWO
-    }
+    try:
+        ser = serial.Serial()
+        ser.port = port
+        ser.baudrate = int(cfg.get("baudrate", 9600))
+        ser.bytesize = _bytesize(cfg.get("bytesize", 8))
+        ser.parity = _parity(cfg.get("parity", "E"))
+        ser.stopbits = _stopbits(cfg.get("stopbits", 1))
+        ser.timeout = float(cfg.get("timeout", 1))
+        ser.xonxoff = False
+        ser.rtscts = False
+        ser.dsrdtr = False
 
-    stopbits = stopbits_map.get(
-        float(cfg.get("stopbits", 1)),
-        serial.STOPBITS_ONE
-    )
+        ser.open()
 
-    with serial.Serial(
-        port=port,
-        baudrate=int(cfg.get("baudrate", 9600)),
-        bytesize=serial.EIGHTBITS,
-        parity=_parity(cfg.get("parity", "E")),
-        stopbits=stopbits,
-        timeout=float(cfg.get("timeout", 1))
-    ) as ser:
         ser.reset_input_buffer()
         ser.reset_output_buffer()
 
@@ -162,6 +174,12 @@ def _modbus_read_raw(address, quantity=1):
 
         expected_len = 5 + (2 * int(quantity))
         rx = ser.read(expected_len)
+
+        ser.close()
+
+    except Exception as e:
+        print(f"ERROR abriendo/leyendo puerto: {type(e).__name__}: {e}")
+        return None
 
     print("RX:", rx.hex(" ").upper())
 
