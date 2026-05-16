@@ -20,34 +20,35 @@ def _inst(cfg):
     port = cfg.get("port", "/dev/ttyUSB0")
     slave = int(cfg.get("slave_id", 1))
 
+    ser = serial.Serial()
+    ser.port = port
+    ser.baudrate = int(cfg.get("baudrate", 9600))
+    ser.bytesize = int(cfg.get("bytesize", 8))
+    ser.stopbits = int(cfg.get("stopbits", 1))
+    ser.timeout = float(cfg.get("timeout", 1))
+    ser.write_timeout = 2.0
+    ser.inter_byte_timeout = 0.2
+    ser.parity = serial.PARITY_EVEN
+
+    ser.xonxoff = False
+    ser.rtscts = False
+    ser.dsrdtr = False
+
+    # Evita BrokenPipeError por DTR/RTS en algunos USB-RS485
+    ser.dtr = False
+    ser.rts = False
+
+    ser.open()
+
     inst = minimalmodbus.Instrument(port, slave)
-
-    inst.serial.baudrate = int(cfg.get("baudrate", 9600))
-    inst.serial.bytesize = int(cfg.get("bytesize", 8))
-    inst.serial.stopbits = int(cfg.get("stopbits", 1))
-    inst.serial.timeout = float(cfg.get("timeout", 1))
-    inst.serial.inter_byte_timeout = 0.2
-
-    parity_map = {
-        "N": serial.PARITY_NONE,
-        "E": serial.PARITY_EVEN,
-        "O": serial.PARITY_ODD
-    }
-
-    inst.serial.parity = parity_map.get(
-        str(cfg.get("parity", "E")).upper(),
-        serial.PARITY_EVEN
-    )
+    inst.serial = ser
 
     inst.mode = minimalmodbus.MODE_RTU
     inst.clear_buffers_before_each_transaction = True
     inst.close_port_after_each_call = True
-
-    # NO usar debug interno porque genera BrokenPipeError
     inst.debug = False
 
     return inst
-
 
 def activar_debug_tx_rx(inst):
     original_write = inst.serial.write
