@@ -89,39 +89,78 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                     duracion_s = minutos_aire * 60
                     now = time.monotonic()
 
-                    if co2_ppm <= CO2_LOW:
-                        #util.logging.info("[MDFR] CO2 BAJO → GAS ON, EXTRACTOR OFF, AIRE FRESCO OFF")
+                    # =========================================================
+                # CONTROL ETILENO / CO2
+                # =========================================================
+                #
+                # Lógica:
+                #
+                # - Mientras CO2 esté por debajo del HIGH:
+                #       ETILENO debe permanecer ON.
+                #
+                # - Si CO2 supera HIGH:
+                #       ETILENO OFF
+                #       EXTRACTOR ON
+                #       AIRE_FRESCO ON temporizado
+                #
+                # - Cuando CO2 baja por debajo del LOW:
+                #       EXTRACTOR OFF
+                #       AIRE_FRESCO OFF
+                #
+                # Esto evita que el etileno se pierda si el relay
+                # se apaga accidentalmente.
+                #
+                if co2_ppm >= CO2_HIGH:
 
-                        Temp.setgas(True)
+                    util.logging.warning(f"[CT01CO2] CO2 ALTO={co2_ppm} ppm → " f"ETILENO OFF | EXTRACTOR ON | " f"AIRE_FRESCO ON {minutos_aire} min")
+
+                    Temp.setgas(False)
+                    Temp.setextractor(True)
+
+                    if not _aire_fresco_activo:
+                        Temp.setairefresco(True)
+                        _aire_fresco_activo = True
+                        _aire_fresco_until = now + duracion_s
+
+                        util.logging.info("[CT01CO2] AIRE_FRESCO ON")
+
+                else:
+
+                    # =====================================================
+                    # REFUERZO ETILENO
+                    # =====================================================
+                    #
+                    # Mientras NO llegue al HIGH,
+                    # el gas etileno debe permanecer ON.
+                    #
+                    Temp.setgas(True)
+
+                    util.logging.info(
+                        f"[CT01CO2] CO2={co2_ppm} ppm < HIGH={CO2_HIGH} → " f"ETILENO REFORZADO ON" )
+
+                    if co2_ppm <= CO2_LOW:
+
                         Temp.setextractor(False)
 
                         if _aire_fresco_activo:
+
                             Temp.setairefresco(False)
                             _aire_fresco_activo = False
                             _aire_fresco_until = 0
-                            #util.logging.info("[MDFR] AIRE FRESCO OFF por CO2 bajo")
-                        util.logging.info("[CT01CO2] ESTADO → CO2 BAJO | ETILENO=ON | EXTRACTOR=OFF | AIRE_FRESCO=OFF")
-                        
-                    elif co2_ppm >= CO2_HIGH:
-                        
-                        Temp.setgas(False)
-                        Temp.setextractor(True)
 
-                        if not _aire_fresco_activo:
-                            Temp.setairefresco(True)
-                            _aire_fresco_activo = True
-                            _aire_fresco_until = now + duracion_s
-                            #util.logging.info("[MDFR] AIRE FRESCO ON")
-                        util.logging.warning(f"[CT01CO2] ESTADO → CO2 ALTO | ETILENO=OFF | EXTRACTOR=ON | "f"AIRE_FRESCO=ON por {minutos_aire} min")
+                            util.logging.info("[CT01CO2] AIRE_FRESCO OFF por CO2 bajo")
+
+                        util.logging.info("[CT01CO2] CO2 BAJO → EXTRACTOR OFF")
+
                     else:
-                        #util.logging.info("[MDFR] CO2 en banda (sin cambio)")
-                        util.logging.info(f"[CT01CO2] ESTADO → CO2 EN BANDA | sin cambio de relés | "f"AIRE_FRESCO={'ON' if _aire_fresco_activo else 'OFF'}")                
+
+                        util.logging.info("[CT01CO2] CO2 EN BANDA → ETILENO ON")               
                     
-                    if _aire_fresco_activo and time.monotonic() >= _aire_fresco_until:
-                        Temp.setairefresco(False)
-                        _aire_fresco_activo = False
-                        _aire_fresco_until = 0
-                        util.logging.info("[CT01CO2] ESTADO → AIRE FRESCO OFF por temporizador")
+                if _aire_fresco_activo and time.monotonic() >= _aire_fresco_until:
+                    Temp.setairefresco(False)
+                    aire_fresco_activo = False
+                    aire_fresco_until = 0
+                    util.logging.info("[CT01CO2] ESTADO → AIRE FRESCO OFF por temporizador")
                                        
                   
             except Exception as e:

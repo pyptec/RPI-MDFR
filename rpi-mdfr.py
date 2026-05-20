@@ -427,9 +427,7 @@ def main_loop():
 
             #cfg_rel = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml', 'relayDioustou_4r' )
             cfg_rel = util.cargar_configuracion(os.getenv("CFG_RELAY"), os.getenv("CFG_RELAY_SECTION"))
-            p_relays = modbusdevices.payload_relays_many_packed(
-                cfg_rel, ['recircular','extractor','humidificador','etileno']
-            )
+            p_relays = modbusdevices.payload_relays_many_packed(cfg_rel, ['recircular','extractor','humidificador','etileno'])
 
             # Agregar aire fresco GPIO10 al mismo JSON de relays
             try:
