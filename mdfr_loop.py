@@ -17,6 +17,36 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
 
             # === LECTURA DE SENSORES (los dos a la vez) ===
             datos = obtener_datos_medidores_y_sensor()
+            # =========================================================
+            # RECIRCULACIÓN PERMANENTE DE CÁMARA
+            # =========================================================
+            #
+            # La recirculación mantiene movimiento constante del aire
+            # interno de la cámara de maduración para:
+            #
+            # - homogenizar temperatura,
+            # - homogenizar humedad,
+            # - distribuir etileno,
+            # - evitar estratificación de CO2,
+            # - mejorar estabilidad del proceso.
+            #
+            # Este relay NO depende de temperatura ni CO2.
+            # Debe permanecer activo mientras el sistema MDFR
+            # esté operando normalmente.
+            #
+            # Solo debe apagarse en:
+            # - emergencia,
+            # - hombre atrapado,
+            # - puerta abierta,
+            # - parada total del sistema.
+            #
+            try:
+                Temp.setrecircular(True)
+                util.logging.info("[MDFR] RECIRCULAR ON permanente")
+            except Exception as e:
+                util.logging.error(
+                    f"[MDFR] Error activando recirculación: {e}"
+                )
 
             # -------------------------------
             # CONTROL POR CO2 (CT01CO2)
