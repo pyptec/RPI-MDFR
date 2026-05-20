@@ -25,5 +25,5 @@ medidores:
     control:
       co2_ppm_low: 5000     # por debajo o igual a este valor → GAS ON, EXTRACTOR OFF
       co2_ppm_high: 9000    # por encima o igual a este valor → GAS OFF, EXTRACTOR ON 
-      aire_fresco_minutos: 2 # minutos que se activa el aire fresco cuando el CO2 supera el umbral alto
+      aire_fresco_minutos: 10 # minutos que se activa el aire fresco cuando el CO2 supera el umbral alto
       
