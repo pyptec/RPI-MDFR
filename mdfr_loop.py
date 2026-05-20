@@ -158,8 +158,8 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                     
                 if _aire_fresco_activo and time.monotonic() >= _aire_fresco_until:
                     Temp.setairefresco(False)
-                    aire_fresco_activo = False
-                    aire_fresco_until = 0
+                    _aire_fresco_activo = False
+                    _aire_fresco_until = 0
                     util.logging.info("[CT01CO2] ESTADO → AIRE FRESCO OFF por temporizador")
                                        
                   
