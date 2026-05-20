@@ -80,7 +80,9 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                     util.logging.warning("CT01CO2 sin dato válido; se omite control CO2 este ciclo.")
                 else:
                     co2_ppm = int(float(co2_raw))
-                    util.logging.info(f"[MDFR] CO2={co2_ppm} (LOW={CO2_LOW}, HIGH={CO2_HIGH})")
+                    util.logging.info(f"[CT01CO2] CO2={co2_ppm} ppm | LOW={CO2_LOW} | HIGH={CO2_HIGH}"
+)
+                    #util.logging.info(f"[MDFR] CO2={co2_ppm} (LOW={CO2_LOW}, HIGH={CO2_HIGH})")
 
                     
                     minutos_aire = float(ctl_co2.get('aire_fresco_minutos', 2))
@@ -88,7 +90,7 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                     now = time.monotonic()
 
                     if co2_ppm <= CO2_LOW:
-                        util.logging.info("[MDFR] CO2 BAJO → GAS ON, EXTRACTOR OFF, AIRE FRESCO OFF")
+                        #util.logging.info("[MDFR] CO2 BAJO → GAS ON, EXTRACTOR OFF, AIRE FRESCO OFF")
 
                         Temp.setgas(True)
                         Temp.setextractor(False)
@@ -97,14 +99,11 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                             Temp.setairefresco(False)
                             _aire_fresco_activo = False
                             _aire_fresco_until = 0
-                            util.logging.info("[MDFR] AIRE FRESCO OFF por CO2 bajo")
-
+                            #util.logging.info("[MDFR] AIRE FRESCO OFF por CO2 bajo")
+                        util.logging.info("[CT01CO2] ESTADO → CO2 BAJO | ETILENO=ON | EXTRACTOR=OFF | AIRE_FRESCO=OFF")
+                        
                     elif co2_ppm >= CO2_HIGH:
-                        util.logging.warning(
-                            f"[MDFR] CO2 ALTO={co2_ppm} ppm → GAS OFF, EXTRACTOR ON, "
-                            f"AIRE FRESCO ON por {minutos_aire} min"
-                        )
-
+                        
                         Temp.setgas(False)
                         Temp.setextractor(True)
 
@@ -112,16 +111,17 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                             Temp.setairefresco(True)
                             _aire_fresco_activo = True
                             _aire_fresco_until = now + duracion_s
-                            util.logging.info("[MDFR] AIRE FRESCO ON")
-
+                            #util.logging.info("[MDFR] AIRE FRESCO ON")
+                        util.logging.warning(f"[CT01CO2] ESTADO → CO2 ALTO | ETILENO=OFF | EXTRACTOR=ON | "f"AIRE_FRESCO=ON por {minutos_aire} min")
                     else:
-                        util.logging.info("[MDFR] CO2 en banda (sin cambio)")
-                                        
+                        #util.logging.info("[MDFR] CO2 en banda (sin cambio)")
+                        util.logging.info(f"[CT01CO2] ESTADO → CO2 EN BANDA | sin cambio de relés | "f"AIRE_FRESCO={'ON' if _aire_fresco_activo else 'OFF'}")                
+                    
                     if _aire_fresco_activo and time.monotonic() >= _aire_fresco_until:
                         Temp.setairefresco(False)
                         _aire_fresco_activo = False
                         _aire_fresco_until = 0
-                        util.logging.info("[MDFR] AIRE FRESCO OFF por temporizador")
+                        util.logging.info("[CT01CO2] ESTADO → AIRE FRESCO OFF por temporizador")
                                        
                   
             except Exception as e:
