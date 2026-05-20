@@ -85,8 +85,7 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                     util.logging.warning("CT01CO2 sin dato válido; se omite control CO2 este ciclo.")
                 else:
                     co2_ppm = int(float(co2_raw))
-                    util.logging.info(f"[CT01CO2] CO2={co2_ppm} ppm | LOW={CO2_LOW} | HIGH={CO2_HIGH}"
-)
+                    util.logging.info(f"[CT01CO2] CO2={co2_ppm} ppm | LOW={CO2_LOW} | HIGH={CO2_HIGH}")
                     #util.logging.info(f"[MDFR] CO2={co2_ppm} (LOW={CO2_LOW}, HIGH={CO2_HIGH})")
 
                     
@@ -229,7 +228,7 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                 payload_tht = datos.get('sensor_THT03R')  # str JSON o dict
                 evt_tht = json.loads(payload_tht) if isinstance(payload_tht, str) else payload_tht
 
-                temp_c = None
+                #temp_c = None
                 hum    = None
                 if isinstance(evt_tht, dict):
                     d = evt_tht.get('d', [])
@@ -260,6 +259,7 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                         util.logging.info("[MDFR] HUM en banda (sin cambio)")
 
                 # --- TEMPERATURA: controlar extractor (opcional) ---
+                '''
                 if TEMP_LOW is None and TEMP_HIGH is None:
                     util.logging.info("[MDFR] TEMP: no hay umbrales definidos; sin acción.")
                 else:
@@ -284,7 +284,7 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                             acted = True
                         if not acted:
                             util.logging.info("[MDFR] TEMP en banda (sin cambio)")
-
+                '''
             except Exception as e:
                 util.logging.error(f"No se pudo procesar HUM/TEMP para relés: {e}")
 
