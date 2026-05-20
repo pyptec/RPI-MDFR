@@ -7,10 +7,10 @@ import time
 
 _aire_fresco_until = 0
 _aire_fresco_activo = False
-
+_purga_co2_activa = False
 
 def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
-    global _aire_fresco_until, _aire_fresco_activo
+    global _aire_fresco_until, _aire_fresco_activo, _purga_co2_activa
     try:
         if tempMdfr == 0:
             tempMdfr = TIMER_MDFR
@@ -18,27 +18,32 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
             # === LECTURA DE SENSORES (los dos a la vez) ===
             datos = obtener_datos_medidores_y_sensor()
             # =========================================================
-            # RECIRCULACIÓN PERMANENTE DE CÁMARA
+            # CONTROL CO2 / ETILENO / EXTRACTOR / AIRE FRESCO
             # =========================================================
             #
-            # La recirculación mantiene movimiento constante del aire
-            # interno de la cámara de maduración para:
+            # Lógica de purga:
             #
-            # - homogenizar temperatura,
-            # - homogenizar humedad,
-            # - distribuir etileno,
-            # - evitar estratificación de CO2,
-            # - mejorar estabilidad del proceso.
+            # - CO2 >= HIGH:
+            #     inicia purga
+            #     ETILENO OFF
+            #     EXTRACTOR ON
+            #     AIRE_FRESCO ON por X minutos
             #
-            # Este relay NO depende de temperatura ni CO2.
-            # Debe permanecer activo mientras el sistema MDFR
-            # esté operando normalmente.
+            # - Durante el tiempo de aire fresco:
+            #     NO se evalúa CO2 para apagar aire fresco.
+            #     El ciclo debe terminar completo.
             #
-            # Solo debe apagarse en:
-            # - emergencia,
-            # - hombre atrapado,
-            # - puerta abierta,
-            # - parada total del sistema.
+            # - Cuando termina el tiempo:
+            #     AIRE_FRESCO OFF
+            #     EXTRACTOR sigue ON
+            #
+            # - CO2 <= LOW:
+            #     termina purga
+            #     EXTRACTOR OFF
+            #     ETILENO ON
+            #
+            # - Si no hay purga:
+            #     ETILENO ON reforzado
             #
             try:
                 Temp.setrecircular(True)
@@ -110,58 +115,90 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                 # Esto evita que el etileno se pierda si el relay
                 # se apaga accidentalmente.
                 #
-                if co2_ppm >= CO2_HIGH:
+                if co2_ppm >= CO2_HIGH and not _purga_co2_activa:
 
-                    util.logging.warning(f"[CT01CO2] CO2 ALTO={co2_ppm} ppm → " f"ETILENO OFF | EXTRACTOR ON | " f"AIRE_FRESCO ON {minutos_aire} min")
+                    util.logging.warning(
+                        f"[CT01CO2] CO2 ALTO={co2_ppm} ppm >= {CO2_HIGH} → "
+                        f"INICIA PURGA | ETILENO=OFF | EXTRACTOR=ON | "
+                        f"AIRE_FRESCO=ON por {minutos_aire} min"
+                    )
+
+                    _purga_co2_activa = True
 
                     Temp.setgas(False)
                     Temp.setextractor(True)
+                    Temp.setairefresco(True)
 
-                    if not _aire_fresco_activo:
-                        Temp.setairefresco(True)
-                        _aire_fresco_activo = True
-                        _aire_fresco_until = now + duracion_s
+                    _aire_fresco_activo = True
+                    _aire_fresco_until = now + duracion_s
 
-                        util.logging.info("[CT01CO2] AIRE_FRESCO ON")
 
-                else:
+                elif _purga_co2_activa:
 
-                    # =====================================================
-                    # REFUERZO ETILENO
-                    # =====================================================
-                    #
-                    # Mientras NO llegue al HIGH,
-                    # el gas etileno debe permanecer ON.
-                    #
-                    Temp.setgas(True)
+                    # Mientras está en purga, el etileno debe permanecer apagado
+                    # y el extractor encendido.
+                    Temp.setgas(False)
+                    Temp.setextractor(True)
 
-                    util.logging.info(
-                        f"[CT01CO2] CO2={co2_ppm} ppm < HIGH={CO2_HIGH} → " f"ETILENO REFORZADO ON" )
+                    if _aire_fresco_activo:
 
-                    if co2_ppm <= CO2_LOW:
+                        restante = round(_aire_fresco_until - time.monotonic(), 1)
 
-                        Temp.setextractor(False)
+                        if restante > 0:
 
-                        if _aire_fresco_activo:
+                            Temp.setairefresco(True)
+
+                            util.logging.info(
+                                f"[CT01CO2] PURGA ACTIVA | CO2={co2_ppm} ppm | "
+                                f"ETILENO=OFF | EXTRACTOR=ON | "
+                                f"AIRE_FRESCO=ON | restante={restante}s"
+                            )
+
+                        else:
 
                             Temp.setairefresco(False)
                             _aire_fresco_activo = False
                             _aire_fresco_until = 0
 
-                            util.logging.info("[CT01CO2] AIRE_FRESCO OFF por CO2 bajo")
-
-                        util.logging.info("[CT01CO2] CO2 BAJO → EXTRACTOR OFF")
+                            util.logging.info(
+                                "[CT01CO2] AIRE_FRESCO=OFF | temporizador cumplido | "
+                                "EXTRACTOR sigue ON hasta CO2 bajo"
+                            )
 
                     else:
 
-                        util.logging.info("[CT01CO2] CO2 EN BANDA → ETILENO ON")               
-                    
-                if _aire_fresco_activo and time.monotonic() >= _aire_fresco_until:
-                    Temp.setairefresco(False)
-                    _aire_fresco_activo = False
-                    _aire_fresco_until = 0
-                    util.logging.info("[CT01CO2] ESTADO → AIRE FRESCO OFF por temporizador")
-                                       
+                        util.logging.info(
+                            f"[CT01CO2] PURGA ACTIVA | CO2={co2_ppm} ppm | "
+                            "AIRE_FRESCO=OFF | EXTRACTOR=ON | esperando CO2 bajo"
+                        )
+
+                    if co2_ppm <= CO2_LOW:
+
+                        Temp.setextractor(False)
+                        Temp.setgas(True)
+                        Temp.setairefresco(False)
+
+                        _purga_co2_activa = False
+                        _aire_fresco_activo = False
+                        _aire_fresco_until = 0
+
+                        util.logging.info(
+                            f"[CT01CO2] CO2 BAJO={co2_ppm} ppm <= {CO2_LOW} → "
+                            "TERMINA PURGA | ETILENO=ON | EXTRACTOR=OFF | AIRE_FRESCO=OFF"
+                        )
+
+
+                else:
+
+                    # Estado normal de maduración:
+                    # mientras no se llegue al HIGH, se refuerza etileno ON.
+                    Temp.setgas(True)
+                    Temp.setextractor(False)
+
+                    util.logging.info(
+                        f"[CT01CO2] NORMAL | CO2={co2_ppm} ppm | "
+                        f"ETILENO=ON reforzado | EXTRACTOR=OFF | AIRE_FRESCO=OFF"
+                    )
                   
             except Exception as e:
                 util.logging.error(f"No se pudo procesar CO2 para relés: {e}")
