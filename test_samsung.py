@@ -171,7 +171,47 @@ def test_error_code():
         "LEER ERROR CODE"
     )
 
+def crc16_modbus(data: bytes) -> bytes:
+    crc = 0xFFFF
 
+    for b in data:
+        crc ^= b
+        for _ in range(8):
+            if crc & 1:
+                crc = (crc >> 1) ^ 0xA001
+            else:
+                crc >>= 1
+
+    return crc.to_bytes(2, byteorder="little")
+
+
+def leer_registro_raw(reg):
+    slave = 1
+
+    frame = bytes([
+        slave,
+        0x03,
+        (reg >> 8) & 0xFF,
+        reg & 0xFF,
+        0x00,
+        0x01
+    ])
+
+    frame += crc16_modbus(frame)
+
+    return enviar_cmd_raw(
+        frame.hex(" "),
+        f"LEER REGISTRO {reg}"
+    )
+
+
+def scan_read_only():
+    print("\n=== SCAN SOLO LECTURA HVAC ===")
+    print("No escribe nada en el equipo. Solo usa FC03.")
+
+    for reg in range(0, 21):
+        leer_registro_raw(reg)
+        time.sleep(0.5)
 # =========================================================
 # MENÚ
 # =========================================================
@@ -194,6 +234,7 @@ def menu():
 7. Leer temperatura ambiente
 8. Leer Error Code
 9. Secuencia completa
+10. Scan solo lectura registros 0 a 20
 0. Salir
 
 =========================================
@@ -247,6 +288,9 @@ def menu():
             time.sleep(1)
 
             test_setpoint_20()
+        
+        elif op == "10":
+            scan_read_only()
 
         elif op == "0":
 
