@@ -17,7 +17,7 @@ def _cfg():
 
 
 def _inst(cfg):
-    port = cfg.get("port", "/dev/ttyUSB0")
+    port = cfg.get("port", "/dev/ttyUSB5")
     slave = int(cfg.get("slave_id", 1))
 
     ser = serial.Serial()
@@ -25,9 +25,9 @@ def _inst(cfg):
     ser.baudrate = int(cfg.get("baudrate", 9600))
     ser.bytesize = int(cfg.get("bytesize", 8))
     ser.stopbits = int(cfg.get("stopbits", 1))
-    ser.timeout = float(cfg.get("timeout", 1))
+    ser.timeout = float(cfg.get("timeout", 3))
     ser.write_timeout = 2.0
-    ser.inter_byte_timeout = 0.2
+    ser.inter_byte_timeout = 0.5
     ser.parity = serial.PARITY_EVEN
 
     ser.xonxoff = False

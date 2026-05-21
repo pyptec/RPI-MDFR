@@ -9,7 +9,7 @@ medidores:
     bytesize: 8
     parity: "E"
     stopbits: 1
-    timeout: 2
+    timeout: 3
     debug: false
     simular: false
 
