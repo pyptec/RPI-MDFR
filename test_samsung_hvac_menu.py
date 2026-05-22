@@ -231,7 +231,52 @@ def leer_room_temp():
 def leer_error():
     return leer_registro(REG_ERROR, False, 1, "Indoor Error Code")
 
+def leer_registros_65_75():
 
+    registros = [
+        (65, True, 10, "Return Temperature"),
+        (66, True, 10, "Flow Temperature"),
+        (68, True, 10, "Water-out Set Temperature"),
+        (72, False, 1, "Hot Water ON/OFF"),
+        (73, False, 1, "Hot Water Mode"),
+        (74, True, 10, "Hot Water Set Temperature"),
+        (75, True, 10, "Hot Water Temperature"),
+    ]
+
+    print("\n=== REGISTROS HVAC EXTENDIDOS 65-75 ===")
+
+    for reg, signed, scale, desc in registros:
+
+        leer_registro(
+            reg,
+            signed=signed,
+            scale=scale,
+            descripcion=desc
+        )
+
+        time.sleep(0.5)
+
+
+def scan_50_80():
+
+    print("\n=== SCAN SOLO LECTURA 50-80 ===")
+
+    for reg in range(50, 81):
+
+        try:
+
+            leer_registro(
+                reg,
+                signed=False,
+                scale=1,
+                descripcion=f"REG {reg}"
+            )
+
+        except Exception as e:
+
+            print(f"ERROR REG {reg}: {e}")
+
+        time.sleep(0.3)
 def leer_todo():
     leer_status()
     time.sleep(0.5)
@@ -303,6 +348,8 @@ Registros:
 14. Leer error code
 15. Leer todo
 16. Secuencia COOL + ON + 20°C
+17. Leer registros HVAC extendidos 65-75
+18. Scan lectura registros 50-80
 0. Salir
 """)
 
@@ -340,6 +387,10 @@ Registros:
             leer_todo()
         elif op == "16":
             secuencia_cool_20()
+        elif op == "17":
+            leer_registros_65_75()
+        elif op == "18":
+            scan_50_80()
         elif op == "0":
             print("Saliendo.")
             break
