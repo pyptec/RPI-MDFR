@@ -176,7 +176,7 @@ def obtener_datos_medidores_y_sensor():
                 
             else:
                 #medicion_THT03R = modbusdevices.payload_event_modbus(config_THT03R)
-                medicion_THT03R = modbusdevices.payload_event_modbus_promedio(config_THT03R, muestras=10, delay_s=1, decimales=1)
+                medicion_THT03R = modbusdevices.payload_event_modbus_promedio(config_THT03R, muestras=10, delay_s=0.2, decimales=1)
                 if medicion_THT03R is None:
                     util.logging.warning("THT03R sin respuesta.")
                     medicion_THT03R = {
@@ -238,7 +238,7 @@ def obtener_datos_medidores_y_sensor():
             else:
 
                 #medicion_PT21A01 = (modbusdevices.payload_event_modbus(config_PT21A01))
-                medicion_PT21A01 = modbusdevices.payload_event_modbus_promedio(config_PT21A01, muestras=10, delay_s=1, decimales=1)
+                medicion_PT21A01 = modbusdevices.payload_event_modbus_promedio(config_PT21A01, muestras=10, delay_s=0.2, decimales=1)
 
                 if medicion_PT21A01 is None:
 

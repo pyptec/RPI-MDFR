@@ -16,6 +16,29 @@ medidores:
     description: >
       Controlador Modbus RTU Samsung MIM-B19N/MIM-B19NT
       para sistema HVAC del proyecto RPI-MDFR.
+    control:
+      enabled: true
+
+      # Sensor de referencia para control de cámara
+      reference_sensor: "THT03R"
+
+      # Rango deseado del cuarto de banano
+      temp_target: 20.0
+      temp_low: 19.5
+      temp_high: 20.5
+
+      # Límites permitidos del setpoint HVAC
+      setpoint_min: 19.0
+      setpoint_max: 26.0
+
+      # Control suave
+      setpoint_step: 0.5
+      min_change_interval_s: 600
+
+      # Modo recomendado
+      mode: 1          # 1=Cool
+      fan_speed: 1     # 0=Auto, 1=Low, 2=Medium, 3=High
+
 
     variables:
 
@@ -24,20 +47,32 @@ medidores:
       # ---------------------------------------------------
       - name: Communication status
         alias: comm_status
-        address: 0
+        address: 50
         fc: 3
         type: uint16
         readWrite: "R"
         unit: 200
         description: "Estado de comunicación de la unidad interior  7 = Ready."
+      # ---------------------------------------------------
+      # unit type
+      # ---------------------------------------------------
 
+      - name: Unit type
+        alias: hvac_unit_type
+        address: 51
+        fc: 3
+        type: uint16
+        readWrite: "R"
+        unit: 206
+        description: "Tipo de unidad detectada por Samsung"
       # ---------------------------------------------------
       # Encendido / apagado
       # ---------------------------------------------------
       - name: OnOff
         alias: hvac_onoff
-        address: 2
+        address: 52
         fc: 3
+        fc_write: 6
         type: uint16
         readWrite: "RW"
         unit: 201
@@ -48,8 +83,9 @@ medidores:
       # ---------------------------------------------------
       - name: Operation mode
         alias: hvac_mode
-        address: 3
+        address: 53
         fc: 3
+        fc_write: 6
         type: uint16
         readWrite: "RW"
         unit: 202
@@ -60,8 +96,9 @@ medidores:
       # ---------------------------------------------------
       - name: Fan speed
         alias: hvac_fan_speed
-        address: 4
+        address: 54
         fc: 3
+        fc_write: 6
         type: uint16
         readWrite: "RW"
         unit: 203
@@ -72,8 +109,9 @@ medidores:
       # ---------------------------------------------------
       - name: Set temperature
         alias: hvac_setpoint
-        address: 8
+        address: 58
         fc: 3
+        fc_write: 6
         type: int16
         scale: 0.1
         readWrite: "RW"
@@ -90,7 +128,7 @@ medidores:
       # ---------------------------------------------------
       - name: Room temperature
         alias: hvac_room_temp
-        address: 9
+        address: 59
         fc: 3
         type: int16
         scale: 0.1
@@ -103,7 +141,7 @@ medidores:
       # ---------------------------------------------------
       - name: Error code
         alias: hvac_error_code
-        address: 10
+        address: 63
         fc: 3
         type: uint16
         readWrite: "R"
