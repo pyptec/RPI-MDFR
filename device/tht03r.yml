@@ -11,7 +11,7 @@ medidores:
     stopbits: 1
     timeout: 1
 
-    simular: True
+    simular: false
 
     registers:
       - name: Temperature
