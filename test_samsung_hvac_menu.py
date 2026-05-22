@@ -277,6 +277,20 @@ def scan_50_80():
             print(f"ERROR REG {reg}: {e}")
 
         time.sleep(0.3)
+ 
+def cambiar_setpoint_reg58():
+    temp = input("Ingrese setpoint alternativo °C para REG 58. Ejemplo 24.5: ").strip()
+
+    try:
+        temp_c = float(temp)
+    except ValueError:
+        print("Temperatura inválida.")
+        return False
+
+    value = int(round(temp_c * 10))
+
+    return escribir_registro(58, value, f"Setpoint alternativo REG58 {temp_c:.1f} °C")       
+        
 def leer_todo():
     leer_status()
     time.sleep(0.5)
@@ -350,6 +364,7 @@ Registros:
 16. Secuencia COOL + ON + 20°C
 17. Leer registros HVAC extendidos 65-75
 18. Scan lectura registros 50-80
+19. Cambiar setpoint alternativo REG58
 0. Salir
 """)
 
@@ -391,6 +406,8 @@ Registros:
             leer_registros_65_75()
         elif op == "18":
             scan_50_80()
+        elif op == "19":
+            cambiar_setpoint_reg58()
         elif op == "0":
             print("Saliendo.")
             break
