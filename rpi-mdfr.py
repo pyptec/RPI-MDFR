@@ -176,11 +176,11 @@ def obtener_datos_medidores_y_sensor(promediar=False):
                 
             else:
                 if promediar:
-                    medicion_THT03R = modbusdevices.payload_event_modbus(config_THT03R)
-                    #medicion_THT03R = modbusdevices.payload_event_modbus_promedio(config_THT03R, muestras=10, delay_s=0.2, decimales=1)
-                else:
-                    medicion_THT03R = modbusdevices.payload_event_modbus_promedio(config_THT03R, muestras=10, delay_s=0.2, decimales=1)
                     #medicion_THT03R = modbusdevices.payload_event_modbus(config_THT03R)
+                    medicion_THT03R = modbusdevices.payload_event_modbus_promedio(config_THT03R, muestras=10, delay_s=0.2, decimales=1)
+                else:
+                    #medicion_THT03R = modbusdevices.payload_event_modbus_promedio(config_THT03R, muestras=10, delay_s=0.2, decimales=1)
+                    medicion_THT03R = modbusdevices.payload_event_modbus(config_THT03R)
                 if medicion_THT03R is None:
                     util.logging.warning("THT03R sin respuesta.")
                     medicion_THT03R = {
@@ -241,12 +241,12 @@ def obtener_datos_medidores_y_sensor(promediar=False):
 
             else:
                 if promediar:
-                    medicion_PT21A01 = (modbusdevices.payload_event_modbus(config_PT21A01))
-                    #medicion_PT21A01 = modbusdevices.payload_event_modbus_promedio(config_PT21A01, muestras=10, delay_s=0.2, decimales=1)
+                    #medicion_PT21A01 = (modbusdevices.payload_event_modbus(config_PT21A01))
+                    medicion_PT21A01 = modbusdevices.payload_event_modbus_promedio(config_PT21A01, muestras=10, delay_s=0.2, decimales=1)
 
                 else:
-                    medicion_PT21A01 = modbusdevices.payload_event_modbus_promedio(config_PT21A01, muestras=10, delay_s=0.2, decimales=1)
-                    #medicion_PT21A01 = (modbusdevices.payload_event_modbus(config_PT21A01))
+                    #medicion_PT21A01 = modbusdevices.payload_event_modbus_promedio(config_PT21A01, muestras=10, delay_s=0.2, decimales=1)
+                    medicion_PT21A01 = (modbusdevices.payload_event_modbus(config_PT21A01))
                 if medicion_PT21A01 is None:
 
                     util.logging.warning("PT21A01 sin respuesta.")
@@ -339,12 +339,80 @@ def _dns_guard_loop(period=540):  # 9 minutos = 540 s
         time.sleep(period)
 # Lanza el guardia DNS cada 9 minutos (daemon)
 threading.Thread(target=_dns_guard_loop, args=(540,), daemon=True).start()
+def aws_publish_loop():
+    util.logging.info(
+        f"[AWS_LOOP] Thread iniciado. Primera publicación en {TIMERMEDICION} s"
+    )
 
+    while True:
+        time.sleep(TIMERMEDICION)
+
+        inicio = time.monotonic()
+
+        publicar_mediciones_aws()
+
+        duracion = round(time.monotonic() - inicio, 2)
+
+        util.logging.info(
+            f"[AWS_LOOP] Publicación finalizada en {duracion} s. "
+            f"Próxima publicación en {TIMERMEDICION} s"
+        )
+        
+def publicar_mediciones_aws():
+    try:
+        datos = obtener_datos_medidores_y_sensor(promediar=True)
+        snap_puerta = Temp.snapshot_puerta()
+        snap_man = Temp.snapshot_hombre_atrapado()
+
+        cfg_rel = util.cargar_configuracion(os.getenv("CFG_RELAY"), os.getenv("CFG_RELAY_SECTION"))
+
+        p_relays = modbusdevices.payload_relays_many_packed(cfg_rel, ['recircular', 'extractor', 'humidificador', 'etileno'])
+
+        try:
+            regs_by_name = {str(r.get('name')): r for r in cfg_rel.get('registers', [])}
+
+            reg_aire = regs_by_name.get('aire_fresco', {})
+            estado_aire = Temp.getairefresco()
+
+            p_relays["d"][0]["v"].append("1" if estado_aire else "0")
+            p_relays["d"][0]["u"].append(str(reg_aire.get("unit", "205")))
+
+            util.logging.info(f"[RELAYS] aire_fresco GPIO10 estado={'ON' if estado_aire else 'OFF'}")
+
+        except Exception as e:
+            util.logging.error(f"[RELAYS] Error agregando aire_fresco al payload: {e}")
+
+        eventos = [
+            datos['sensor_CT01CO2'],
+            datos['sensor_THT03R'],
+            datos['sensor_PT21A01'],
+            json.dumps(snap_puerta),
+            json.dumps(snap_man),
+            json.dumps(p_relays)
+        ]
+
+        if util.ensure_internet_failover():
+            mqtt_client = awsaccess.connect_to_mqtt()
+
+            if mqtt_client:
+                for evento in eventos:
+                    awsaccess.publish_mediciones(mqtt_client, evento)
+
+                awsaccess.disconnect_from_aws_iot(mqtt_client)
+                util.logging.info("[AWS] Mediciones publicadas correctamente.")
+                return
+
+        for evento in eventos:
+            fileventqueue.agregar_evento(evento)
+
+        util.logging.warning("[AWS] Sin conexión MQTT. Mediciones enviadas a cola.")
+
+    except Exception as e:
+        util.logging.error(f"[AWS] Error general publicando mediciones: {e}")
 #-----------------------------------------------------------------------------------------------------------   
 # Lógica principal
 def main_loop():
     # Apagar relays y sirena al iniciar
-    #Temp.setbaliza(False)
     Temp.setsirena(False)
     Temp.all_relay()
 
@@ -362,7 +430,8 @@ def main_loop():
     Temp.setup_man_button_interrupt()   # GPIO6
 
     util.logging.info("Sistema encendido.")
-
+    #hilo para publicar mediciones periódicamente a AWS IoT
+    threading.Thread(target=aws_publish_loop, daemon=True).start()
     # Gate de puerta
     while True:
         try:
@@ -408,8 +477,8 @@ def main_loop():
         #Temp.setbaliza(False)
         Temp.setsirena(False)
         # Actualizar timers
-        tempRaspberry, tempMedidor, tempQueue, tempPing, tempCheckusb, tempMdfr = util.actualizar_temporizadores(
-            tempRaspberry, tempMedidor, tempQueue, tempPing, tempCheckusb, tempMdfr
+        tempRaspberry, tempQueue, tempPing, tempCheckusb, tempMdfr = util.actualizar_temporizadores(
+            tempRaspberry, 999999, tempQueue, tempPing, tempCheckusb, tempMdfr
         )
 
         # Caso “raspberry”
@@ -422,59 +491,7 @@ def main_loop():
             tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor
         )
 
-        # Mediciones cada 10 minutos
-        if tempMedidor == 0:
-            tempMedidor = TIMERMEDICION
-            datos = obtener_datos_medidores_y_sensor(promediar=True)
-            snap_puerta = Temp.snapshot_puerta()
-            snap_man    = Temp.snapshot_hombre_atrapado()
-
-            #cfg_rel = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml', 'relayDioustou_4r' )
-            cfg_rel = util.cargar_configuracion(os.getenv("CFG_RELAY"), os.getenv("CFG_RELAY_SECTION"))
-            p_relays = modbusdevices.payload_relays_many_packed(cfg_rel, ['recircular','extractor','humidificador','etileno'])
-
-            # Agregar aire fresco GPIO10 al mismo JSON de relays
-            try:
-                regs_by_name = {str(r.get('name')): r for r in cfg_rel.get('registers', [])}
-
-                reg_aire = regs_by_name.get('aire_fresco', {})
-
-                estado_aire = Temp.getairefresco()
-
-                p_relays["d"][0]["v"].append("1" if estado_aire else "0")
-                p_relays["d"][0]["u"].append(str(reg_aire.get("unit", "205")))
-
-                util.logging.info(
-                    f"[RELAYS] aire_fresco GPIO10 estado={'ON' if estado_aire else 'OFF'}"
-                )
-
-            except Exception as e:
-                util.logging.error(f"[RELAYS] Error agregando aire_fresco al payload: {e}")
-                
-            if util.ensure_internet_failover():
-                mqtt_client = awsaccess.connect_to_mqtt()
-                if mqtt_client:
-                    awsaccess.publish_mediciones(mqtt_client, datos['sensor_CT01CO2'])
-                    awsaccess.publish_mediciones(mqtt_client, datos['sensor_THT03R'])
-                    awsaccess.publish_mediciones(mqtt_client, datos['sensor_PT21A01'])
-                    awsaccess.publish_mediciones(mqtt_client, json.dumps(snap_puerta))
-                    awsaccess.publish_mediciones(mqtt_client, json.dumps(snap_man))
-                    awsaccess.publish_mediciones(mqtt_client, json.dumps(p_relays))
-                    awsaccess.disconnect_from_aws_iot(mqtt_client)
-                else:
-                    fileventqueue.agregar_evento(datos['sensor_CT01CO2'])
-                    fileventqueue.agregar_evento(datos['sensor_THT03R'])
-                    fileventqueue.agregar_evento(datos['sensor_PT21A01'])
-                    fileventqueue.agregar_evento(json.dumps(snap_puerta))
-                    fileventqueue.agregar_evento(json.dumps(snap_man))
-                    fileventqueue.agregar_evento(json.dumps(p_relays))
-            else:
-                fileventqueue.agregar_evento(datos['sensor_CT01CO2'])
-                fileventqueue.agregar_evento(datos['sensor_THT03R'])
-                fileventqueue.agregar_evento(datos['sensor_PT21A01'])
-                fileventqueue.agregar_evento(json.dumps(snap_puerta))
-                fileventqueue.agregar_evento(json.dumps(snap_man))
-                fileventqueue.agregar_evento(json.dumps(p_relays))
+        
 
         if tempQueue == 0:
             tempQueue = TIMERCOLAEVENTOS
@@ -488,9 +505,7 @@ def main_loop():
             else:
                 util.logging.warning("Sin Internet por eth0 ni usb0. Intento de recuperación quedará en log.")
 
-        # (tu bloque comentado queda igual)
-        # ...
-        # fin while
+       
 
 # Punto de entrada principal
 if __name__ == '__main__':
