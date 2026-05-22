@@ -363,32 +363,38 @@ def payload_relays_many_packed(config: dict, names: list[str]):
         }]}
 
 def payload_event_modbus_promedio(config, muestras=10, delay_s=1, decimales=1):
-    
 
     acumulados = None
     cantidad_ok = 0
     ultimo_payload = None
 
     for i in range(muestras):
+
         try:
+
             payload = payload_event_modbus(config)
 
             if not payload:
+                time.sleep(delay_s)
                 continue
 
             ultimo_payload = payload
+
             valores = payload.get("d", [{}])[0].get("v", [])
 
             valores_float = []
             valido = True
 
             for v in valores:
+
                 if v in [None, "None", ""]:
                     valido = False
                     break
+
                 valores_float.append(float(v))
 
             if not valido:
+                time.sleep(delay_s)
                 continue
 
             if acumulados is None:
@@ -399,21 +405,22 @@ def payload_event_modbus_promedio(config, muestras=10, delay_s=1, decimales=1):
 
             cantidad_ok += 1
 
-            util.logging.info(
-                f"[PROMEDIO] {config.get('device_name')} muestra {i+1}/{muestras}: {valores_float}"
-            )
-
         except Exception as e:
+
             util.logging.error(
-                f"[PROMEDIO] {config.get('device_name')} error muestra {i+1}: {e}"
+                f"[PROMEDIO] {config.get('device_name')} "
+                f"error muestra {i+1}: {e}"
             )
 
         time.sleep(delay_s)
 
     if cantidad_ok == 0 or acumulados is None:
+
         util.logging.warning(
-            f"[PROMEDIO] {config.get('device_name')} sin muestras válidas"
+            f"[PROMEDIO] {config.get('device_name')} "
+            f"sin muestras válidas"
         )
+
         return ultimo_payload
 
     promedios = [
@@ -421,11 +428,16 @@ def payload_event_modbus_promedio(config, muestras=10, delay_s=1, decimales=1):
         for v in acumulados
     ]
 
-    ultimo_payload["d"][0]["v"] = [str(v) for v in promedios]
+    ultimo_payload["d"][0]["v"] = [
+        str(v)
+        for v in promedios
+    ]
+
     ultimo_payload["d"][0]["t"] = util.get__time_utc()
 
     util.logging.info(
-        f"[PROMEDIO] {config.get('device_name')} resultado final: {promedios}"
+        f"[PROMEDIO] {config.get('device_name')} "
+        f"resultado final {cantidad_ok}/{muestras}: {promedios}"
     )
 
     return ultimo_payload
