@@ -28,13 +28,12 @@ medidores:
       temp_high: 20.5
 
       # Límites permitidos del setpoint HVAC
-      setpoint_min: 19.0
+      setpoint_min: 16.0
       setpoint_max: 26.0
 
       # Control suave
       setpoint_step: 0.5
-      min_change_interval_s: 600
-
+      
       # Modo recomendado
       mode: 1          # 1=Cool
       fan_speed: 1     # 0=Auto, 1=Low, 2=Medium, 3=High

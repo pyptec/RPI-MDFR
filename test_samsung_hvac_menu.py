@@ -2,7 +2,7 @@
 import time
 import serial
 
-PORT = "/dev/ttyUSB5"
+PORT = "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_AB0OI4DA-if00-port0"
 BAUDRATE = 9600
 TIMEOUT = 2
 SLAVE = 1
