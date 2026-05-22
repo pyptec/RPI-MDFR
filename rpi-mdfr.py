@@ -93,7 +93,7 @@ def process_event_queue():
 #-----------------------------------------------------------------------------------------------------------   
 # Rutina de lectura de sensores Modbus RTU y devuelve datos en formato JSON 
 #-----------------------------------------------------------------------------------------------------------    
-def obtener_datos_medidores_y_sensor():
+def obtener_datos_medidores_y_sensor(promediar=False):
     """
     Lee los sensores:
     - CT01CO2
@@ -175,8 +175,12 @@ def obtener_datos_medidores_y_sensor():
                 }
                 
             else:
-                medicion_THT03R = modbusdevices.payload_event_modbus(config_THT03R)
-                #medicion_THT03R = modbusdevices.payload_event_modbus_promedio(config_THT03R, muestras=10, delay_s=0.2, decimales=1)
+                if promediar:
+                    medicion_THT03R = modbusdevices.payload_event_modbus(config_THT03R)
+                    #medicion_THT03R = modbusdevices.payload_event_modbus_promedio(config_THT03R, muestras=10, delay_s=0.2, decimales=1)
+                else:
+                    medicion_THT03R = modbusdevices.payload_event_modbus_promedio(config_THT03R, muestras=10, delay_s=0.2, decimales=1)
+                    #medicion_THT03R = modbusdevices.payload_event_modbus(config_THT03R)
                 if medicion_THT03R is None:
                     util.logging.warning("THT03R sin respuesta.")
                     medicion_THT03R = {
@@ -236,10 +240,13 @@ def obtener_datos_medidores_y_sensor():
                 }
 
             else:
+                if promediar:
+                    medicion_PT21A01 = (modbusdevices.payload_event_modbus(config_PT21A01))
+                    #medicion_PT21A01 = modbusdevices.payload_event_modbus_promedio(config_PT21A01, muestras=10, delay_s=0.2, decimales=1)
 
-                medicion_PT21A01 = (modbusdevices.payload_event_modbus(config_PT21A01))
-                #medicion_PT21A01 = modbusdevices.payload_event_modbus_promedio(config_PT21A01, muestras=10, delay_s=0.2, decimales=1)
-
+                else:
+                    medicion_PT21A01 = modbusdevices.payload_event_modbus_promedio(config_PT21A01, muestras=10, delay_s=0.2, decimales=1)
+                    #medicion_PT21A01 = (modbusdevices.payload_event_modbus(config_PT21A01))
                 if medicion_PT21A01 is None:
 
                     util.logging.warning("PT21A01 sin respuesta.")
@@ -302,11 +309,7 @@ def obtener_datos_medidores_y_sensor():
 
         return resultado
         
-        #return {
-        #    'sensor_CT01CO2': json.dumps(None),
-        #    'sensor_THT03R':  json.dumps(None),
-        #    'sensor_PT21A01': json.dumps(None)
-        #}
+       
 
 def _dns_guard_loop(period=540):  # 9 minutos = 540 s
     """
@@ -422,7 +425,7 @@ def main_loop():
         # Mediciones cada 10 minutos
         if tempMedidor == 0:
             tempMedidor = TIMERMEDICION
-            datos = obtener_datos_medidores_y_sensor()
+            datos = obtener_datos_medidores_y_sensor(promediar=True)
             snap_puerta = Temp.snapshot_puerta()
             snap_man    = Temp.snapshot_hombre_atrapado()
 
