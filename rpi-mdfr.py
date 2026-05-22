@@ -477,8 +477,8 @@ def main_loop():
         #Temp.setbaliza(False)
         Temp.setsirena(False)
         # Actualizar timers
-        tempRaspberry, tempQueue, tempPing, tempCheckusb, tempMdfr = util.actualizar_temporizadores(
-            tempRaspberry, 999999, tempQueue, tempPing, tempCheckusb, tempMdfr
+        tempRaspberry, temp1, tempQueue, tempPing, tempCheckusb, tempMdfr = util.actualizar_temporizadores(
+            tempRaspberry, temp1, tempQueue, tempPing, tempCheckusb, tempMdfr
         )
 
         # Caso “raspberry”
