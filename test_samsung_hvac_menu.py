@@ -7,14 +7,13 @@ BAUDRATE = 9600
 TIMEOUT = 2
 SLAVE = 1
 
-# Registros correctos para tu equipo
 REG_STATUS = 50
 REG_UNIT_TYPE = 51
 REG_ONOFF = 52
 REG_MODE = 53
 REG_FAN = 54
-REG_SETPOINT = 57
-REG_ROOM_TEMP = 58
+REG_SETPOINT = 58      # Setpoint activo confirmado
+REG_ROOM_TEMP = 59     # Temperatura ambiente real confirmada
 REG_ERROR = 63
 
 
@@ -23,10 +22,7 @@ def crc16_modbus(data: bytes) -> bytes:
     for b in data:
         crc ^= b
         for _ in range(8):
-            if crc & 1:
-                crc = (crc >> 1) ^ 0xA001
-            else:
-                crc >>= 1
+            crc = (crc >> 1) ^ 0xA001 if crc & 1 else crc >> 1
     return crc.to_bytes(2, byteorder="little")
 
 
@@ -43,26 +39,16 @@ def enviar_frame(frame):
         ser.reset_output_buffer()
 
         print("TX:", frame.hex(" ").upper())
-
         ser.write(frame)
         time.sleep(1)
 
         rx = ser.read(100)
-
         print("RX:", rx.hex(" ").upper() if rx else "TIMEOUT / SIN RESPUESTA")
-
         return rx
 
 
 def leer_registro(reg, signed=False, scale=1, descripcion=""):
-    frame = bytes([
-        SLAVE,
-        0x03,
-        (reg >> 8) & 0xFF,
-        reg & 0xFF,
-        0x00,
-        0x01
-    ])
+    frame = bytes([SLAVE, 0x03, (reg >> 8) & 0xFF, reg & 0xFF, 0x00, 0x01])
     frame += crc16_modbus(frame)
 
     print("\n--------------------------------")
@@ -73,11 +59,9 @@ def leer_registro(reg, signed=False, scale=1, descripcion=""):
 
     if not rx:
         return None
-
     if len(rx) >= 3 and rx[1] & 0x80:
         print(f"EXCEPCIÓN MODBUS: código {rx[2]}")
         return None
-
     if len(rx) < 7:
         print("Respuesta incompleta")
         return None
@@ -87,14 +71,12 @@ def leer_registro(reg, signed=False, scale=1, descripcion=""):
 
     print(f"RAW: {raw}")
     print(f"VALOR: {value}")
-
     return value
 
 
 def escribir_registro(reg, value, descripcion=""):
     frame = bytes([
-        SLAVE,
-        0x06,
+        SLAVE, 0x06,
         (reg >> 8) & 0xFF,
         reg & 0xFF,
         (value >> 8) & 0xFF,
@@ -111,7 +93,6 @@ def escribir_registro(reg, value, descripcion=""):
 
     if not rx:
         return False
-
     if len(rx) >= 3 and rx[1] & 0x80:
         print(f"EXCEPCIÓN MODBUS: código {rx[2]}")
         return False
@@ -122,14 +103,12 @@ def escribir_registro(reg, value, descripcion=""):
 
 def leer_status():
     value = leer_registro(REG_STATUS, False, 1, "Communication Status")
-
     if value == 7:
         print("HVAC READY")
     elif value == 0:
         print("HVAC NOT READY")
     elif value is not None:
         print("Estado intermedio")
-
     return value
 
 
@@ -156,18 +135,9 @@ def apagar():
 
 def leer_modo():
     value = leer_registro(REG_MODE, False, 1, "Operating Mode")
-
-    modos = {
-        0: "Auto",
-        1: "Cool",
-        2: "Dry",
-        3: "Fan",
-        4: "Heat"
-    }
-
+    modos = {0: "Auto", 1: "Cool", 2: "Dry", 3: "Fan", 4: "Heat"}
     if value is not None:
         print("Modo:", modos.get(int(value), "Desconocido"))
-
     return value
 
 
@@ -181,17 +151,9 @@ def modo_auto():
 
 def leer_fan():
     value = leer_registro(REG_FAN, False, 1, "Fan Speed")
-
-    fans = {
-        0: "Auto",
-        1: "Low",
-        2: "Medium",
-        3: "High"
-    }
-
+    fans = {0: "Auto", 1: "Low", 2: "Medium", 3: "High"}
     if value is not None:
         print("Fan:", fans.get(int(value), "Desconocido"))
-
     return value
 
 
@@ -207,11 +169,11 @@ def cambiar_fan():
 
 
 def leer_setpoint():
-    return leer_registro(REG_SETPOINT, False, 10, "Setpoint °C")
+    return leer_registro(REG_SETPOINT, False, 10, "Setpoint activo °C")
 
 
 def cambiar_setpoint():
-    temp = input("Ingrese setpoint °C. Ejemplo 20.0: ").strip()
+    temp = input("Ingrese setpoint °C. Ejemplo 24.5: ").strip()
 
     try:
         temp_c = float(temp)
@@ -220,7 +182,6 @@ def cambiar_setpoint():
         return False
 
     value = int(round(temp_c * 10))
-
     return escribir_registro(REG_SETPOINT, value, f"Setpoint {temp_c:.1f} °C")
 
 
@@ -231,66 +192,7 @@ def leer_room_temp():
 def leer_error():
     return leer_registro(REG_ERROR, False, 1, "Indoor Error Code")
 
-def leer_registros_65_75():
 
-    registros = [
-        (65, True, 10, "Return Temperature"),
-        (66, True, 10, "Flow Temperature"),
-        (68, True, 10, "Water-out Set Temperature"),
-        (72, False, 1, "Hot Water ON/OFF"),
-        (73, False, 1, "Hot Water Mode"),
-        (74, True, 10, "Hot Water Set Temperature"),
-        (75, True, 10, "Hot Water Temperature"),
-    ]
-
-    print("\n=== REGISTROS HVAC EXTENDIDOS 65-75 ===")
-
-    for reg, signed, scale, desc in registros:
-
-        leer_registro(
-            reg,
-            signed=signed,
-            scale=scale,
-            descripcion=desc
-        )
-
-        time.sleep(0.5)
-
-
-def scan_50_80():
-
-    print("\n=== SCAN SOLO LECTURA 50-80 ===")
-
-    for reg in range(50, 81):
-
-        try:
-
-            leer_registro(
-                reg,
-                signed=False,
-                scale=1,
-                descripcion=f"REG {reg}"
-            )
-
-        except Exception as e:
-
-            print(f"ERROR REG {reg}: {e}")
-
-        time.sleep(0.3)
- 
-def cambiar_setpoint_reg58():
-    temp = input("Ingrese setpoint alternativo °C para REG 58. Ejemplo 24.5: ").strip()
-
-    try:
-        temp_c = float(temp)
-    except ValueError:
-        print("Temperatura inválida.")
-        return False
-
-    value = int(round(temp_c * 10))
-
-    return escribir_registro(58, value, f"Setpoint alternativo REG58 {temp_c:.1f} °C")       
-        
 def leer_todo():
     leer_status()
     time.sleep(0.5)
@@ -309,8 +211,8 @@ def leer_todo():
     leer_error()
 
 
-def secuencia_cool_20():
-    print("\nSecuencia: modo COOL + ON + setpoint 20.0 °C")
+def secuencia_cool_24_5():
+    print("\nSecuencia: modo COOL + ON + setpoint 24.5 °C")
     confirmar = input("¿Enviar comandos? (s/n): ").strip().lower()
 
     if confirmar != "s":
@@ -319,11 +221,9 @@ def secuencia_cool_20():
 
     modo_cool()
     time.sleep(1)
-
     encender()
     time.sleep(1)
-
-    escribir_registro(REG_SETPOINT, 200, "Setpoint 20.0 °C")
+    escribir_registro(REG_SETPOINT, 245, "Setpoint 24.5 °C")
 
 
 def menu():
@@ -337,13 +237,13 @@ Puerto : {PORT}
 Serial : 9600,E,8,1
 Slave  : {SLAVE}
 
-Registros:
+Registros confirmados:
 50 Status
 52 ON/OFF
 53 Mode
 54 Fan
-57 Setpoint
-58 Room Temp
+58 Setpoint activo
+59 Room Temperature
 63 Error
 
 1. Leer Communication Status
@@ -356,15 +256,12 @@ Registros:
 8. Colocar modo AUTO
 9. Leer fan
 10. Cambiar fan
-11. Leer setpoint
+11. Leer setpoint activo
 12. Cambiar setpoint
 13. Leer room temperature
 14. Leer error code
 15. Leer todo
-16. Secuencia COOL + ON + 20°C
-17. Leer registros HVAC extendidos 65-75
-18. Scan lectura registros 50-80
-19. Cambiar setpoint alternativo REG58
+16. Secuencia COOL + ON + 24.5°C
 0. Salir
 """)
 
@@ -401,13 +298,7 @@ Registros:
         elif op == "15":
             leer_todo()
         elif op == "16":
-            secuencia_cool_20()
-        elif op == "17":
-            leer_registros_65_75()
-        elif op == "18":
-            scan_50_80()
-        elif op == "19":
-            cambiar_setpoint_reg58()
+            secuencia_cool_24_5()
         elif op == "0":
             print("Saliendo.")
             break
