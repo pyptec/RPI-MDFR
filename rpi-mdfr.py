@@ -17,7 +17,7 @@ import shared
 import subprocess
 import modbusdevices
 import random
-
+import samsung_hvac
 # import tunel_watcher
 
 # Dispatcher simple
@@ -367,7 +367,7 @@ def publicar_mediciones_aws():
         cfg_rel = util.cargar_configuracion(os.getenv("CFG_RELAY"), os.getenv("CFG_RELAY_SECTION"))
 
         p_relays = modbusdevices.payload_relays_many_packed(cfg_rel, ['recircular', 'extractor', 'humidificador', 'etileno'])
-
+        p_hvac = samsung_hvac.payload_hvac_status()
         try:
             regs_by_name = {str(r.get('name')): r for r in cfg_rel.get('registers', [])}
 
@@ -390,7 +390,8 @@ def publicar_mediciones_aws():
             json.dumps(snap_man),
             json.dumps(p_relays)
         ]
-
+        if p_hvac is not None:
+            eventos.append(json.dumps(p_hvac))
         if util.ensure_internet_failover():
             mqtt_client = awsaccess.connect_to_mqtt()
 
