@@ -52,7 +52,7 @@ def control_temperatura_banano(payload_tht03r):
         mode = int(control.get("mode", 1))
         fan = int(control.get("fan_speed", 1))
 
-        min_interval = int(os.getenv("HVAC_MIN_CHANGE_INTERVAL_S", 600))
+        min_interval = int(os.getenv("HVAC_MIN_CHANGE_INTERVAL_S", 300))
 
         ahora = time.time()
 
@@ -80,11 +80,11 @@ def control_temperatura_banano(payload_tht03r):
         nuevo_sp = current_sp
         motivo = "SIN_CAMBIO"
 
-        if temp_tht > temp_high:
+        if temp_tht >= temp_high:
             nuevo_sp = max(sp_min, current_sp - sp_step)
             motivo = "TEMP_ALTA"
 
-        elif temp_tht < temp_low:
+        elif temp_tht <= temp_low:
             nuevo_sp = min(sp_max, current_sp + sp_step)
             motivo = "TEMP_BAJA"
 

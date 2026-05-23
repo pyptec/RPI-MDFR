@@ -2,7 +2,9 @@ import os
 import time
 import serial
 import util
+import threading
 
+HVAC_LOCK = threading.Lock()
 
 def _cfg():
     return util.cargar_configuracion(os.getenv("CFG_SAMSUNG"), os.getenv("CFG_SAMSUNG_SECTION"))
@@ -40,43 +42,44 @@ def crc16_modbus(data: bytes) -> bytes:
 
 
 def enviar_frame(frame):
-    p = _serial_params()
+    with HVAC_LOCK:
+        p = _serial_params()
 
-    parity_map = {
-        "N": serial.PARITY_NONE,
-        "E": serial.PARITY_EVEN,
-        "O": serial.PARITY_ODD,
-    }
+        parity_map = {
+            "N": serial.PARITY_NONE,
+            "E": serial.PARITY_EVEN,
+            "O": serial.PARITY_ODD,
+        }
 
-    try:
-        with serial.Serial(
-            port=p["port"],
-            baudrate=p["baudrate"],
-            bytesize=p["bytesize"],
-            parity=parity_map.get(p["parity"], serial.PARITY_EVEN),
-            stopbits=p["stopbits"],
-            timeout=p["timeout"],
-        ) as ser:
-            ser.reset_input_buffer()
-            ser.reset_output_buffer()
+        try:
+            with serial.Serial(
+                port=p["port"],
+                baudrate=p["baudrate"],
+                bytesize=p["bytesize"],
+                parity=parity_map.get(p["parity"], serial.PARITY_EVEN),
+                stopbits=p["stopbits"],
+                timeout=p["timeout"],
+            ) as ser:
+                ser.reset_input_buffer()
+                ser.reset_output_buffer()
 
-            #util.logging.info(f"[HVAC] TX: {frame.hex(' ').upper()}")
+                #util.logging.info(f"[HVAC] TX: {frame.hex(' ').upper()}")
 
-            ser.write(frame)
-            time.sleep(1)
+                ser.write(frame)
+                time.sleep(1)
 
-            rx = ser.read(100)
+                rx = ser.read(100)
 
-            #if rx:
-                #util.logging.info(f"[HVAC] RX: {rx.hex(' ').upper()}")
-            #else:
-                #util.logging.warning("[HVAC] RX: TIMEOUT / SIN RESPUESTA")
+                #if rx:
+                    #util.logging.info(f"[HVAC] RX: {rx.hex(' ').upper()}")
+                #else:
+                    #util.logging.warning("[HVAC] RX: TIMEOUT / SIN RESPUESTA")
 
-            return rx
+                return rx
 
-    except Exception as e:
-        util.logging.error(f"[HVAC] Error serial: {type(e).__name__}: {e}")
-        return None
+        except Exception as e:
+            util.logging.error(f"[HVAC] Error serial: {type(e).__name__}: {e}")
+            return None
 
 
 def _scale_to_divisor(scale):
