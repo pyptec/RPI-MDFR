@@ -5,6 +5,7 @@ import Temp
 import awsaccess
 import fileventqueue
 
+
 def ejecutar_raspberry(tempRaspberry, TIMERCHEQUEOTEMPERATURA, contador_envio):
     """
     Lógica de chequeo del sistema (payload de estado, WDT, envío cada 3 ciclos).

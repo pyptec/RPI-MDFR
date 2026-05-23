@@ -47,7 +47,7 @@ def control_temperatura_banano(payload_tht03r):
 
         sp_min = float(control.get("setpoint_min", 16.0))
         sp_max = float(control.get("setpoint_max", 26.0))
-        sp_step = float(control.get("setpoint_step", 0.5))
+        sp_step = float(control.get("setpoint_step", 0.1))
 
         mode = int(control.get("mode", 1))
         fan = int(control.get("fan_speed", 1))

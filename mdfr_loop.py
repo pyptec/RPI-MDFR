@@ -2,8 +2,8 @@ import json
 import os
 import util
 import Temp
-import modbusdevices
 import time
+import hvac_control
 
 _aire_fresco_until = 0
 _aire_fresco_activo = False
@@ -288,6 +288,18 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
             except Exception as e:
                 util.logging.error(f"No se pudo procesar HUM/TEMP para relés: {e}")
 
+             # =========================================================
+            # CONTROL HVAC BANANO
+            # =========================================================
+            try:
+
+                hvac_control.control_temperatura_banano(datos.get('sensor_THT03R'))
+
+            except Exception as e:
+
+                util.logging.error(f"[MDFR] Error control HVAC banano: {e}")
+
+            
         return tempMdfr
 
     except Exception as e:
