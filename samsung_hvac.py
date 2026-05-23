@@ -60,17 +60,17 @@ def enviar_frame(frame):
             ser.reset_input_buffer()
             ser.reset_output_buffer()
 
-            util.logging.info(f"[HVAC] TX: {frame.hex(' ').upper()}")
+            #util.logging.info(f"[HVAC] TX: {frame.hex(' ').upper()}")
 
             ser.write(frame)
             time.sleep(1)
 
             rx = ser.read(100)
 
-            if rx:
-                util.logging.info(f"[HVAC] RX: {rx.hex(' ').upper()}")
-            else:
-                util.logging.warning("[HVAC] RX: TIMEOUT / SIN RESPUESTA")
+            #if rx:
+                #util.logging.info(f"[HVAC] RX: {rx.hex(' ').upper()}")
+            #else:
+                #util.logging.warning("[HVAC] RX: TIMEOUT / SIN RESPUESTA")
 
             return rx
 
