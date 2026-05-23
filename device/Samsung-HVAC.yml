@@ -50,7 +50,7 @@ medidores:
         fc: 3
         type: uint16
         readWrite: "R"
-        unit: 200
+        unit: 161
         description: "Estado de comunicación de la unidad interior  7 = Ready."
       # ---------------------------------------------------
       # unit type
@@ -74,7 +74,7 @@ medidores:
         fc_write: 6
         type: uint16
         readWrite: "RW"
-        unit: 201
+        unit: 162
         description: "1=ON, 0=OFF"
 
       # ---------------------------------------------------
@@ -87,7 +87,7 @@ medidores:
         fc_write: 6
         type: uint16
         readWrite: "RW"
-        unit: 202
+        unit: 163
         description: "0=Auto, 1=Cool, 2=Dry, 3=Fan, 4=Heat"
         
       # ---------------------------------------------------
@@ -114,7 +114,7 @@ medidores:
         type: int16
         scale: 0.1
         readWrite: "RW"
-        unit: 1
+        unit: 164
         description: >
           Temperatura de consigna del aire acondicionado.
           El valor Modbus se maneja en décimas.
@@ -132,7 +132,7 @@ medidores:
         type: int16
         scale: 0.1
         readWrite: "R"
-        unit: 1
+        unit: 165
         description: "Temperatura ambiente medida por la unidad interior"
 
       # ---------------------------------------------------
