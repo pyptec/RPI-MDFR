@@ -91,6 +91,65 @@ def payload_event_modbus(config):
 #-----------------------------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------------------------
+def _relay_read_packed_locked(inst, config):
+    """Lee el bloque FC01 definido en YAML. MODBUS_LOCK debe estar adquirido."""
+    span_reg = next(
+        (
+            reg for reg in config.get('registers', [])
+            if reg.get('quantity') is not None and reg.get('fc_read') is not None
+        ),
+        None
+    )
+    if span_reg is None:
+        raise ValueError("YAML sin registro con quantity y fc_read para lectura empaquetada")
+
+    start_addr = int(span_reg['address'])
+    quantity = int(span_reg['quantity'])
+    fc_read = int(span_reg['fc_read'])
+    if fc_read != 1:
+        raise ValueError(f"Lectura empaquetada requiere fc_read=1, recibido {fc_read}")
+    if quantity <= 0:
+        raise ValueError(f"quantity inválido para FC01: {quantity}")
+
+    req_payload = struct.pack('>HH', start_addr, quantity)
+    try:
+        resp = inst._perform_command(fc_read, req_payload)
+    finally:
+        time.sleep(MODBUS_GAP_S)
+
+    if not resp or len(resp) < 2:
+        raise ValueError(f"Respuesta corta FC01: {resp!r}")
+
+    byte_count = int(resp[0])
+    required_bytes = (quantity + 7) // 8
+    if byte_count < required_bytes:
+        raise ValueError(
+            f"ByteCount insuficiente FC01: {byte_count}, esperado al menos {required_bytes}"
+        )
+    if len(resp) < 1 + byte_count:
+        raise ValueError(
+            f"Datos incompletos FC01: recibidos {len(resp) - 1}, anunciados {byte_count}"
+        )
+
+    data_bytes = bytes(resp[1:1 + byte_count])
+    return start_addr, quantity, data_bytes
+
+
+def _relay_state_from_packed(data_bytes, start_addr, quantity, addr):
+    """Extrae una coil del bloque packed y valida que pertenezca al rango."""
+    offset = int(addr) - int(start_addr)
+    if offset < 0 or offset >= int(quantity):
+        raise ValueError(
+            f"Coil addr={addr} fuera del rango start={start_addr} quantity={quantity}"
+        )
+
+    byte_index = offset // 8
+    bit_index = offset % 8
+    if byte_index >= len(data_bytes):
+        raise ValueError(f"Datos FC01 insuficientes para coil addr={addr}")
+    return bool((data_bytes[byte_index] >> bit_index) & 0x01)
+
+
 def relay_set(config, relay_name: str, on: bool = False) -> bool:
     """
     Enciende/Apaga un relé por nombre usando FC=5 (Write Single Coil).
@@ -136,44 +195,68 @@ def relay_set(config, relay_name: str, on: bool = False) -> bool:
                         "no se puede confirmar la escritura."
                     )
                     return False
-                fc_read = int(fc_read_value)
-
                 max_attempts = 3
                 retry_delay_s = 0.20
+                expected = bool(on)
+
+                try:
+                    start_addr, quantity, data_bytes = _relay_read_packed_locked(inst, config)
+                    current = _relay_state_from_packed(data_bytes, start_addr, quantity, addr)
+                    if current == expected:
+                        util.logging.info(
+                            f"[{device_name}] {relay_name} ya estaba "
+                            f"{'ON' if on else 'OFF'} | CONFIRMADO FC01 PACKED"
+                        )
+                        return True
+                except Exception as e:
+                    util.logging.warning(
+                        f"[{device_name}] Lectura previa FC01 PACKED falló para "
+                        f"'{relay_name}': {type(e).__name__}: {e}"
+                    )
+
                 for attempt in range(1, max_attempts + 1):
                     try:
-                        expected = 1 if on else 0
                         try:
-                            inst.write_bit(addr, expected, functioncode=fc)
+                            inst.write_bit(addr, 1 if expected else 0, functioncode=fc)
+                        except minimalmodbus.NoResponseError:
+                            util.logging.warning(
+                                f"[{device_name}] FC5 {relay_name} sin ACK "
+                                f"intento {attempt}/{max_attempts}"
+                            )
+                        except Exception as e:
+                            util.logging.warning(
+                                f"[{device_name}] FC5 {relay_name} falló "
+                                f"intento {attempt}/{max_attempts}: {type(e).__name__}: {e}"
+                            )
                         finally:
                             time.sleep(MODBUS_GAP_S)
 
-                        try:
-                            confirmed = inst.read_bit(addr, functioncode=fc_read)
-                        finally:
-                            time.sleep(MODBUS_GAP_S)
-
-                        if int(confirmed) == expected:
+                        start_addr, quantity, data_bytes = _relay_read_packed_locked(inst, config)
+                        confirmed = _relay_state_from_packed(
+                            data_bytes, start_addr, quantity, addr
+                        )
+                        if confirmed == expected:
                             util.logging.info(
-                                f"[{device_name}] FC5 {relay_name} addr={addr} → "
-                                f"{'ON' if on else 'OFF'} OK intento={attempt}"
+                                f"[{device_name}] {relay_name} CMD={'ON' if on else 'OFF'} "
+                                f"REAL={'ON' if confirmed else 'OFF'} "
+                                f"CONFIRMADO FC01 PACKED intento={attempt}"
                             )
                             return True
 
                         util.logging.warning(
-                            f"[{device_name}] Confirmación distinta relay '{relay_name}' "
+                            f"[{device_name}] {relay_name} CMD={'ON' if on else 'OFF'} "
+                            f"REAL={'ON' if confirmed else 'OFF'} "
                             f"intento {attempt}/{max_attempts}"
                         )
-                    except minimalmodbus.NoResponseError:
+                    except Exception as e:
                         util.logging.warning(
-                            f"[{device_name}] Sin respuesta relay '{relay_name}' "
-                            f"intento {attempt}/{max_attempts}"
+                            f"[{device_name}] Read-back FC01 PACKED falló para '{relay_name}' "
+                            f"intento {attempt}/{max_attempts}: {type(e).__name__}: {e}"
                         )
-                        if attempt == max_attempts:
-                            return False
 
-                    # Completa 200 ms entre intentos, incluyendo el gap del bus.
-                    time.sleep(max(0.0, retry_delay_s - MODBUS_GAP_S))
+                    if attempt < max_attempts:
+                        # Completa 200 ms entre intentos, incluyendo el gap del bus.
+                        time.sleep(max(0.0, retry_delay_s - MODBUS_GAP_S))
 
                 return False
 
@@ -222,7 +305,8 @@ def relay_read_states(config) -> dict:
             inst.serial.baudrate = int(config['baudrate'])
             inst.serial.bytesize = int(config['bytesize'])
             inst.serial.stopbits = int(config['stopbits'])
-            inst.serial.timeout = float(config.get('timeout', 1))
+            inst.serial.timeout = float(config['timeout'])
+            inst.serial.inter_byte_timeout = float(config['inter_byte_timeout'])
             inst.mode = minimalmodbus.MODE_RTU
             inst.clear_buffers_before_each_transaction = True
             inst.close_port_after_each_call = True
@@ -230,7 +314,19 @@ def relay_read_states(config) -> dict:
             parity_map = {'N': serial.PARITY_NONE, 'E': serial.PARITY_EVEN, 'O': serial.PARITY_ODD}
             inst.serial.parity = parity_map.get(str(config['parity']).upper(), serial.PARITY_NONE)
 
-            for reg in config.get('registers', []):
+            relay_regs = [
+                reg for reg in config.get('registers', [])
+                if reg.get('type') != 'gpio'
+            ]
+            try:
+                start_addr, quantity, data_bytes = _relay_read_packed_locked(inst, config)
+            except Exception as e:
+                util.logging.warning(
+                    f"[{device_name}] Lectura FC01 PACKED falló: {type(e).__name__}: {e}"
+                )
+                return {reg.get('name'): None for reg in relay_regs}
+
+            for reg in relay_regs:
                 if reg.get('type') == 'gpio':
                     continue
                 name = reg.get('name')
@@ -242,15 +338,16 @@ def relay_read_states(config) -> dict:
                     )
                     estados[name] = None
                     continue
-                fc_read = int(fc_read_value)
                 try:
-                    bit = inst.read_bit(addr, functioncode=fc_read)
-                    estados[name] = bool(bit)
+                    estados[name] = _relay_state_from_packed(
+                        data_bytes, start_addr, quantity, addr
+                    )
                 except Exception as e:
-                    util.logging.warning(f"[{device_name}] No se pudo leer '{name}' (addr={addr}): {type(e).__name__}: {e}")
+                    util.logging.warning(
+                        f"[{device_name}] No se pudo extraer '{name}' (addr={addr}) "
+                        f"de FC01 PACKED: {type(e).__name__}: {e}"
+                    )
                     estados[name] = None
-                finally:
-                    time.sleep(MODBUS_GAP_S)
 
         util.logging.info(f"[{device_name}] Estados relés: {estados}")
         return estados
@@ -287,26 +384,19 @@ def payload_relays_many(config: dict, names: list[str]):
         inst.serial.bytesize = bytesize
         inst.serial.stopbits = stopbits
         inst.serial.timeout  = timeout
+        inst.serial.inter_byte_timeout = float(config['inter_byte_timeout'])
         inst.serial.parity   = parity
         inst.mode = minimalmodbus.MODE_RTU
         inst.clear_buffers_before_each_transaction = True
         inst.close_port_after_each_call = True
 
-        span_reg = next(
-            (r for r in config.get('registers', [])
-             if r.get('quantity') is not None and str(r.get('fc_read')) == '1'),
-            None
-        )
-        if span_reg is None:
-            raise ValueError("YAML sin registro FC01 con quantity para lectura empaquetada")
-        start_addr = int(span_reg['address'])
-        quantity = int(span_reg['quantity'])
-        packed_fc = int(span_reg['fc_read'])
-        req_payload = struct.pack('>HH', start_addr, quantity)
         try:
-            resp = inst._perform_command(packed_fc, req_payload)
-        finally:
-            time.sleep(MODBUS_GAP_S)
+            start_addr, quantity, data_bytes = _relay_read_packed_locked(inst, config)
+        except Exception as e:
+            util.logging.error(
+                f"[{device_name}] FC01 PACKED falló: {type(e).__name__}: {e}"
+            )
+            start_addr, quantity, data_bytes = None, None, None
 
         # Índice rápido por nombre
         regs_by_name = {str(r.get('name')): r for r in config.get('registers', [])}
@@ -327,15 +417,19 @@ def payload_relays_many(config: dict, names: list[str]):
                 continue
 
             addr = int(reg['address'])
-            fc_read = int(reg['fc_read'])
+            if data_bytes is None:
+                v_vals.append("None")
+                u_vals.append(str(reg['unit']))
+                continue
             try:
-                bit = inst.read_bit(addr, functioncode=fc_read)
+                bit = _relay_state_from_packed(data_bytes, start_addr, quantity, addr)
                 v_vals.append("1" if bit else "0")
             except Exception as e:
-                util.logging.error(f"[{device_name}] Leer '{name}' addr={addr} falló: {type(e).__name__}: {e}")
+                util.logging.error(
+                    f"[{device_name}] Extraer '{name}' addr={addr} de FC01 PACKED "
+                    f"falló: {type(e).__name__}: {e}"
+                )
                 v_vals.append("None")
-            finally:
-                time.sleep(MODBUS_GAP_S)
 
             u_vals.append(str(reg['unit']))
 
@@ -363,11 +457,11 @@ import minimalmodbus, serial, struct, util
 
 def payload_relays_many_packed(config: dict, names: list[str]):
     """
-    Lee los coils 0..7 en un solo FC=1 (Read Coils, qty=8) y arma UN payload:
+    Lee en una sola FC01 el rango definido por YAML y arma UN payload:
       g = config['id_device'] (o 'i' si no existe)
       v = ["1"/"0"] por cada 'name' (orden dado)
       u = unidad por cada relé, tomada del YAML
-    El estado de cada relé se toma del byte de datos: bit=address (0..3).
+    Cada estado se extrae en memoria según su address definido en YAML.
     """
     device_name = config['device_name']
     g_value = int(config['id_device'] if 'id_device' in config else config['i'])
@@ -396,21 +490,6 @@ def payload_relays_many_packed(config: dict, names: list[str]):
             invalid_names.add(name)
             continue
 
-    span_reg = next(
-        (r for r in config.get('registers', [])
-         if r.get('quantity') is not None and str(r.get('fc_read')) == '1'),
-        None
-    )
-    if span_reg is None:
-        util.logging.warning(f"[{device_name}] YAML sin registro FC01 con quantity para lectura empaquetada.")
-        v_vals = ["None"] * len(names)
-        u_vals = [str(regs_by_name[n]['unit']) if n in regs_by_name else "None" for n in names]
-        return {"d":[{"t": util.get__time_utc(), "g": g_value, "v": v_vals, "u": u_vals}]}
-
-    start_addr = int(span_reg['address'])
-    quantity   = int(span_reg['quantity'])
-    packed_fc  = int(span_reg['fc_read'])
-    req_payload = struct.pack('>HH', start_addr, quantity)  # big-endian
     try:
         with MODBUS_LOCK:
             inst = minimalmodbus.Instrument(port, slave)
@@ -418,25 +497,15 @@ def payload_relays_many_packed(config: dict, names: list[str]):
             inst.serial.bytesize = bytesize
             inst.serial.stopbits = stopbits
             inst.serial.timeout  = timeout
+            inst.serial.inter_byte_timeout = float(config['inter_byte_timeout'])
             inst.serial.parity   = parity
             inst.mode = minimalmodbus.MODE_RTU
             inst.clear_buffers_before_each_transaction = True
             inst.close_port_after_each_call = True
 
-            # _perform_command devuelve SOLO el payload de respuesta (sin addr/fc/crc)
-            # Para FC=1: b'\x01' + <status_byte>
-            try:
-                resp = inst._perform_command(packed_fc, req_payload)
-            finally:
-                time.sleep(MODBUS_GAP_S)
-        if not resp or len(resp) < 2:
-            raise ValueError(f"Respuesta corta FC1: {resp!r}")
-        byte_count = resp[0]
-        if byte_count < 1:
-            raise ValueError(f"ByteCount inválido en FC1: {byte_count}")
-        status_byte = resp[1]  # ← ESTE ES TU 4º byte de la trama total
+            start_addr, quantity, data_bytes = _relay_read_packed_locked(inst, config)
     except Exception as e:
-        util.logging.error(f"[{device_name}] FC1 qty={quantity} falló: {type(e).__name__}: {e}")
+        util.logging.error(f"[{device_name}] FC01 PACKED falló: {type(e).__name__}: {e}")
         # Si falla, devolvemos None por cada name
         v_vals = ["None"] * len(names)
         u_vals = [str(regs_by_name[n]['unit']) if n in regs_by_name else "None" for n in names]
@@ -451,8 +520,15 @@ def payload_relays_many_packed(config: dict, names: list[str]):
             u_vals.append(str(reg['unit']) if reg else "None")
             continue
         addr = int(reg['address'])
-        bit_val = (status_byte >> addr) & 0x01
-        v_vals.append("1" if bit_val else "0")
+        try:
+            bit_val = _relay_state_from_packed(data_bytes, start_addr, quantity, addr)
+            v_vals.append("1" if bit_val else "0")
+        except Exception as e:
+            util.logging.warning(
+                f"[{device_name}] Extraer '{name}' addr={addr} de FC01 PACKED "
+                f"falló: {type(e).__name__}: {e}"
+            )
+            v_vals.append("None")
         u_vals.append(str(reg['unit']))
 
     return {
