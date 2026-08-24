@@ -19,7 +19,7 @@ medidores:
         fc_write: 5           # Escribir ON/OFF (FC=5)
         decimals: 0
         scale: 1
-        unit: 140
+        unit: 142
         alias: R1
 
       - name: extractor       #Relay_2
@@ -37,7 +37,7 @@ medidores:
         fc_write: 5
         decimals: 0
         scale: 1
-        unit: 142
+        unit: 143
         alias: R3
 
       - name: etileno           #Relay_4
@@ -46,7 +46,7 @@ medidores:
         fc_write: 5
         decimals: 0
         scale: 1
-        unit: 143
+        unit: 140
         alias: R4
 
       - name: all_off          #apaga todos los relay
