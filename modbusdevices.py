@@ -94,14 +94,14 @@ def payload_event_modbus(config):
 def relay_set(config, relay_name: str, on: bool = False) -> bool:
     """
     Enciende/Apaga un relé por nombre usando FC=5 (Write Single Coil).
-    relay_name: 'recircular' | 'extractor' | 'humidificador' | 'etileno'
+    relay_name: nombre de un registro definido en config['registers']
     Soporta:
       - FC5: Write Single Coil
       - FC15: Write Multiple Coils (para all_off)
     """
     try:
-        device_name = config.get('device_name') or f"ModbusDevice(g={config.get('id_device')})"
-        port = config.get('port', serialPort)
+        device_name = config['device_name']
+        port = config['port']
         slave = int(config['slave_id'])
 
         # buscar el registro por nombre
@@ -118,8 +118,8 @@ def relay_set(config, relay_name: str, on: bool = False) -> bool:
             inst.serial.baudrate = int(config['baudrate'])
             inst.serial.bytesize = int(config['bytesize'])
             inst.serial.stopbits = int(config['stopbits'])
-            inst.serial.timeout = float(config.get('timeout', 1))
-            inst.serial.inter_byte_timeout = float(config.get('inter_byte_timeout', 0))
+            inst.serial.timeout = float(config['timeout'])
+            inst.serial.inter_byte_timeout = float(config['inter_byte_timeout'])
             inst.mode = minimalmodbus.MODE_RTU
             inst.clear_buffers_before_each_transaction = True
             inst.close_port_after_each_call = True
@@ -129,16 +129,41 @@ def relay_set(config, relay_name: str, on: bool = False) -> bool:
             inst.debug = bool(config.get('debug', False))
 
             if fc == 5:
+                fc_read_value = reg.get('fc_read')
+                if fc_read_value is None or int(fc_read_value) != 1:
+                    util.logging.warning(
+                        f"[{device_name}] Relay '{relay_name}' sin fc_read=1; "
+                        "no se puede confirmar la escritura."
+                    )
+                    return False
+                fc_read = int(fc_read_value)
+
                 max_attempts = 3
                 retry_delay_s = 0.20
                 for attempt in range(1, max_attempts + 1):
                     try:
-                        inst.write_bit(addr, 1 if on else 0, functioncode=5)
-                        util.logging.info(
-                            f"[{device_name}] FC5 {relay_name} addr={addr} → "
-                            f"{'ON' if on else 'OFF'} OK intento={attempt}"
+                        expected = 1 if on else 0
+                        try:
+                            inst.write_bit(addr, expected, functioncode=fc)
+                        finally:
+                            time.sleep(MODBUS_GAP_S)
+
+                        try:
+                            confirmed = inst.read_bit(addr, functioncode=fc_read)
+                        finally:
+                            time.sleep(MODBUS_GAP_S)
+
+                        if int(confirmed) == expected:
+                            util.logging.info(
+                                f"[{device_name}] FC5 {relay_name} addr={addr} → "
+                                f"{'ON' if on else 'OFF'} OK intento={attempt}"
+                            )
+                            return True
+
+                        util.logging.warning(
+                            f"[{device_name}] Confirmación distinta relay '{relay_name}' "
+                            f"intento {attempt}/{max_attempts}"
                         )
-                        return True
                     except minimalmodbus.NoResponseError:
                         util.logging.warning(
                             f"[{device_name}] Sin respuesta relay '{relay_name}' "
@@ -146,15 +171,15 @@ def relay_set(config, relay_name: str, on: bool = False) -> bool:
                         )
                         if attempt == max_attempts:
                             return False
-                    finally:
-                        time.sleep(MODBUS_GAP_S)
 
                     # Completa 200 ms entre intentos, incluyendo el gap del bus.
                     time.sleep(max(0.0, retry_delay_s - MODBUS_GAP_S))
 
+                return False
+
             elif fc == 15:
-                qty = int(reg.get('quantity', 8))
-                data_hex = reg.get('data_hex', '00')
+                qty = int(reg['quantity'])
+                data_hex = reg['data_hex']
                 data = bytes.fromhex(data_hex)
                 payload = bytes([
                     (addr >> 8) & 0xFF, addr & 0xFF,
@@ -162,7 +187,7 @@ def relay_set(config, relay_name: str, on: bool = False) -> bool:
                     len(data)
                 ]) + data
                 try:
-                    inst._perform_command(15, payload)
+                    inst._perform_command(fc, payload)
                 finally:
                     time.sleep(MODBUS_GAP_S)
                 util.logging.info(f"[{device_name}] FC15 {relay_name} (addr={addr} qty={qty}) enviado OK")
@@ -188,8 +213,8 @@ def relay_read_states(config) -> dict:
     """
     estados = {}
     try:
-        device_name = config.get('device_name') or f"ModbusDevice(g={config.get('id_device')})"
-        port = config.get('port', serialPort)
+        device_name = config['device_name']
+        port = config['port']
         slave = int(config['slave_id'])
 
         with MODBUS_LOCK:
@@ -206,10 +231,20 @@ def relay_read_states(config) -> dict:
             inst.serial.parity = parity_map.get(str(config['parity']).upper(), serial.PARITY_NONE)
 
             for reg in config.get('registers', []):
+                if reg.get('type') == 'gpio':
+                    continue
                 name = reg.get('name')
-                addr = int(reg.get('address'))
+                addr = int(reg['address'])
+                fc_read_value = reg.get('fc_read')
+                if fc_read_value is None or int(fc_read_value) != 1:
+                    util.logging.warning(
+                        f"[{device_name}] Relay '{name}' sin fc_read=1; no se puede leer estado."
+                    )
+                    estados[name] = None
+                    continue
+                fc_read = int(fc_read_value)
                 try:
-                    bit = inst.read_bit(addr, functioncode=1)
+                    bit = inst.read_bit(addr, functioncode=fc_read)
                     estados[name] = bool(bit)
                 except Exception as e:
                     util.logging.warning(f"[{device_name}] No se pudo leer '{name}' (addr={addr}): {type(e).__name__}: {e}")
@@ -233,17 +268,17 @@ def payload_relays_many(config: dict, names: list[str]):
       - v: ["1"/"0"/"None"] por cada relé (orden = names)
       - u: [unidad_por_relé] tomada del YAML (orden = names)
     """
-    device_name = config.get('device_name') or f"ModbusDevice(i={config.get('i') or config.get('id_device')})"
-    i_value = int(config.get('i', config.get('id_device', 0)) or 0)
+    device_name = config['device_name']
+    i_value = int(config.get('i', config['id_device']))
 
-    port     = config.get('port', '/dev/ttyS0')
-    slave    = int(config.get('slave_id', 1))
-    baud     = int(config.get('baudrate', 9600))
-    bytesize = int(config.get('bytesize', 8))
-    stopbits = int(config.get('stopbits', 1))
-    timeout  = float(config.get('timeout', 1))
+    port     = config['port']
+    slave    = int(config['slave_id'])
+    baud     = int(config['baudrate'])
+    bytesize = int(config['bytesize'])
+    stopbits = int(config['stopbits'])
+    timeout  = float(config['timeout'])
     parity_map = {'N': serial.PARITY_NONE, 'E': serial.PARITY_EVEN, 'O': serial.PARITY_ODD}
-    parity  = parity_map.get(str(config.get('parity', 'N')).upper(), serial.PARITY_NONE)
+    parity  = parity_map[str(config['parity']).upper()]
 
     # Instancia Modbus
     with MODBUS_LOCK:
@@ -257,11 +292,19 @@ def payload_relays_many(config: dict, names: list[str]):
         inst.clear_buffers_before_each_transaction = True
         inst.close_port_after_each_call = True
 
-        start_addr = 0
-        quantity = 8
+        span_reg = next(
+            (r for r in config.get('registers', [])
+             if r.get('quantity') is not None and str(r.get('fc_read')) == '1'),
+            None
+        )
+        if span_reg is None:
+            raise ValueError("YAML sin registro FC01 con quantity para lectura empaquetada")
+        start_addr = int(span_reg['address'])
+        quantity = int(span_reg['quantity'])
+        packed_fc = int(span_reg['fc_read'])
         req_payload = struct.pack('>HH', start_addr, quantity)
         try:
-            resp = inst._perform_command(1, req_payload)
+            resp = inst._perform_command(packed_fc, req_payload)
         finally:
             time.sleep(MODBUS_GAP_S)
 
@@ -274,18 +317,19 @@ def payload_relays_many(config: dict, names: list[str]):
             if not reg:
                 util.logging.error(f"[{device_name}] Relay '{name}' no existe en YAML.")
                 v_vals.append("None")
-                u_vals.append("143")  # fallback
+                u_vals.append("None")
                 continue
 
             if str(reg.get('fc_read', '')) != '1':
                 util.logging.warning(f"[{device_name}] Relay '{name}' sin fc_read=1; no se puede leer estado.")
                 v_vals.append("None")
-                u_vals.append(str(reg.get('unit', '143')))
+                u_vals.append(str(reg['unit']))
                 continue
 
             addr = int(reg['address'])
+            fc_read = int(reg['fc_read'])
             try:
-                bit = inst.read_bit(addr, functioncode=1)  # FC1: Read Coils
+                bit = inst.read_bit(addr, functioncode=fc_read)
                 v_vals.append("1" if bit else "0")
             except Exception as e:
                 util.logging.error(f"[{device_name}] Leer '{name}' addr={addr} falló: {type(e).__name__}: {e}")
@@ -293,7 +337,7 @@ def payload_relays_many(config: dict, names: list[str]):
             finally:
                 time.sleep(MODBUS_GAP_S)
 
-            u_vals.append(str(reg.get('unit', '143')))
+            u_vals.append(str(reg['unit']))
 
     return {
         "d": [{
@@ -325,24 +369,47 @@ def payload_relays_many_packed(config: dict, names: list[str]):
       u = unidad por cada relé, tomada del YAML
     El estado de cada relé se toma del byte de datos: bit=address (0..3).
     """
-    device_name = config.get('device_name') or f"ModbusDevice(g={config.get('id_device') or config.get('i')})"
-    g_value = int(config.get('id_device', config.get('i', 0)) or 0)
+    device_name = config['device_name']
+    g_value = int(config['id_device'] if 'id_device' in config else config['i'])
 
-    port     = config.get('port', '/dev/ttyS0')
+    port     = config['port']
     slave    = int(config['slave_id'])
     baud     = int(config['baudrate'])
     bytesize = int(config['bytesize'])
     stopbits = int(config['stopbits'])
-    timeout  = float(config.get('timeout', 1))
+    timeout  = float(config['timeout'])
     parity_map = {'N': serial.PARITY_NONE, 'E': serial.PARITY_EVEN, 'O': serial.PARITY_ODD}
-    parity  = parity_map.get(str(config.get('parity','N')).upper(), serial.PARITY_NONE)
+    parity  = parity_map[str(config['parity']).upper()]
 
     # índice por nombre
     regs_by_name = {str(r.get('name')): r for r in (config.get('registers') or [])}
 
-    # ---- FC=1, start=0, qty=8  -> como tus tramas: FF 01 00 00 00 08 CRC ----
-    start_addr = 0
-    quantity   = 8
+    invalid_names = set()
+    for name in names:
+        reg = regs_by_name.get(name)
+        if not reg:
+            util.logging.warning(f"[{device_name}] Relay '{name}' no existe en YAML.")
+            invalid_names.add(name)
+            continue
+        if str(reg.get('fc_read')) != '1':
+            util.logging.warning(f"[{device_name}] Relay '{name}' sin fc_read=1; se omite de FC01.")
+            invalid_names.add(name)
+            continue
+
+    span_reg = next(
+        (r for r in config.get('registers', [])
+         if r.get('quantity') is not None and str(r.get('fc_read')) == '1'),
+        None
+    )
+    if span_reg is None:
+        util.logging.warning(f"[{device_name}] YAML sin registro FC01 con quantity para lectura empaquetada.")
+        v_vals = ["None"] * len(names)
+        u_vals = [str(regs_by_name[n]['unit']) if n in regs_by_name else "None" for n in names]
+        return {"d":[{"t": util.get__time_utc(), "g": g_value, "v": v_vals, "u": u_vals}]}
+
+    start_addr = int(span_reg['address'])
+    quantity   = int(span_reg['quantity'])
+    packed_fc  = int(span_reg['fc_read'])
     req_payload = struct.pack('>HH', start_addr, quantity)  # big-endian
     try:
         with MODBUS_LOCK:
@@ -359,7 +426,7 @@ def payload_relays_many_packed(config: dict, names: list[str]):
             # _perform_command devuelve SOLO el payload de respuesta (sin addr/fc/crc)
             # Para FC=1: b'\x01' + <status_byte>
             try:
-                resp = inst._perform_command(1, req_payload)
+                resp = inst._perform_command(packed_fc, req_payload)
             finally:
                 time.sleep(MODBUS_GAP_S)
         if not resp or len(resp) < 2:
@@ -369,25 +436,24 @@ def payload_relays_many_packed(config: dict, names: list[str]):
             raise ValueError(f"ByteCount inválido en FC1: {byte_count}")
         status_byte = resp[1]  # ← ESTE ES TU 4º byte de la trama total
     except Exception as e:
-        util.logging.error(f"[{device_name}] FC1 qty=8 falló: {type(e).__name__}: {e}")
+        util.logging.error(f"[{device_name}] FC1 qty={quantity} falló: {type(e).__name__}: {e}")
         # Si falla, devolvemos None por cada name
         v_vals = ["None"] * len(names)
-        u_vals = [str(regs_by_name.get(n, {}).get('unit', '143')) for n in names]
+        u_vals = [str(regs_by_name[n]['unit']) if n in regs_by_name else "None" for n in names]
         return {"d":[{"t": util.get__time_utc(), "g": g_value, "v": v_vals, "u": u_vals}]}
 
     # Construir v/u según nombres y address de cada relé (bit = address)
     v_vals, u_vals = [], []
     for name in names:
         reg = regs_by_name.get(name)
-        if not reg:
-            util.logging.error(f"[{device_name}] Relay '{name}' no existe en YAML.")
+        if name in invalid_names or not reg:
             v_vals.append("None")
-            u_vals.append("143")
+            u_vals.append(str(reg['unit']) if reg else "None")
             continue
-        addr = int(reg.get('address', 0))
+        addr = int(reg['address'])
         bit_val = (status_byte >> addr) & 0x01
         v_vals.append("1" if bit_val else "0")
-        u_vals.append(str(reg.get('unit', '143')))
+        u_vals.append(str(reg['unit']))
 
     return {
         "d": [{

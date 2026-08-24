@@ -57,7 +57,12 @@ def prueba_relays():
 
     util.logging.info("=== PRUEBA MANUAL DE RELAYS ===")
 
-    for nombre in ['recircular', 'extractor', 'humidificador', 'etileno']:
+    relay_names = [
+        str(reg['name'])
+        for reg in cfg.get('registers', [])
+        if int(reg.get('fc_read', 0)) == 1 and int(reg.get('fc_write', 0)) == 5
+    ]
+    for nombre in relay_names:
         util.logging.info(f"Prueba {nombre} ON")
         modbusdevices.relay_set(cfg, nombre, True)
         time.sleep(3)
@@ -366,18 +371,26 @@ def publicar_mediciones_aws():
 
         cfg_rel = util.cargar_configuracion(os.getenv("CFG_RELAY"), os.getenv("CFG_RELAY_SECTION"))
 
-        p_relays = modbusdevices.payload_relays_many_packed(cfg_rel, ['recircular', 'extractor', 'humidificador', 'etileno'])
+        relay_names = [
+            str(reg['name'])
+            for reg in cfg_rel.get('registers', [])
+            if int(reg.get('fc_read', 0)) == 1 and int(reg.get('fc_write', 0)) == 5
+        ]
+        p_relays = modbusdevices.payload_relays_many_packed(cfg_rel, relay_names)
         p_hvac = samsung_hvac.payload_hvac_status()
         try:
             regs_by_name = {str(r.get('name')): r for r in cfg_rel.get('registers', [])}
 
-            reg_aire = regs_by_name.get('aire_fresco', {})
+            reg_aire = next(reg for reg in cfg_rel.get('registers', []) if reg.get('type') == 'gpio')
             estado_aire = Temp.getairefresco()
 
             p_relays["d"][0]["v"].append("1" if estado_aire else "0")
-            p_relays["d"][0]["u"].append(str(reg_aire.get("unit", "205")))
+            p_relays["d"][0]["u"].append(str(reg_aire["unit"]))
 
-            util.logging.info(f"[RELAYS] aire_fresco GPIO10 estado={'ON' if estado_aire else 'OFF'}")
+            util.logging.info(
+                f"[RELAYS] {reg_aire['name']} GPIO{reg_aire['gpio']} "
+                f"estado={'ON' if estado_aire else 'OFF'}"
+            )
 
         except Exception as e:
             util.logging.error(f"[RELAYS] Error agregando aire_fresco al payload: {e}")
