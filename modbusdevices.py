@@ -9,6 +9,8 @@ import time
 
 MODBUS_LOCK = threading.RLock()
 MODBUS_GAP_S = 0.05
+_DIOUSTOU_FAILURES = 0
+_DIOUSTOU_RECOVERY_ATTEMPTED = False
 
 '''
 Parametros del pto serie modbus
@@ -91,6 +93,21 @@ def payload_event_modbus(config):
 #-----------------------------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------------------------
+def _dioustou_response_ok():
+    global _DIOUSTOU_FAILURES, _DIOUSTOU_RECOVERY_ATTEMPTED
+    _DIOUSTOU_FAILURES = 0
+    _DIOUSTOU_RECOVERY_ATTEMPTED = False
+
+
+def _dioustou_no_response(config, operation):
+    global _DIOUSTOU_FAILURES
+    _DIOUSTOU_FAILURES += 1
+    util.logging.warning(
+        f"[{config['device_name']}] Sin respuesta {operation} | "
+        f"fallo consecutivo {_DIOUSTOU_FAILURES}"
+    )
+
+
 def _relay_read_packed_locked(inst, config):
     """Lee el bloque FC01 definido en YAML. MODBUS_LOCK debe estar adquirido."""
     span_reg = next(
@@ -113,7 +130,11 @@ def _relay_read_packed_locked(inst, config):
 
     req_payload = struct.pack('>HH', start_addr, quantity)
     try:
-        resp = inst._perform_command(fc_read, req_payload)
+        try:
+            resp = inst._perform_command(fc_read, req_payload)
+        except minimalmodbus.NoResponseError:
+            _dioustou_no_response(config, "FC01")
+            raise
     finally:
         time.sleep(MODBUS_GAP_S)
 
@@ -132,6 +153,7 @@ def _relay_read_packed_locked(inst, config):
         )
 
     data_bytes = bytes(resp[1:1 + byte_count])
+    _dioustou_response_ok()
     return start_addr, quantity, data_bytes
 
 
@@ -148,6 +170,82 @@ def _relay_state_from_packed(data_bytes, start_addr, quantity, addr):
     if byte_index >= len(data_bytes):
         raise ValueError(f"Datos FC01 insuficientes para coil addr={addr}")
     return bool((data_bytes[byte_index] >> bit_index) & 0x01)
+
+
+def _dioustou_recover_locked(config):
+    """Ejecuta una única recuperación física y confirma el resultado por FC01."""
+    global _DIOUSTOU_RECOVERY_ATTEMPTED
+    if _DIOUSTOU_RECOVERY_ATTEMPTED:
+        return None
+
+    _DIOUSTOU_RECOVERY_ATTEMPTED = True
+    device_name = config['device_name']
+    parity_map = {
+        'N': serial.PARITY_NONE,
+        'E': serial.PARITY_EVEN,
+        'O': serial.PARITY_ODD,
+    }
+    util.logging.warning(f"[{device_name}] Iniciando recuperación controlada")
+
+    try:
+        with serial.Serial(
+            port=config['port'],
+            baudrate=int(config['baudrate']),
+            bytesize=int(config['bytesize']),
+            parity=parity_map[str(config['parity']).upper()],
+            stopbits=int(config['stopbits']),
+            timeout=float(config['timeout']),
+            inter_byte_timeout=float(config['inter_byte_timeout']),
+        ) as recovery_port:
+            time.sleep(0.2)
+            recovery_port.reset_input_buffer()
+            recovery_port.reset_output_buffer()
+            recovery_port.write(bytes.fromhex("0D 0A 0D 0A 0D 0A 0D 0A"))
+            recovery_port.flush()
+            time.sleep(0.5)
+            recovery_port.read(64)
+            recovery_port.reset_input_buffer()
+            recovery_port.reset_output_buffer()
+
+        inst = minimalmodbus.Instrument(config['port'], int(config['slave_id']))
+        inst.serial.baudrate = int(config['baudrate'])
+        inst.serial.bytesize = int(config['bytesize'])
+        inst.serial.stopbits = int(config['stopbits'])
+        inst.serial.timeout = float(config['timeout'])
+        inst.serial.inter_byte_timeout = float(config['inter_byte_timeout'])
+        inst.serial.parity = parity_map[str(config['parity']).upper()]
+        inst.mode = minimalmodbus.MODE_RTU
+        inst.clear_buffers_before_each_transaction = True
+        inst.close_port_after_each_call = True
+        inst.debug = bool(config.get('debug', False))
+
+        packed = _relay_read_packed_locked(inst, config)
+        start_addr, quantity, data_bytes = packed
+        states = {}
+        for reg in config.get('registers', []):
+            if str(reg.get('fc_read')) != '1' or reg.get('type') == 'gpio':
+                continue
+            try:
+                states[str(reg['name'])] = _relay_state_from_packed(
+                    data_bytes, start_addr, quantity, int(reg['address'])
+                )
+            except ValueError:
+                continue
+
+        util.logging.info(f"[{device_name}] Recuperación OK | FC01 responde")
+        util.logging.info(f"[{device_name}] Estados después recuperación: {states}")
+        return packed
+    except Exception as e:
+        util.logging.error(
+            f"[{device_name}] Recuperación FALLÓ: {type(e).__name__}: {e}"
+        )
+        return None
+
+
+def _dioustou_recover_if_needed_locked(config):
+    if _DIOUSTOU_FAILURES < 2 or _DIOUSTOU_RECOVERY_ATTEMPTED:
+        return None
+    return _dioustou_recover_locked(config)
 
 
 def relay_set(config, relay_name: str, on: bool = False) -> bool:
@@ -195,13 +293,32 @@ def relay_set(config, relay_name: str, on: bool = False) -> bool:
                         "no se puede confirmar la escritura."
                     )
                     return False
-                max_attempts = 3
-                retry_delay_s = 0.20
                 expected = bool(on)
 
+                def packed_state(packed):
+                    start_addr, quantity, data_bytes = packed
+                    return _relay_state_from_packed(
+                        data_bytes, start_addr, quantity, addr
+                    )
+
+                def write_once(stage):
+                    try:
+                        try:
+                            inst.write_bit(addr, 1 if expected else 0, functioncode=fc)
+                            _dioustou_response_ok()
+                            return True
+                        except minimalmodbus.NoResponseError:
+                            _dioustou_no_response(config, "FC05")
+                            util.logging.warning(
+                                f"[{device_name}] FC5 {relay_name} sin ACK | {stage}"
+                            )
+                            return False
+                    finally:
+                        time.sleep(MODBUS_GAP_S)
+
+                recovered_packed = None
                 try:
-                    start_addr, quantity, data_bytes = _relay_read_packed_locked(inst, config)
-                    current = _relay_state_from_packed(data_bytes, start_addr, quantity, addr)
+                    current = packed_state(_relay_read_packed_locked(inst, config))
                     if current == expected:
                         util.logging.info(
                             f"[{device_name}] {relay_name} ya estaba "
@@ -213,51 +330,55 @@ def relay_set(config, relay_name: str, on: bool = False) -> bool:
                         f"[{device_name}] Lectura previa FC01 PACKED falló para "
                         f"'{relay_name}': {type(e).__name__}: {e}"
                     )
+                    recovered_packed = _dioustou_recover_if_needed_locked(config)
 
-                for attempt in range(1, max_attempts + 1):
+                if recovered_packed is None:
+                    write_once("escritura inicial")
                     try:
-                        try:
-                            inst.write_bit(addr, 1 if expected else 0, functioncode=fc)
-                        except minimalmodbus.NoResponseError:
-                            util.logging.warning(
-                                f"[{device_name}] FC5 {relay_name} sin ACK "
-                                f"intento {attempt}/{max_attempts}"
-                            )
-                        except Exception as e:
-                            util.logging.warning(
-                                f"[{device_name}] FC5 {relay_name} falló "
-                                f"intento {attempt}/{max_attempts}: {type(e).__name__}: {e}"
-                            )
-                        finally:
-                            time.sleep(MODBUS_GAP_S)
-
-                        start_addr, quantity, data_bytes = _relay_read_packed_locked(inst, config)
-                        confirmed = _relay_state_from_packed(
-                            data_bytes, start_addr, quantity, addr
-                        )
+                        confirmed = packed_state(_relay_read_packed_locked(inst, config))
                         if confirmed == expected:
                             util.logging.info(
                                 f"[{device_name}] {relay_name} CMD={'ON' if on else 'OFF'} "
-                                f"REAL={'ON' if confirmed else 'OFF'} "
-                                f"CONFIRMADO FC01 PACKED intento={attempt}"
+                                f"REAL={'ON' if confirmed else 'OFF'} CONFIRMADO FC01 PACKED"
                             )
                             return True
-
-                        util.logging.warning(
-                            f"[{device_name}] {relay_name} CMD={'ON' if on else 'OFF'} "
-                            f"REAL={'ON' if confirmed else 'OFF'} "
-                            f"intento {attempt}/{max_attempts}"
-                        )
                     except Exception as e:
                         util.logging.warning(
-                            f"[{device_name}] Read-back FC01 PACKED falló para '{relay_name}' "
-                            f"intento {attempt}/{max_attempts}: {type(e).__name__}: {e}"
+                            f"[{device_name}] Read-back FC01 PACKED falló para "
+                            f"'{relay_name}': {type(e).__name__}: {e}"
                         )
+                    recovered_packed = _dioustou_recover_if_needed_locked(config)
 
-                    if attempt < max_attempts:
-                        # Completa 200 ms entre intentos, incluyendo el gap del bus.
-                        time.sleep(max(0.0, retry_delay_s - MODBUS_GAP_S))
+                if recovered_packed is None:
+                    util.logging.error(
+                        f"[{device_name}] {relay_name} estado NO CONFIRMADO"
+                    )
+                    return False
 
+                recovered_state = packed_state(recovered_packed)
+                if recovered_state == expected:
+                    util.logging.info(
+                        f"[{device_name}] {relay_name} ya estaba "
+                        f"{'ON' if on else 'OFF'} | CONFIRMADO FC01 PACKED"
+                    )
+                    return True
+
+                write_once("después de recuperación")
+                try:
+                    confirmed = packed_state(_relay_read_packed_locked(inst, config))
+                    if confirmed == expected:
+                        util.logging.info(
+                            f"[{device_name}] {relay_name} CMD={'ON' if on else 'OFF'} "
+                            f"REAL={'ON' if confirmed else 'OFF'} CONFIRMADO FC01 PACKED"
+                        )
+                        return True
+                except Exception as e:
+                    util.logging.warning(
+                        f"[{device_name}] Confirmación posterior a recuperación falló para "
+                        f"'{relay_name}': {type(e).__name__}: {e}"
+                    )
+
+                util.logging.error(f"[{device_name}] {relay_name} estado NO CONFIRMADO")
                 return False
 
             elif fc == 15:
@@ -270,7 +391,12 @@ def relay_set(config, relay_name: str, on: bool = False) -> bool:
                     len(data)
                 ]) + data
                 try:
-                    inst._perform_command(fc, payload)
+                    try:
+                        inst._perform_command(fc, payload)
+                        _dioustou_response_ok()
+                    except minimalmodbus.NoResponseError:
+                        _dioustou_no_response(config, "FC15")
+                        raise
                 finally:
                     time.sleep(MODBUS_GAP_S)
                 util.logging.info(f"[{device_name}] FC15 {relay_name} (addr={addr} qty={qty}) enviado OK")
@@ -324,7 +450,10 @@ def relay_read_states(config) -> dict:
                 util.logging.warning(
                     f"[{device_name}] Lectura FC01 PACKED falló: {type(e).__name__}: {e}"
                 )
-                return {reg.get('name'): None for reg in relay_regs}
+                recovered = _dioustou_recover_if_needed_locked(config)
+                if recovered is None:
+                    return {reg.get('name'): None for reg in relay_regs}
+                start_addr, quantity, data_bytes = recovered
 
             for reg in relay_regs:
                 if reg.get('type') == 'gpio':
@@ -396,7 +525,11 @@ def payload_relays_many(config: dict, names: list[str]):
             util.logging.error(
                 f"[{device_name}] FC01 PACKED falló: {type(e).__name__}: {e}"
             )
-            start_addr, quantity, data_bytes = None, None, None
+            recovered = _dioustou_recover_if_needed_locked(config)
+            if recovered is None:
+                start_addr, quantity, data_bytes = None, None, None
+            else:
+                start_addr, quantity, data_bytes = recovered
 
         # Índice rápido por nombre
         regs_by_name = {str(r.get('name')): r for r in config.get('registers', [])}
@@ -506,10 +639,14 @@ def payload_relays_many_packed(config: dict, names: list[str]):
             start_addr, quantity, data_bytes = _relay_read_packed_locked(inst, config)
     except Exception as e:
         util.logging.error(f"[{device_name}] FC01 PACKED falló: {type(e).__name__}: {e}")
-        # Si falla, devolvemos None por cada name
-        v_vals = ["None"] * len(names)
-        u_vals = [str(regs_by_name[n]['unit']) if n in regs_by_name else "None" for n in names]
-        return {"d":[{"t": util.get__time_utc(), "g": g_value, "v": v_vals, "u": u_vals}]}
+        with MODBUS_LOCK:
+            recovered = _dioustou_recover_if_needed_locked(config)
+        if recovered is None:
+            # Si falla, devolvemos None por cada name
+            v_vals = ["None"] * len(names)
+            u_vals = [str(regs_by_name[n]['unit']) if n in regs_by_name else "None" for n in names]
+            return {"d":[{"t": util.get__time_utc(), "g": g_value, "v": v_vals, "u": u_vals}]}
+        start_addr, quantity, data_bytes = recovered
 
     # Construir v/u según nombres y address de cada relé (bit = address)
     v_vals, u_vals = [], []
