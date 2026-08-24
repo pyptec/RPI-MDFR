@@ -623,30 +623,54 @@ def payload_relays_many_packed(config: dict, names: list[str]):
             invalid_names.add(name)
             continue
 
-    try:
-        with MODBUS_LOCK:
-            inst = minimalmodbus.Instrument(port, slave)
-            inst.serial.baudrate = baud
-            inst.serial.bytesize = bytesize
-            inst.serial.stopbits = stopbits
-            inst.serial.timeout  = timeout
-            inst.serial.inter_byte_timeout = float(config['inter_byte_timeout'])
-            inst.serial.parity   = parity
-            inst.mode = minimalmodbus.MODE_RTU
-            inst.clear_buffers_before_each_transaction = True
-            inst.close_port_after_each_call = True
+    start_addr, quantity, data_bytes = None, None, None
+    with MODBUS_LOCK:
+        inst = minimalmodbus.Instrument(port, slave)
+        inst.serial.baudrate = baud
+        inst.serial.bytesize = bytesize
+        inst.serial.stopbits = stopbits
+        inst.serial.timeout  = timeout
+        inst.serial.inter_byte_timeout = float(config['inter_byte_timeout'])
+        inst.serial.parity   = parity
+        inst.mode = minimalmodbus.MODE_RTU
+        inst.clear_buffers_before_each_transaction = True
+        inst.close_port_after_each_call = True
 
+        try:
             start_addr, quantity, data_bytes = _relay_read_packed_locked(inst, config)
-    except Exception as e:
-        util.logging.error(f"[{device_name}] FC01 PACKED falló: {type(e).__name__}: {e}")
-        with MODBUS_LOCK:
+        except minimalmodbus.NoResponseError as first_error:
+            util.logging.error(
+                f"[{device_name}] FC01 PACKED falló: "
+                f"{type(first_error).__name__}: {first_error}"
+            )
             recovered = _dioustou_recover_if_needed_locked(config)
-        if recovered is None:
-            # Si falla, devolvemos None por cada name
-            v_vals = ["None"] * len(names)
-            u_vals = [str(regs_by_name[n]['unit']) if n in regs_by_name else "None" for n in names]
-            return {"d":[{"t": util.get__time_utc(), "g": g_value, "v": v_vals, "u": u_vals}]}
-        start_addr, quantity, data_bytes = recovered
+
+            # Un único segundo FC01 permite confirmar el fallo consecutivo sin
+            # crear loops ni escribir coils durante la consulta de AWS.
+            if recovered is None and not _DIOUSTOU_RECOVERY_ATTEMPTED:
+                try:
+                    start_addr, quantity, data_bytes = _relay_read_packed_locked(inst, config)
+                except minimalmodbus.NoResponseError as second_error:
+                    util.logging.error(
+                        f"[{device_name}] Segundo FC01 PACKED falló: "
+                        f"{type(second_error).__name__}: {second_error}"
+                    )
+                    recovered = _dioustou_recover_if_needed_locked(config)
+                except Exception as second_error:
+                    util.logging.error(
+                        f"[{device_name}] Segundo FC01 PACKED inválido: "
+                        f"{type(second_error).__name__}: {second_error}"
+                    )
+
+            if recovered is not None:
+                start_addr, quantity, data_bytes = recovered
+                util.logging.info(
+                    f"[{device_name}] FC01 PACKED recuperado para payload AWS"
+                )
+        except Exception as e:
+            util.logging.error(
+                f"[{device_name}] FC01 PACKED inválido: {type(e).__name__}: {e}"
+            )
 
     # Construir v/u según nombres y address de cada relé (bit = address)
     v_vals, u_vals = [], []
@@ -657,6 +681,10 @@ def payload_relays_many_packed(config: dict, names: list[str]):
             u_vals.append(str(reg['unit']) if reg else "None")
             continue
         addr = int(reg['address'])
+        if data_bytes is None:
+            v_vals.append("None")
+            u_vals.append(str(reg['unit']))
+            continue
         try:
             bit_val = _relay_state_from_packed(data_bytes, start_addr, quantity, addr)
             v_vals.append("1" if bit_val else "0")
@@ -667,6 +695,10 @@ def payload_relays_many_packed(config: dict, names: list[str]):
             )
             v_vals.append("None")
         u_vals.append(str(reg['unit']))
+
+    util.logging.info(
+        f"[AWS][RELAYS] g={g_value} v={v_vals} u={u_vals}"
+    )
 
     return {
         "d": [{
