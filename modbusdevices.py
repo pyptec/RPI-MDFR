@@ -787,3 +787,97 @@ def payload_event_modbus_promedio(config, muestras=10, delay_s=1, decimales=1):
     )
 
     return ultimo_payload
+
+def payload_event_c2h4(config):
+    """
+    Lee el sensor ZONEWU C2H4 mediante una única consulta FC03.
+
+    Registros:
+        0x0000 -> Humedad      / 10
+        0x0001 -> Temperatura  / 10
+        0x0002 -> C2H4 ppm     / 10
+
+    El sensor debe leerse como bloque de 3 registros porque su firmware
+    puede devolver más registros de los solicitados en lecturas individuales.
+    """
+
+    try:
+
+        device_name = config.get("device_name", "ZONEWU-C2H4")
+        port = config.get("port", "/dev/ttyS0")
+        slave_id = int(config.get("slave_id", 5))
+
+        instrument = minimalmodbus.Instrument(port, slave_id)
+
+        instrument.serial.baudrate = int(config.get("baudrate", 9600))
+        instrument.serial.bytesize = int(config.get("bytesize", 8))
+        instrument.serial.parity = config.get("parity", "N")
+        instrument.serial.stopbits = int(config.get("stopbits", 1))
+        instrument.serial.timeout = float(config.get("timeout", 1))
+
+        instrument.mode = minimalmodbus.MODE_RTU
+        instrument.clear_buffers_before_each_transaction = True
+
+        # =====================================================
+        # UNA SOLA CONSULTA:
+        # Slave 05, FC03, inicio 0x0000, cantidad 3
+        # =====================================================
+
+        valores = instrument.read_registers(
+            registeraddress=0,
+            number_of_registers=3,
+            functioncode=3
+        )
+
+        if valores is None or len(valores) < 3:
+            util.logging.warning(
+                f"[{device_name}] Respuesta incompleta: {valores}"
+            )
+            return None
+
+        humedad_raw = valores[0]
+        temperatura_raw = valores[1]
+        c2h4_raw = valores[2]
+
+        # Temperatura signed 16 bits
+        if temperatura_raw >= 0x8000:
+            temperatura_raw -= 0x10000
+
+        humedad = round(humedad_raw / 10.0, 1)
+        temperatura = round(temperatura_raw / 10.0, 1)
+        c2h4 = round(c2h4_raw / 10.0, 1)
+
+        util.logging.info(
+            f"[{device_name}] "
+            f"Hum={humedad} %, "
+            f"Temp={temperatura} °C, "
+            f"C2H4={c2h4} ppm"
+        )
+
+        regs = config.get("registers", [])
+        unidades = [str(r.get("unit")) for r in regs]
+
+        return {
+            "d": [{
+                "t": util.get__time_utc(),
+                "g": config.get("id_device"),
+                "v": [
+                    str(humedad),
+                    str(temperatura),
+                    str(c2h4)
+                ],
+                "u": unidades
+            }]
+        }
+
+    except Exception as e:
+
+        util.logging.error(
+            f"[{config.get('device_name', 'ZONEWU-C2H4')}] "
+            f"Error leyendo C2H4 "
+            f"(slave={config.get('slave_id')}, "
+            f"port={config.get('port')}): "
+            f"{type(e).__name__}: {e}"
+        )
+
+        return None

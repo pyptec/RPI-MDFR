@@ -348,24 +348,7 @@ def obtener_datos_medidores_y_sensor(promediar=False):
 
             else:
 
-                if promediar:
-
-                    medicion_C2H4 = (
-                        modbusdevices.payload_event_modbus_promedio(
-                            config_C2H4,
-                            muestras=10,
-                            delay_s=0.2,
-                            decimales=1
-                        )
-                    )
-
-                else:
-
-                    medicion_C2H4 = (
-                        modbusdevices.payload_event_modbus(
-                            config_C2H4
-                        )
-                    )
+                medicion_C2H4 = modbusdevices.payload_event_c2h4(config_C2H4)
 
                 if medicion_C2H4 is None:
 
