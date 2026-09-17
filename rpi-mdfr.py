@@ -153,8 +153,9 @@ def obtener_datos_medidores_y_sensor(promediar=False):
             }
 
         medicionSensorCT01CO2 = json.dumps(medicion_CT01CO2)
-
+        # =========================================================
         # === SENSOR 2 — THT03R ===
+        # =========================================================
         try:
             config_THT03R = util.cargar_configuracion(os.getenv("CFG_THT03R"),os.getenv("CFG_THT03R_SECTION"))
             #config_THT03R = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/tht03r.yml', 'tht03r_sensor')
@@ -207,6 +208,9 @@ def obtener_datos_medidores_y_sensor(promediar=False):
             }
 
         medicionSensorTHT03R = json.dumps(medicion_THT03R)
+     
+     
+     
         # =========================================================
         # SENSOR 3 — PT21A01
         # =========================================================
@@ -295,6 +299,129 @@ def obtener_datos_medidores_y_sensor(promediar=False):
             }
 
         medicionSensorPT21A01 = json.dumps(medicion_PT21A01)
+        
+        # =========================================================
+        # === SENSOR 3 — C2H4 / ETILENO ===
+        # =========================================================
+
+        try:
+
+            config_C2H4 = util.cargar_configuracion(os.getenv("CFG_C2H4"), os.getenv("CFG_C2H4_SECTION"))
+
+            # config_C2H4 = util.cargar_configuracion(
+            #     '/home/pi/.scr/.scr/RPI-MDFR/device/c2h4.yml',
+            #     'c2h4_sensor'
+            # )
+
+            g_c2h4 = config_C2H4.get('id_device')
+
+            simular = bool(config_C2H4.get('simular', False))
+
+            if simular:
+
+                hum_simulada = round(random.uniform(50.0, 70.0), 1)
+                temp_simulada = round(random.uniform(18.0, 22.0), 1)
+                c2h4_simulado = round(random.uniform(0.0, 150.0), 1)
+
+                regs = config_C2H4.get('registers', [])
+                unidades = [str(r.get('unit')) for r in regs]
+
+                util.logging.info(
+                    f"[C2H4] SIM → "
+                    f"Hum={hum_simulada} %, "
+                    f"Temp={temp_simulada} °C, "
+                    f"C2H4={c2h4_simulado} ppm"
+                )
+
+                medicion_C2H4 = {
+                    "d": [{
+                        "t": util.get__time_utc(),
+                        "g": g_c2h4,
+                        "v": [
+                            str(hum_simulada),
+                            str(temp_simulada),
+                            str(c2h4_simulado)
+                        ],
+                        "u": unidades
+                    }]
+                }
+
+            else:
+
+                if promediar:
+
+                    medicion_C2H4 = (
+                        modbusdevices.payload_event_modbus_promedio(
+                            config_C2H4,
+                            muestras=10,
+                            delay_s=0.2,
+                            decimales=1
+                        )
+                    )
+
+                else:
+
+                    medicion_C2H4 = (
+                        modbusdevices.payload_event_modbus(
+                            config_C2H4
+                        )
+                    )
+
+                if medicion_C2H4 is None:
+
+                    util.logging.warning("C2H4 sin respuesta.")
+
+                    medicion_C2H4 = {
+                        "d": [{
+                            "t": util.get__time_utc(),
+                            "g": g_c2h4,
+                            "v": [None, None, None],
+                            "u": [None, None, None]
+                        }]
+                    }
+
+                else:
+
+                    valores = medicion_C2H4["d"][0]["v"]
+
+                    hum = valores[0] if len(valores) > 0 else None
+                    temp = valores[1] if len(valores) > 1 else None
+                    c2h4 = valores[2] if len(valores) > 2 else None
+
+                    if (
+                        hum not in [None, "None"]
+                        or temp not in [None, "None"]
+                        or c2h4 not in [None, "None"]
+                    ):
+
+                        util.logging.info(
+                            f"C2H4 → "
+                            f"Hum={hum} %, "
+                            f"Temp={temp} °C, "
+                            f"C2H4={c2h4} ppm"
+                        )
+
+                    else:
+
+                        util.logging.warning(
+                            "C2H4 sin valores válidos (None)"
+                        )
+
+        except Exception as e:
+
+            util.logging.error(f"Error C2H4: {e}")
+
+            medicion_C2H4 = {
+                "d": [{
+                    "t": util.get__time_utc(),
+                    "g": g_c2h4,
+                    "v": [None, None, None],
+                    "u": [None, None, None]
+                }]
+            }
+
+        medicionSensorC2H4 = json.dumps(medicion_C2H4)
+        
         # =========================================================
         # RETORNO
         # =========================================================
