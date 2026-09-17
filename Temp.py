@@ -186,8 +186,8 @@ def getsirena():
 #-----------------------------------------------------------------------------------------------------------
 #Informa el estado de la baliza
 #-----------------------------------------------------------------------------------------------------------
-def getbaliza():
-	return GPIO.input(GPIO10_RELE1_BALIZA)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)
+#def getbaliza():
+	#return GPIO.input(GPIO10_RELE1_BALIZA)  # 1 = cerrada, 0 = abierta (o viceversa según conexión)
 #-----------------------------------------------------------------------------------------------------------
 #Lee el pin de puerta con inversión
 #-----------------------------------------------------------------------------------------------------------
@@ -427,7 +427,7 @@ def restablecer_sistema_post_puerta():
         # 2) Asegura sirena y baliza en OFF
         try:
             setsirena(True)
-            setbaliza(True)
+            #setbaliza(True)
             #setsirena(False)
             #setbaliza(False)
         except Exception as e:
@@ -473,7 +473,7 @@ def _man_button_callback(channel):
         util.logging.error(f"[MAN] all_relay() falló: {type(e).__name__}: {e}")
     # LATCH: enciende sirena & baliza y guarda TS
     setsirena(True)
-    setbaliza(True)
+    #setbaliza(True)
     _man_state["latched"] = True
     _man_state["pressed_ts"] = time.monotonic()
     #_man_state["last_pressed"] = True  # estado actual

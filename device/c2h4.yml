@@ -1,0 +1,65 @@
+medidores:
+  c2h4_sensor:
+    device_name: "ZONEWU-C2H4"
+    id_device: 40          # Propuesto. Ajustar si ya está ocupado en la plataforma.
+    port: "/dev/ttyS0"
+    debug: False
+    simular: False
+
+    slave_id: 5
+    baudrate: 9600
+    bytesize: 8
+    parity: N
+    stopbits: 1
+    timeout: 1
+    inter_byte_timeout: 0.2
+
+    registers:
+      # =========================
+      # HUMEDAD RELATIVA
+      # =========================
+      - name: Humidity
+        address: 0
+        fc: 3
+        decimals: 1
+        signed: false
+        readWrite: "R"
+        scale: 1
+        unit: 0            # PENDIENTE: asignar Unit ID en plataforma
+        alias: c2h4_humidity
+
+      # =========================
+      # TEMPERATURA
+      # =========================
+      - name: Temperature
+        address: 1
+        fc: 3
+        decimals: 1
+        signed: true
+        readWrite: "R"
+        scale: 1
+        unit: 0            # PENDIENTE: asignar Unit ID en plataforma
+        alias: c2h4_temperature
+
+      # =========================
+      # ETILENO C2H4
+      # =========================
+      - name: C2H4
+        address: 2
+        fc: 3
+        decimals: 1
+        signed: false
+        readWrite: "R"
+        scale: 1
+        unit: 0            # PENDIENTE: asignar Unit ID en plataforma
+        alias: c2h4_ppm
+
+    # Lectura Modbus validada en banco:
+    # TX: 05 03 00 00 00 03 04 4F
+    # Registros:
+    #   0x0000 -> Humedad / 10
+    #   0x0001 -> Temperatura / 10
+    #   0x0002 -> C2H4 ppm / 10
+    #
+    # El software puede optimizar posteriormente la lectura usando
+    # una sola transacción FC03 de 3 registros consecutivos.

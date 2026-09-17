@@ -1,0 +1,56 @@
+medidores:
+  cwt_tm_2pt_sensor:
+    device_name: "CWT-TM-2PT"
+    id_device: 41          # Propuesto. Ajustar si ya está ocupado en la plataforma.
+    port: "/dev/ttyS0"
+    debug: False
+    simular: False
+
+    slave_id: 6
+    baudrate: 9600
+    bytesize: 8
+    parity: N
+    stopbits: 1
+    timeout: 1
+    inter_byte_timeout: 0.2
+
+    registers:
+      # =========================
+      # PT1000 CANAL 1
+      # Registro 0x0020 = 32
+      # Escala: 0.1 °C
+      # =========================
+      - name: CH1 Temperature
+        address: 32
+        fc: 3
+        decimals: 1
+        signed: false
+        readWrite: "R"
+        scale: 1
+        unit: 0            # PENDIENTE: asignar Unit ID en plataforma
+        alias: pt1000_ch1_temp
+
+      # =========================
+      # PT1000 CANAL 2
+      # Registro 0x0021 = 33
+      # Escala: 0.1 °C
+      # =========================
+      - name: CH2 Temperature
+        address: 33
+        fc: 3
+        decimals: 1
+        signed: false
+        readWrite: "R"
+        scale: 1
+        unit: 0            # PENDIENTE: asignar Unit ID en plataforma
+        alias: pt1000_ch2_temp
+
+    # Configuración validada:
+    # Slave ID = 6
+    # 9600, 8N1
+    #
+    # Lectura CH1:
+    #   06 03 00 20 00 01 84 77
+    #
+    # El módulo admite PT100 y PT1000.
+    # Para el proyecto se utilizará PT1000.

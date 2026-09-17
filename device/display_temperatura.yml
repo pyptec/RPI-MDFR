@@ -1,0 +1,52 @@
+medidores:
+  display_temperatura:
+    device_name: "DISPLAY-MODBUS"
+    port: "/dev/ttyS0"
+    debug: False
+    simular: False
+
+    slave_id: 7
+    baudrate: 9600
+    bytesize: 8
+    parity: N
+    stopbits: 1
+    timeout: 1
+    inter_byte_timeout: 0.2
+
+    registers:
+      # =========================
+      # VALOR MOSTRADO
+      # =========================
+      - name: Display Temperature
+        address: 0
+        fc: 6
+        decimals: 2
+        readWrite: "W"
+        scale: 100
+        unit: 0
+        alias: display_temperature
+
+    # Cableado RS485 validado:
+    #   D+ = A
+    #   D- = B
+    #
+    # Alimentación:
+    #   5 a 36 VDC
+    #
+    # Firmware validado experimentalmente:
+    #   Registro 0x0000 -> valor mostrado
+    #   Registro 0x0008 -> dirección Modbus
+    #
+    # Para mostrar 25.30:
+    #   valor_raw = 25.30 * 100 = 2530 = 0x09E2
+    #   TX: 07 06 00 00 09 E2 0F B5
+    #
+    # Cambio de dirección validado 06 -> 07:
+    #   TX: 06 06 00 08 00 07 48 7D
+    #   RX: 07 06 00 08 00 07 49 AC
+    #
+    # IMPORTANTE:
+    # Si el código usa 'decimals: 2' para multiplicar automáticamente
+    # por 100 al escribir, NO volver a aplicar scale=100 en software.
+    # Debe existir una sola conversión:
+    #   temperatura °C -> raw = temperatura * 100
