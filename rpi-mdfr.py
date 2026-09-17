@@ -405,6 +405,124 @@ def obtener_datos_medidores_y_sensor(promediar=False):
 
         medicionSensorC2H4 = json.dumps(medicion_C2H4)
         
+                # =========================================================
+        # === SENSOR 4 — CWT-TM-2PT / PT1000 ===
+        # =========================================================
+
+        try:
+
+            config_CWT = util.cargar_configuracion(os.getenv("CFG_CWT"), os.getenv("CFG_CWT_SECTION"))
+
+            # config_CWT = util.cargar_configuracion(
+            #     '/home/pi/.scr/.scr/RPI-MDFR/device/cwt_tm_2pt.yml',
+            #     'cwt_tm_2pt_sensor'
+            # )
+
+            g_cwt = config_CWT.get('id_device')
+
+            simular = bool(config_CWT.get('simular', False))
+
+            if simular:
+
+                temp_simulada = round(
+                    random.uniform(17.5, 22.0),
+                    1
+                )
+
+                regs = config_CWT.get('registers', [])
+                unidades = [str(r.get('unit')) for r in regs]
+
+                util.logging.info(
+                    f"[CWT-PT1000] SIM → Temp={temp_simulada} °C"
+                )
+
+                medicion_CWT = {
+                    "d": [{
+                        "t": util.get__time_utc(),
+                        "g": g_cwt,
+                        "v": [
+                            str(temp_simulada)
+                        ],
+                        "u": unidades[:1]
+                    }]
+                }
+
+            else:
+
+                if promediar:
+
+                    medicion_CWT = (
+                        modbusdevices.payload_event_modbus_promedio(
+                            config_CWT,
+                            muestras=10,
+                            delay_s=0.2,
+                            decimales=1
+                        )
+                    )
+
+                else:
+
+                    medicion_CWT = (
+                        modbusdevices.payload_event_modbus(
+                            config_CWT
+                        )
+                    )
+
+                if medicion_CWT is None:
+
+                    util.logging.warning(
+                        "CWT-PT1000 sin respuesta."
+                    )
+
+                    medicion_CWT = {
+                        "d": [{
+                            "t": util.get__time_utc(),
+                            "g": g_cwt,
+                            "v": [None],
+                            "u": [None]
+                        }]
+                    }
+
+                else:
+
+                    valores = medicion_CWT["d"][0]["v"]
+
+                    temp_pt1000 = (
+                        valores[0]
+                        if len(valores) > 0
+                        else None
+                    )
+
+                    if temp_pt1000 not in [None, "None"]:
+
+                        util.logging.info(
+                            f"CWT-PT1000 → "
+                            f"Temp={temp_pt1000} °C"
+                        )
+
+                    else:
+
+                        util.logging.warning(
+                            "CWT-PT1000 sin valor válido (None)"
+                        )
+
+        except Exception as e:
+
+            util.logging.error(
+                f"Error CWT-PT1000: {e}"
+            )
+
+            medicion_CWT = {
+                "d": [{
+                    "t": util.get__time_utc(),
+                    "g": g_cwt,
+                    "v": [None],
+                    "u": [None]
+                }]
+            }
+
+        medicionSensorCWT = json.dumps(medicion_CWT)
+        
         # =========================================================
         # RETORNO
         # =========================================================
@@ -413,7 +531,9 @@ def obtener_datos_medidores_y_sensor(promediar=False):
         return {
             'sensor_CT01CO2': medicionSensorCT01CO2,
             'sensor_THT03R':  medicionSensorTHT03R,
-            'sensor_PT21A01': medicionSensorPT21A01
+            'sensor_PT21A01': medicionSensorPT21A01,
+            'sensor_C2H4':    medicionSensorC2H4,
+            'sensor_CWT':     medicionSensorCWT
         }
 
     except Exception as e:
