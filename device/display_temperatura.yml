@@ -23,7 +23,6 @@ medidores:
         decimals: 2
         readWrite: "W"
         scale: 100
-        unit: 0
         alias: display_temperature
 
     # Cableado RS485 validado:

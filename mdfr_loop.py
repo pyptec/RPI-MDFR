@@ -4,7 +4,7 @@ import util
 import Temp
 import time
 import hvac_control
-
+import modbusdevices
 _aire_fresco_until = 0
 _aire_fresco_activo = False
 _purga_co2_activa = False
@@ -228,7 +228,7 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                 payload_tht = datos.get('sensor_THT03R')  # str JSON o dict
                 evt_tht = json.loads(payload_tht) if isinstance(payload_tht, str) else payload_tht
 
-                #temp_c = None
+                temp_c = None
                 hum    = None
                 if isinstance(evt_tht, dict):
                     d = evt_tht.get('d', [])
@@ -240,8 +240,41 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                                 temp_c = float(v[0])
                             if len(v) > 1 and v[1] not in [None, "None", ""]:
                                 hum = float(v[1])
+                                
+                # =========================================================
+                # DISPLAY LOCAL DE TEMPERATURA
+                # =========================================================
 
+                try:
+
+                    if temp_c is not None:
+
+                        config_display = util.cargar_configuracion(
+                            os.getenv("CFG_DISPLAY"),
+                            os.getenv("CFG_DISPLAY_SECTION")
+                        )
+
+                        modbusdevices.display_write_temperature(
+                            config_display,
+                            temp_c
+                        )
+
+                    else:
+
+                        util.logging.warning(
+                            "[DISPLAY] THT03R sin temperatura válida; "
+                            "display conserva último valor."
+                        )
+
+                except Exception as e:
+
+                    util.logging.error(
+                        f"[DISPLAY] Error actualizando display: "
+                        f"{type(e).__name__}: {e}"
+                    )
+                # =========================================================
                 # --- HUMEDAD: controlar humidificador ---
+                # =========================================================
                 if hum is None or HU_LOW is None or HU_HIGH is None:
                     util.logging.warning("[MDFR] Humedad: dato/umbrales faltantes; se omite control de humidificador.")
                 else:

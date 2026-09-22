@@ -881,3 +881,154 @@ def payload_event_c2h4(config):
         )
 
         return None
+    
+# -----------------------------------------------------------------------------------------------------------
+# DISPLAY MODBUS - TEMPERATURA
+# -----------------------------------------------------------------------------------------------------------
+
+def display_write_temperature(config, temperatura_c):
+    """
+    Envía una temperatura al display Modbus RTU.
+
+    Ejemplo:
+        temperatura_c = 20.50
+        raw = 2050
+        slave = 7
+        registro = 0x0000
+        FC06
+
+    El display muestra:
+        20.50
+    """
+
+    try:
+
+        if temperatura_c in [None, "None", ""]:
+            util.logging.warning(
+                "[DISPLAY] Temperatura inválida; no se actualiza display."
+            )
+            return False
+
+        device_name = config.get(
+            "device_name",
+            "DISPLAY-MODBUS"
+        )
+
+        port = config.get(
+            "port",
+            serialPort
+        )
+
+        slave = int(
+            config.get("slave_id", 7)
+        )
+
+        # Buscar registro de visualización definido en YAML
+        regs = config.get("registers", [])
+
+        if not regs:
+            util.logging.error(
+                f"[{device_name}] YAML sin registros."
+            )
+            return False
+
+        reg = regs[0]
+
+        address = int(
+            reg.get("address", 0)
+        )
+
+        fc = int(
+            reg.get("fc", 6)
+        )
+
+        scale = float(
+            reg.get("scale", 100)
+        )
+
+        # -----------------------------------------
+        # Convertir temperatura a valor del display
+        #
+        # 20.50 °C -> 2050
+        # -----------------------------------------
+
+        valor_raw = int(
+            round(float(temperatura_c) * scale)
+        )
+
+        with MODBUS_LOCK:
+
+            instrumento = minimalmodbus.Instrument(
+                port,
+                slave
+            )
+
+            instrumento.serial.baudrate = int(
+                config.get("baudrate", 9600)
+            )
+
+            instrumento.serial.bytesize = int(
+                config.get("bytesize", 8)
+            )
+
+            instrumento.serial.stopbits = int(
+                config.get("stopbits", 1)
+            )
+
+            instrumento.serial.timeout = float(
+                config.get("timeout", 1)
+            )
+
+            instrumento.serial.inter_byte_timeout = float(
+                config.get("inter_byte_timeout", 0.2)
+            )
+
+            parity_map = {
+                "N": serial.PARITY_NONE,
+                "E": serial.PARITY_EVEN,
+                "O": serial.PARITY_ODD
+            }
+
+            instrumento.serial.parity = parity_map.get(
+                str(config.get("parity", "N")).upper(),
+                serial.PARITY_NONE
+            )
+
+            instrumento.mode = minimalmodbus.MODE_RTU
+            instrumento.clear_buffers_before_each_transaction = True
+            instrumento.close_port_after_each_call = True
+
+            instrumento.debug = bool(
+                config.get("debug", False)
+            )
+
+            # IMPORTANTE:
+            # Ya multiplicamos por 100 arriba.
+            # number_of_decimals debe quedar en 0.
+
+            instrumento.write_register(
+                registeraddress=address,
+                value=valor_raw,
+                number_of_decimals=0,
+                functioncode=fc,
+                signed=False
+            )
+
+            time.sleep(MODBUS_GAP_S)
+
+        util.logging.info(
+            f"[DISPLAY] Temp={float(temperatura_c):.2f} °C "
+            f"→ RAW={valor_raw} "
+            f"→ slave={slave} reg=0x{address:04X}"
+        )
+
+        return True
+
+    except Exception as e:
+
+        util.logging.error(
+            f"[DISPLAY] Error escribiendo temperatura: "
+            f"{type(e).__name__}: {e}"
+        )
+
+        return False
