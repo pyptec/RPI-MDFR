@@ -25,7 +25,7 @@ medidores:
         signed: false
         readWrite: "R"
         scale: 1
-        unit: 0            # PENDIENTE: asignar Unit ID en plataforma
+        unit: 2            # PENDIENTE: asignar Unit ID en plataforma
         alias: c2h4_humidity
 
       # =========================
@@ -38,7 +38,7 @@ medidores:
         signed: true
         readWrite: "R"
         scale: 1
-        unit: 0            # PENDIENTE: asignar Unit ID en plataforma
+        unit: 1           # PENDIENTE: asignar Unit ID en plataforma
         alias: c2h4_temperature
 
       # =========================
@@ -51,7 +51,7 @@ medidores:
         signed: false
         readWrite: "R"
         scale: 1
-        unit: 0            # PENDIENTE: asignar Unit ID en plataforma
+        unit: 166            # PENDIENTE: asignar Unit ID en plataforma
         alias: c2h4_ppm
 
     # Lectura Modbus validada en banco:
