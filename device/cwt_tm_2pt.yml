@@ -27,7 +27,7 @@ medidores:
         signed: false
         readWrite: "R"
         scale: 1
-        unit: 1            # PENDIENTE: asignar Unit ID en plataforma
+        unit: 167            # PENDIENTE: asignar Unit ID en plataforma
         alias: pt1000_ch1_temp
 
       # =========================
@@ -42,7 +42,7 @@ medidores:
         signed: false
         readWrite: "R"
         scale: 1
-        unit: 1            # PENDIENTE: asignar Unit ID en plataforma
+        unit: 167            # PENDIENTE: asignar Unit ID en plataforma
         alias: pt1000_ch2_temp
 
     # Configuración validada:
