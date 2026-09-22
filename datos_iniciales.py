@@ -35,6 +35,9 @@ def ejecutar_datos_iniciales(obtener_datos_medidores_y_sensor):
                 awsaccess.publish_mediciones(mqtt_client, datos['sensor_CT01CO2'])
                 awsaccess.publish_mediciones(mqtt_client, datos['sensor_THT03R'])
                 awsaccess.publish_mediciones(mqtt_client, datos['sensor_PT21A01'])
+                awsaccess.publish_mediciones(mqtt_client, datos['sensor_C2H4'])
+                awsaccess.publish_mediciones(mqtt_client, datos['sensor_CWT'])
+                
                 
                 awsaccess.disconnect_from_aws_iot(mqtt_client)
                 util.logging.info("[INICIO] Publicación inicial completada.")
@@ -43,12 +46,17 @@ def ejecutar_datos_iniciales(obtener_datos_medidores_y_sensor):
                 fileventqueue.agregar_evento(datos['sensor_CT01CO2'])
                 fileventqueue.agregar_evento(datos['sensor_THT03R'])
                 fileventqueue.agregar_evento(datos['sensor_PT21A01'])
+                fileventqueue.agregar_evento(datos['sensor_C2H4'])
+                fileventqueue.agregar_evento(datos['sensor_CWT'])
+                
                 fileventqueue.agregar_evento(conneced_aws)
         else:
             util.logging.error("[INICIO] Sin conexión a Internet. Guardando eventos localmente.")
             fileventqueue.agregar_evento(datos['sensor_CT01CO2'])
             fileventqueue.agregar_evento(datos['sensor_THT03R'])
             fileventqueue.agregar_evento(datos['sensor_PT21A01'])
+            fileventqueue.agregar_evento(datos['sensor_C2H4'])
+            fileventqueue.agregar_evento(datos['sensor_CWT'])
             fileventqueue.agregar_evento(conneced_aws)
 
         # === Verificar temperatura del CPU ===
