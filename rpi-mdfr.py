@@ -405,21 +405,18 @@ def obtener_datos_medidores_y_sensor(promediar=False):
 
         medicionSensorC2H4 = json.dumps(medicion_C2H4)
         
-        # =========================================================
-        # === SENSOR 4 — CWT-TM-2PT / PT1000 ===
+                # =========================================================
+        # === SENSOR 4 — CWT-TM-2PT / PT1000 CANAL 1 ===
         # =========================================================
 
         try:
 
-            config_CWT = util.cargar_configuracion(os.getenv("CFG_CWT"), os.getenv("CFG_CWT_SECTION"))
-
-            # config_CWT = util.cargar_configuracion(
-            #     '/home/pi/.scr/.scr/RPI-MDFR/device/cwt_tm_2pt.yml',
-            #     'cwt_tm_2pt_sensor'
-            # )
+            config_CWT = util.cargar_configuracion(
+                os.getenv("CFG_CWT"),
+                os.getenv("CFG_CWT_SECTION")
+            )
 
             g_cwt = config_CWT.get('id_device')
-
             simular = bool(config_CWT.get('simular', False))
 
             if simular:
@@ -430,20 +427,24 @@ def obtener_datos_medidores_y_sensor(promediar=False):
                 )
 
                 regs = config_CWT.get('registers', [])
-                unidades = [str(r.get('unit')) for r in regs]
+
+                # Solo Unit ID del canal 1
+                unidad_ch1 = (
+                    str(regs[0].get('unit'))
+                    if len(regs) > 0
+                    else None
+                )
 
                 util.logging.info(
-                    f"[CWT-PT1000] SIM → Temp={temp_simulada} °C"
+                    f"[CWT-PT1000] SIM → CH1 Temp={temp_simulada} °C"
                 )
 
                 medicion_CWT = {
                     "d": [{
                         "t": util.get__time_utc(),
                         "g": g_cwt,
-                        "v": [
-                            str(temp_simulada)
-                        ],
-                        "u": unidades[:1]
+                        "v": [str(temp_simulada)],
+                        "u": [unidad_ch1]
                     }]
                 }
 
@@ -451,7 +452,7 @@ def obtener_datos_medidores_y_sensor(promediar=False):
 
                 if promediar:
 
-                    medicion_CWT = (
+                    medicion_CWT_raw = (
                         modbusdevices.payload_event_modbus_promedio(
                             config_CWT,
                             muestras=10,
@@ -462,16 +463,16 @@ def obtener_datos_medidores_y_sensor(promediar=False):
 
                 else:
 
-                    medicion_CWT = (
+                    medicion_CWT_raw = (
                         modbusdevices.payload_event_modbus(
                             config_CWT
                         )
                     )
 
-                if medicion_CWT is None:
+                if medicion_CWT_raw is None:
 
                     util.logging.warning(
-                        "CWT-PT1000 sin respuesta."
+                        "CWT-PT1000 CH1 sin respuesta."
                     )
 
                     medicion_CWT = {
@@ -485,7 +486,12 @@ def obtener_datos_medidores_y_sensor(promediar=False):
 
                 else:
 
-                    valores = medicion_CWT["d"][0]["v"]
+                    valores = medicion_CWT_raw["d"][0].get("v", [])
+                    unidades = medicion_CWT_raw["d"][0].get("u", [])
+
+                    # =============================================
+                    # TOMAR ÚNICAMENTE CANAL 1
+                    # =============================================
 
                     temp_pt1000 = (
                         valores[0]
@@ -493,17 +499,36 @@ def obtener_datos_medidores_y_sensor(promediar=False):
                         else None
                     )
 
+                    unidad_ch1 = (
+                        unidades[0]
+                        if len(unidades) > 0
+                        else None
+                    )
+
+                    # Crear nuevo payload exclusivamente con CH1
+                    medicion_CWT = {
+                        "d": [{
+                            "t": medicion_CWT_raw["d"][0].get(
+                                "t",
+                                util.get__time_utc()
+                            ),
+                            "g": g_cwt,
+                            "v": [temp_pt1000],
+                            "u": [unidad_ch1]
+                        }]
+                    }
+
                     if temp_pt1000 not in [None, "None"]:
 
                         util.logging.info(
                             f"CWT-PT1000 → "
-                            f"Temp={temp_pt1000} °C"
+                            f"CH1 Temp={temp_pt1000} °C"
                         )
 
                     else:
 
                         util.logging.warning(
-                            "CWT-PT1000 sin valor válido (None)"
+                            "CWT-PT1000 CH1 sin valor válido (None)"
                         )
 
         except Exception as e:
