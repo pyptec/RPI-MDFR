@@ -1,7 +1,7 @@
 medidores:
   c2h4_sensor:
     device_name: "ZONEWU-C2H4"
-    id_device: 43          # 40 Propuesto. Ajustar si ya está ocupado en la plataforma.
+    id_device: 45          # 40 Propuesto. Ajustar si ya está ocupado en la plataforma.
     port: "/dev/ttyS0"
     debug: False
     simular: False
