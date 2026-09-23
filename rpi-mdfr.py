@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 from mdfr_loop import ejecutar_mdfr
 from rasp_loop import ejecutar_raspberry
 from datos_iniciales import ejecutar_datos_iniciales
+from webapp.services import db_service
 
 import os
 import time
@@ -621,6 +622,24 @@ def aws_publish_loop():
 def publicar_mediciones_aws():
     try:
         datos = obtener_datos_medidores_y_sensor(promediar=True)
+        # =====================================================
+        # GUARDAR HISTÓRICO LOCAL SQLITE
+        # =====================================================
+
+        try:
+
+            cantidad = db_service.guardar_sensores(datos)
+
+            util.logging.info(f"[DB] Mediciones guardadas localmente: "f"{cantidad}")          
+
+        except Exception as e:
+
+            # La BD jamás debe detener
+            # el control de la cámara.
+
+            util.logging.error(f"[DB] Error guardando mediciones: " f"{type(e).__name__}: {e}" )
+
+        
         snap_puerta = Temp.snapshot_puerta()
         snap_man = Temp.snapshot_hombre_atrapado()
 
@@ -654,6 +673,8 @@ def publicar_mediciones_aws():
             datos['sensor_CT01CO2'],
             datos['sensor_THT03R'],
             datos['sensor_PT21A01'],
+            datos['sensor_C2H4'],
+            datos['sensor_CWT'],
             json.dumps(snap_puerta),
             json.dumps(snap_man),
             json.dumps(p_relays)
@@ -681,6 +702,17 @@ def publicar_mediciones_aws():
 #-----------------------------------------------------------------------------------------------------------   
 # Lógica principal
 def main_loop():
+    
+    # =====================================================
+    # BASE DE DATOS LOCAL
+    # =====================================================
+    try:
+        db_service.init_db()
+
+        util.logging.info("[DB] Base de datos local inicializada.")
+
+    except Exception as e:
+        util.logging.error(f"[DB] Error inicializando SQLite: " f"{type(e).__name__}: {e}")
     # Apagar relays y sirena al iniciar
     Temp.setsirena(False)
     Temp.all_relay()

@@ -1,0 +1,23 @@
+# =========================================================
+# BASES DE DATOS LOCALES
+# =========================================================
+
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/*.sqlite
+data/*.sqlite3
+
+*.db
+*.db-wal
+*.db-shm
+
+# Backups creados por la web
+device/backup_web/
+
+# Python
+__pycache__/
+*.pyc
+
+# Logs
+*.log
