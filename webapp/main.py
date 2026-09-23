@@ -77,8 +77,29 @@ def local_a_utc_iso(fecha_texto):
     )
 
     return dt_utc.isoformat()
+def utc_a_colombia_iso(fecha_utc):
+    """
+    Convierte fecha almacenada en UTC
+    a hora local Colombia.
+    """
 
+    dt = datetime.fromisoformat(
+        str(fecha_utc).replace(
+            "Z",
+            "+00:00"
+        )
+    )
 
+    if dt.tzinfo is None:
+        dt = dt.replace(
+            tzinfo=TZ_UTC
+        )
+
+    dt_colombia = dt.astimezone(
+        TZ_LOCAL
+    )
+
+    return dt_colombia.isoformat()
 # =========================================================
 # INICIO
 # =========================================================
@@ -179,6 +200,13 @@ async def api_historico(
             hasta_utc=hasta_utc
         )
 
+        for punto in datos:
+
+            punto["timestamp_utc"] = punto["timestamp"]
+
+            punto["timestamp"] = utc_a_colombia_iso(
+                punto["timestamp"]
+            )
         return {
             "sensor": sensor,
             "variable": variable,

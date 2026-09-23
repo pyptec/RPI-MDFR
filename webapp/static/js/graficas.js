@@ -392,14 +392,18 @@ function dibujarGrafica(datos) {
 
 
     ctx.fillText(
-        primero.toLocaleString(),
+        formatoColombia(
+            datos[0].timestamp
+        ),
         margenIzq,
         H - 20
     );
 
 
     ctx.fillText(
-        ultimo.toLocaleString(),
+        formatoColombia(
+            datos[datos.length - 1].timestamp
+        ),
         W - 210,
         H - 20
     );
@@ -410,3 +414,21 @@ document.addEventListener(
     "DOMContentLoaded",
     configurarInicial
 );
+
+function formatoColombia(timestamp) {
+
+    const fecha = new Date(timestamp);
+
+    return fecha.toLocaleString(
+        "es-CO",
+        {
+            timeZone: "America/Bogota",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false
+        }
+    );
+}
