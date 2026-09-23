@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1>Gráficas históricas</h1>
+
+<p class="subtitle">
+    Consulta de variables de la cámara de maduración
+</p>
+
+
+<div class="panel">
+
+    <h2>Filtro de tiempo</h2>
+
+    <div class="filter-grid">
+
+        <div>
+            <label>Desde</label>
+
+            <input
+                type="date"
+                id="fechaDesde"
+            >
+        </div>
+
+        <div>
+            <label>Hora</label>
+
+            <select id="horaDesde"></select>
+        </div>
+
+        <div>
+            <label>Minuto</label>
+
+            <select id="minDesde">
+                <option>00</option>
+                <option>10</option>
+                <option>20</option>
+                <option>30</option>
+                <option>40</option>
+                <option>50</option>
+            </select>
+        </div>
+
+
+        <div>
+            <label>Hasta</label>
+
+            <input
+                type="date"
+                id="fechaHasta"
+            >
+        </div>
+
+        <div>
+            <label>Hora</label>
+
+            <select id="horaHasta"></select>
+        </div>
+
+        <div>
+            <label>Minuto</label>
+
+            <select id="minHasta">
+                <option>00</option>
+                <option>10</option>
+                <option>20</option>
+                <option>30</option>
+                <option>40</option>
+                <option>50</option>
+            </select>
+        </div>
+
+    </div>
+
+
+    <button
+        onclick="consultarCO2()"
+    >
+        Consultar
+    </button>
+
+</div>
+
+
+<div class="panel">
+
+    <h2>CO₂</h2>
+
+    <div id="resultado">
+        Seleccione un período.
+    </div>
+
+    <canvas
+        id="graficaCO2"
+        width="1200"
+        height="420"
+    ></canvas>
+
+</div>
+
+
+<script src="/static/js/graficas.js"></script>
+
+{% endblock %}

@@ -1,0 +1,44 @@
+.filter-grid {
+    display: grid;
+    grid-template-columns:
+        repeat(6, minmax(100px, 1fr));
+    gap: 15px;
+}
+
+.filter-grid label {
+    display: block;
+    margin-bottom: 7px;
+    font-weight: 600;
+}
+
+.filter-grid input,
+.filter-grid select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #bdcad3;
+    border-radius: 5px;
+    background: white;
+}
+
+#graficaCO2 {
+    width: 100%;
+    max-width: 100%;
+    background: white;
+    margin-top: 20px;
+}
+
+@media (max-width: 900px) {
+
+    .filter-grid {
+        grid-template-columns:
+            repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 550px) {
+
+    .filter-grid {
+        grid-template-columns:
+            1fr;
+    }
+}

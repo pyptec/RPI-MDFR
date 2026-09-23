@@ -491,3 +491,53 @@ def guardar_sensores(datos):
 
 
     return insertadas
+
+def consultar_historico(
+    sensor,
+    variable,
+    desde_utc,
+    hasta_utc
+):
+    """
+    Consulta histórica usando intervalo [desde, hasta).
+
+    desde_utc incluido.
+    hasta_utc excluido.
+    """
+
+    init_db()
+
+    with _DB_LOCK:
+        with sqlite3.connect(DB_PATH) as conn:
+
+            conn.row_factory = sqlite3.Row
+
+            filas = conn.execute(
+                """
+                SELECT
+                    timestamp_utc,
+                    valor,
+                    unidad
+                FROM mediciones
+                WHERE sensor = ?
+                  AND variable = ?
+                  AND timestamp_utc >= ?
+                  AND timestamp_utc < ?
+                ORDER BY timestamp_utc ASC
+                """,
+                (
+                    sensor,
+                    variable,
+                    desde_utc,
+                    hasta_utc
+                )
+            ).fetchall()
+
+    return [
+        {
+            "timestamp": fila["timestamp_utc"],
+            "valor": fila["valor"],
+            "unidad": fila["unidad"]
+        }
+        for fila in filas
+    ]
