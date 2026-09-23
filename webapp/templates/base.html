@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>
+        PYP - Maduración Banano
+    </title>
+
+    <link
+        rel="stylesheet"
+        href="/static/css/style.css"
+    >
+</head>
+
+<body>
+
+<header class="topbar">
+
+    <div class="brand">
+
+        <img
+            src="/static/img/logo_pyp.png"
+            class="logo"
+            alt="PYP Tecnología"
+        >
+
+        <div>
+            <div class="brand-title">
+                PYP Tecnología Electrónica S.A.S.
+            </div>
+
+            <div class="brand-subtitle">
+                Sistema de Control de Maduración de Banano
+            </div>
+        </div>
+
+    </div>
+
+</header>
+
+
+<nav class="menu">
+
+    <a href="/">
+        Inicio
+    </a>
+
+    <a href="/graficas">
+        Gráficas
+    </a>
+
+    <a href="/proceso">
+        Proceso
+    </a>
+
+    <a href="/eventos">
+        Eventos
+    </a>
+
+    <a href="/configuracion">
+        Configuración
+    </a>
+
+    <a href="/sistema">
+        Sistema
+    </a>
+
+</nav>
+
+
+<main class="container">
+
+    {% block content %}
+    {% endblock %}
+
+</main>
+
+
+<footer>
+
+    PYP Tecnología Electrónica S.A.S. |
+    IoT · Automatización · Eficiencia Energética
+
+</footer>
+
+</body>
+
+</html>

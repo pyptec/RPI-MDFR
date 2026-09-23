@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1>
+    Cámara de Maduración de Banano
+</h1>
+
+<p class="subtitle">
+    Monitoreo y control local
+</p>
+
+
+<div class="cards">
+
+    <div class="card">
+        <h3>Temperatura</h3>
+        <div class="value">-- °C</div>
+        <small>THT03R</small>
+    </div>
+
+    <div class="card">
+        <h3>Humedad</h3>
+        <div class="value">-- %</div>
+        <small>THT03R</small>
+    </div>
+
+    <div class="card">
+        <h3>CO₂</h3>
+        <div class="value">-- ppm</div>
+        <small>CT01CO2</small>
+    </div>
+
+    <div class="card">
+        <h3>Etileno C₂H₄</h3>
+        <div class="value">-- ppm</div>
+        <small>ZONEWU</small>
+    </div>
+
+    <div class="card">
+        <h3>PT1000</h3>
+        <div class="value">-- °C</div>
+        <small>CWT CH1</small>
+    </div>
+
+    <div class="card">
+        <h3>Puerta</h3>
+        <div class="value">--</div>
+        <small>Estado actual</small>
+    </div>
+
+</div>
+
+
+<section class="panel">
+
+    <h2>
+        Proceso de maduración
+    </h2>
+
+    <div class="process-grid">
+
+        <div>
+            <span>Estado</span>
+            <strong>--</strong>
+        </div>
+
+        <div>
+            <span>Inicio</span>
+            <strong>--</strong>
+        </div>
+
+        <div>
+            <span>Tiempo transcurrido</span>
+            <strong>--</strong>
+        </div>
+
+        <div>
+            <span>Ciclos CO₂</span>
+            <strong>--</strong>
+        </div>
+
+        <div>
+            <span>Último LOW → HIGH</span>
+            <strong>--</strong>
+        </div>
+
+    </div>
+
+</section>
+
+{% endblock %}
