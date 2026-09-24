@@ -1052,21 +1052,125 @@ def publicar_mediciones_aws():
         ]
         if p_hvac is not None:
             eventos.append(json.dumps(p_hvac))
-        if util.ensure_internet_failover():
-            mqtt_client = awsaccess.connect_to_mqtt()
+        
+        # =========================================================
+        # COLA PERSISTENTE SQLITE
+        # =========================================================
+        #
+        # Todas las mediciones:
+        #
+        #   1. se generan
+        #   2. se guardan primero en aws_queue
+        #   3. luego se intenta drenar la cola
+        #
+        # Nunca se publica directamente desde aquí.
+        # =========================================================
 
-            if mqtt_client:
-                for evento in eventos:
-                    awsaccess.publish_mediciones(mqtt_client, evento)
+        topic = os.getenv(
+            "TOPIC"
+        )
 
-                awsaccess.disconnect_from_aws_iot(mqtt_client)
-                util.logging.info("[AWS] Mediciones publicadas correctamente.")
-                return
+
+        if not topic:
+
+            raise RuntimeError(
+                "TOPIC no configurado en .env"
+            )
+
+
+        encolados = 0
+        errores_encolado = 0
+
 
         for evento in eventos:
-            fileventqueue.agregar_evento(evento)
 
-        util.logging.warning("[AWS] Sin conexión MQTT. Mediciones enviadas a cola.")
+            try:
+
+                if evento in [
+                    None,
+                    "",
+                    "None"
+                ]:
+
+                    continue
+
+
+                queue_id = (
+                    db_service.aws_queue_agregar(
+                        topic=topic,
+                        payload=evento
+                    )
+                )
+
+
+                if queue_id is not None:
+
+                    encolados += 1
+
+                    util.logging.info(
+                        "[AWS_QUEUE] "
+                        f"Medición encolada | "
+                        f"id={queue_id}"
+                    )
+
+                else:
+
+                    errores_encolado += 1
+
+                    util.logging.error(
+                        "[AWS_QUEUE] "
+                        "No fue posible encolar una medición."
+                    )
+
+
+            except Exception as e:
+
+                errores_encolado += 1
+
+                util.logging.error(
+                    "[AWS_QUEUE] "
+                    "Error encolando medición: "
+                    f"{type(e).__name__}: {e}"
+                )
+
+
+        util.logging.info(
+            "[AWS_QUEUE] "
+            f"Lote guardado | "
+            f"encolados={encolados} | "
+            f"errores={errores_encolado}"
+        )
+
+
+        # =========================================================
+        # INTENTAR TRANSMITIR
+        # =========================================================
+        #
+        # process_event_queue() comprueba por sí misma:
+        #
+        # - si existen pendientes
+        # - conectividad
+        # - conexión MQTT
+        # - publicación QoS 1
+        # - SENT / PENDING
+        #
+        # =========================================================
+
+        try:
+
+            process_event_queue()
+
+        except Exception as e:
+
+            # Que AWS falle jamás debe impedir
+            # que continúe el control de la cámara.
+
+            util.logging.error(
+                "[AWS_QUEUE] "
+                "Error intentando drenar cola: "
+                f"{type(e).__name__}: {e}"
+            )
+
 
     except Exception as e:
         util.logging.error(f"[AWS] Error general publicando mediciones: {e}")
