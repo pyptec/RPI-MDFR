@@ -311,6 +311,11 @@ def obtener_datos_medidores_y_sensor(promediar=False):
 
         medicionSensorCT01CO2 = json.dumps(medicion_CT01CO2)
         # =========================================================
+        # DETECCIÓN CICLO CO2 LOW -> HIGH
+        # =========================================================
+
+        procesar_ciclo_co2_actual(medicionSensorCT01CO2)
+        # =========================================================
         # === SENSOR 2 — THT03R ===
         # =========================================================
         try:
