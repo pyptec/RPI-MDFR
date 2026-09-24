@@ -1,3 +1,4 @@
+from webapp.services import db_service
 import json
 import os
 import util
@@ -74,26 +75,102 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                 evt_co2 = json.loads(payload_co2) if isinstance(payload_co2, str) else payload_co2
 
                 co2_raw = None
+                co2_timestamp_utc = None
+
                 if isinstance(evt_co2, dict):
+
                     d = evt_co2.get('d', [])
-                    if d and isinstance(d[0], dict):
-                        v = d[0].get('v', [])
+
+                    if d and isinstance(d[0],dict):
+
+                        registro_co2 = d[0]
+
+                        v = registro_co2.get('v', [])
+
                         if v and isinstance(v, list):
+
                             co2_raw = v[0]
+
+                        co2_timestamp_utc = (registro_co2.get('t'))
 
                 if co2_raw in [None, "None", ""]:
                     util.logging.warning("CT01CO2 sin dato válido; se omite control CO2 este ciclo.")
                 else:
                     co2_ppm = int(float(co2_raw))
                     util.logging.info(f"[CT01CO2] CO2={co2_ppm} ppm | LOW={CO2_LOW} | HIGH={CO2_HIGH}")
-                    #util.logging.info(f"[MDFR] CO2={co2_ppm} (LOW={CO2_LOW}, HIGH={CO2_HIGH})")
-
                     
+                # =========================================================
+                # REGISTRO DE CICLO CO2
+                # Usa la misma lectura rápida del control MDFR.
+                # NO depende del envío de 10 minutos a AWS.
+                # =========================================================
+
+                try:
+
+                    resultado_ciclo = (
+                        db_service.procesar_ciclo_co2(
+                            valor_co2=co2_ppm,
+                            timestamp_utc=co2_timestamp_utc,
+                            co2_low=CO2_LOW,
+                            co2_high=CO2_HIGH
+                        )
+                    )
+
+                    evento_ciclo = (
+                        resultado_ciclo.get(
+                            "evento"
+                        )
+                        if resultado_ciclo
+                        else None
+                    )
+
+                    if evento_ciclo == "CICLO_ABIERTO":
+
+                        util.logging.info(
+                            "[CO2-CICLO] "
+                            f"ABIERTO | "
+                            f"CO2={co2_ppm} ppm | "
+                            f"LOW={CO2_LOW} | "
+                            f"id={resultado_ciclo.get('id')}"
+                        )
+
+
+                    elif evento_ciclo == "CICLO_CERRADO":
+
+                        duracion_segundos = float(
+                            resultado_ciclo.get(
+                                "duracion_segundos",
+                                0
+                            )
+                        )
+
+                        util.logging.warning(
+                            "[CO2-CICLO] "
+                            f"CERRADO POR HIGH REAL | "
+                            f"CO2={co2_ppm} ppm | "
+                            f"HIGH={CO2_HIGH} | "
+                            f"duracion="
+                            f"{duracion_segundos / 3600.0:.2f} h | "
+                            f"id={resultado_ciclo.get('id')}"
+                        )
+
+
+                except Exception as e:
+
+                    # El registro histórico jamás debe
+                    # interferir con el control de la cámara.
+                    util.logging.error(
+                        "[CO2-CICLO] "
+                        f"Error registrando ciclo: "
+                        f"{type(e).__name__}: {e}"
+                    )#util.logging.info(f"[MDFR] CO2={co2_ppm} (LOW={CO2_LOW}, HIGH={CO2_HIGH})")
+
+                                    
                     minutos_aire = float(ctl_co2.get('aire_fresco_minutos', 2))
                     duracion_s = minutos_aire * 60
                     now = time.monotonic()
 
-                    # =========================================================
+                # =========================================================
                 # CONTROL ETILENO / CO2
                 # =========================================================
                 #

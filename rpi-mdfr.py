@@ -314,7 +314,7 @@ def obtener_datos_medidores_y_sensor(promediar=False):
         # DETECCIÓN CICLO CO2 LOW -> HIGH
         # =========================================================
 
-        procesar_ciclo_co2_actual(medicionSensorCT01CO2)
+        #procesar_ciclo_co2_actual(medicionSensorCT01CO2)
         # =========================================================
         # === SENSOR 2 — THT03R ===
         # =========================================================
