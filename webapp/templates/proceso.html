@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1>
+    Proceso de maduración
+</h1>
+
+<p class="subtitle">
+    Registro y seguimiento del lote actual
+</p>
+
+
+<div class="panel">
+
+    <h2>
+        Estado actual
+    </h2>
+
+    <div id="estadoProceso">
+        Consultando...
+    </div>
+
+    <div id="datosProceso">
+
+        <p>
+            <strong>Lote:</strong>
+            <span id="loteActual">--</span>
+        </p>
+
+        <p>
+            <strong>Inicio:</strong>
+            <span id="inicioActual">--</span>
+        </p>
+
+        <p>
+            <strong>Tiempo transcurrido:</strong>
+            <span id="tiempoActual">--</span>
+        </p>
+
+        <p>
+            <strong>Observaciones:</strong>
+            <span id="observacionesActuales">--</span>
+        </p>
+
+    </div>
+
+</div>
+
+
+<div class="panel">
+
+    <h2>
+        Nuevo proceso
+    </h2>
+
+    <label>
+        Número o identificación del lote
+    </label>
+
+    <input
+        type="text"
+        id="lote"
+        placeholder="Ejemplo: LOTE-2026-09-24"
+    >
+
+
+    <label>
+        Observaciones
+    </label>
+
+    <textarea
+        id="observaciones"
+        rows="4"
+        placeholder="Información inicial del lote"
+    ></textarea>
+
+
+    <div>
+
+        <button
+            id="btnIniciar"
+            onclick="iniciarProceso()"
+        >
+            Iniciar proceso
+        </button>
+
+        <button
+            id="btnFinalizar"
+            onclick="finalizarProceso()"
+        >
+            Finalizar proceso
+        </button>
+
+    </div>
+
+    <div id="mensajeProceso"></div>
+
+</div>
+
+
+<script src="/static/js/proceso.js"></script>
+
+{% endblock %}

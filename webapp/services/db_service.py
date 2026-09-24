@@ -151,6 +151,37 @@ def init_db():
                     inicio_utc
                 )
             """)
+            # =================================================
+            # PROCESOS DE MADURACIÓN
+            # =================================================
+
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS procesos (
+
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+                    inicio_utc TEXT NOT NULL,
+
+                    fin_utc TEXT,
+
+                    lote TEXT,
+
+                    observaciones TEXT,
+
+                    estado TEXT NOT NULL DEFAULT 'ACTIVO'
+
+                )
+            """)
+
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS
+                idx_procesos_estado
+
+                ON procesos(
+                    estado
+                )
+            """)
+
 
             conn.commit()
 
@@ -629,3 +660,141 @@ def obtener_ultimo_valor(
         "valor": fila["valor"],
         "unidad": fila["unidad"]
     }
+    
+    
+def iniciar_proceso(
+    lote=None,
+    observaciones=None
+):
+    """
+    Inicia un nuevo proceso de maduración.
+
+    Solo puede existir un proceso ACTIVO.
+    """
+
+    init_db()
+
+    with _DB_LOCK:
+
+        with sqlite3.connect(DB_PATH) as conn:
+
+            activo = conn.execute("""
+                SELECT id
+                FROM procesos
+                WHERE estado = 'ACTIVO'
+                ORDER BY id DESC
+                LIMIT 1
+            """).fetchone()
+
+            if activo is not None:
+
+                return {
+                    "ok": False,
+                    "mensaje": (
+                        "Ya existe un proceso activo."
+                    ),
+                    "id": activo[0]
+                }
+
+            inicio_utc = _utc_now()
+
+            cursor = conn.execute("""
+                INSERT INTO procesos (
+                    inicio_utc,
+                    lote,
+                    observaciones,
+                    estado
+                )
+                VALUES (?, ?, ?, 'ACTIVO')
+            """, (
+                inicio_utc,
+                lote,
+                observaciones
+            ))
+
+            conn.commit()
+
+            return {
+                "ok": True,
+                "id": cursor.lastrowid,
+                "inicio_utc": inicio_utc
+            }
+
+
+def obtener_proceso_activo():
+
+    init_db()
+
+    with _DB_LOCK:
+
+        with sqlite3.connect(DB_PATH) as conn:
+
+            conn.row_factory = sqlite3.Row
+
+            fila = conn.execute("""
+                SELECT
+                    id,
+                    inicio_utc,
+                    fin_utc,
+                    lote,
+                    observaciones,
+                    estado
+                FROM procesos
+                WHERE estado = 'ACTIVO'
+                ORDER BY id DESC
+                LIMIT 1
+            """).fetchone()
+
+    if fila is None:
+        return None
+
+    return dict(fila)
+
+
+def finalizar_proceso():
+
+    init_db()
+
+    with _DB_LOCK:
+
+        with sqlite3.connect(DB_PATH) as conn:
+
+            fila = conn.execute("""
+                SELECT id
+                FROM procesos
+                WHERE estado = 'ACTIVO'
+                ORDER BY id DESC
+                LIMIT 1
+            """).fetchone()
+
+            if fila is None:
+
+                return {
+                    "ok": False,
+                    "mensaje": (
+                        "No existe un proceso activo."
+                    )
+                }
+
+            proceso_id = fila[0]
+
+            fin_utc = _utc_now()
+
+            conn.execute("""
+                UPDATE procesos
+                SET
+                    fin_utc = ?,
+                    estado = 'FINALIZADO'
+                WHERE id = ?
+            """, (
+                fin_utc,
+                proceso_id
+            ))
+
+            conn.commit()
+
+            return {
+                "ok": True,
+                "id": proceso_id,
+                "fin_utc": fin_utc
+            }

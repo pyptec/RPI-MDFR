@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from webapp.services import db_service
-
+from fastapi import FastAPI, Request, Query, HTTPException, Form
 
 # =========================================================
 # RUTAS
@@ -408,3 +408,87 @@ async def api_historico(
                 f"{type(e).__name__}: {e}"
             )
         ) from e
+        
+# =========================================================
+# PROCESO
+# =========================================================
+
+@app.get(
+    "/proceso",
+    response_class=HTMLResponse
+)
+async def pagina_proceso(
+    request: Request
+):
+
+    return templates.TemplateResponse(
+        request=request,
+        name="proceso.html",
+        context={}
+    )
+
+
+@app.get(
+    "/api/proceso/actual"
+)
+async def api_proceso_actual():
+
+    proceso = db_service.obtener_proceso_activo()
+
+    if proceso is None:
+
+        return {
+            "activo": False,
+            "proceso": None
+        }
+
+    proceso["inicio"] = utc_a_colombia_iso(
+        proceso["inicio_utc"]
+    )
+
+    return {
+        "activo": True,
+        "proceso": proceso
+    }
+
+
+@app.post(
+    "/api/proceso/iniciar"
+)
+async def api_proceso_iniciar(
+    lote: str = Form(""),
+    observaciones: str = Form("")
+):
+
+    resultado = db_service.iniciar_proceso(
+        lote=lote.strip() or None,
+        observaciones=(
+            observaciones.strip() or None
+        )
+    )
+
+    if not resultado["ok"]:
+
+        raise HTTPException(
+            status_code=409,
+            detail=resultado["mensaje"]
+        )
+
+    return resultado
+
+
+@app.post(
+    "/api/proceso/finalizar"
+)
+async def api_proceso_finalizar():
+
+    resultado = db_service.finalizar_proceso()
+
+    if not resultado["ok"]:
+
+        raise HTTPException(
+            status_code=409,
+            detail=resultado["mensaje"]
+        )
+
+    return resultado
