@@ -874,6 +874,46 @@ def main_loop():
 
     except Exception as e:
         util.logging.error(f"[DB] Error inicializando SQLite: " f"{type(e).__name__}: {e}")
+    # =====================================================
+    # PROCESO DE MADURACIÓN
+    # =====================================================
+
+    try:
+
+        proceso_activo = (
+            db_service.obtener_proceso_activo()
+        )
+
+        if proceso_activo is None:
+
+            resultado_proceso = (db_service.iniciar_proceso(lote=None, observaciones=("Inicio automático del sistema")))
+
+            if resultado_proceso.get("ok"):
+
+                util.logging.info("[PROCESO] " f"Nuevo proceso automático iniciado | "f"id={resultado_proceso.get('id')} | " f"inicio={resultado_proceso.get('inicio_utc')}")
+
+            else:
+
+                util.logging.warning("[PROCESO] "f"No se pudo iniciar proceso: "f"{resultado_proceso.get('mensaje')}")
+
+        else:
+
+            util.logging.info(
+                "[PROCESO] "
+                f"Reanudando proceso activo | "
+                f"id={proceso_activo.get('id')} | "
+                f"inicio={proceso_activo.get('inicio_utc')} | "
+                f"lote={proceso_activo.get('lote')}"
+            )
+
+    except Exception as e:
+
+        util.logging.error(
+            "[PROCESO] "
+            f"Error inicializando proceso: "
+            f"{type(e).__name__}: {e}"
+        )    
+        
     # Apagar relays y sirena al iniciar
     Temp.setsirena(False)
     Temp.all_relay()
