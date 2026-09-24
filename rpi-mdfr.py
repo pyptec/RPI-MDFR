@@ -95,6 +95,162 @@ def process_event_queue():
             util.logging.info("Sin Internet para procesar la cola de eventos.")
     else:
         util.logging.info("No hay eventos para procesar.")
+        
+# =========================================================
+# PROCESAMIENTO DE CICLOS CO2 LOW -> HIGH
+# =========================================================
+
+def procesar_ciclo_co2_actual(payload_co2):
+    """
+    Procesa el valor actual de CO2 para detectar ciclos
+    LOW -> HIGH durante un proceso de maduración activo.
+
+    La función:
+    - NO controla relés.
+    - NO modifica el YAML.
+    - NO publica a AWS.
+    - Solo registra ciclos en SQLite.
+    """
+
+    try:
+
+        # -------------------------------------------------
+        # PAYLOAD
+        # -------------------------------------------------
+
+        if payload_co2 is None:
+            return
+
+        if isinstance(payload_co2, str):
+
+            payload = json.loads(payload_co2)
+
+        else:
+
+            payload = payload_co2
+
+
+        if not isinstance(payload, dict):
+            return
+
+
+        datos = payload.get("d",[])
+
+        if not datos:
+            return
+
+
+        registro = datos[0]
+
+        valores = registro.get("v", [])
+
+        if not valores:
+            return
+
+
+        valor_co2 = valores[0]
+
+
+        if valor_co2 in [
+            None,
+            "None",
+            ""
+        ]:
+            return
+
+
+        valor_co2 = float(
+            valor_co2
+        )
+
+
+        # -------------------------------------------------
+        # TIMESTAMP ORIGINAL DEL SENSOR
+        # -------------------------------------------------
+
+        timestamp_utc = registro.get("t")
+
+
+        # -------------------------------------------------
+        # CONFIGURACIÓN CT01CO2
+        # -------------------------------------------------
+
+        config = (util.cargar_configuracion(os.getenv("CFG_CT01CO2"), os.getenv("CFG_CT01CO2_SECTION" )))
+
+
+        control = config.get("control", {})
+
+
+        co2_low = float(control.get("co2_ppm_low", 3000 ))
+
+
+        co2_high = float(control.get("co2_ppm_high", 9000))
+
+
+        # -------------------------------------------------
+        # PROCESAR CICLO
+        # -------------------------------------------------
+
+        resultado = (
+            db_service.procesar_ciclo_co2(
+                valor_co2=valor_co2,
+                timestamp_utc=timestamp_utc,
+                co2_low=co2_low,
+                co2_high=co2_high
+            )
+        )
+
+
+        if not resultado:
+            return
+
+
+        evento = resultado.get(
+            "evento"
+        )
+
+
+        # -------------------------------------------------
+        # LOG SOLO SI HUBO CAMBIO DE ESTADO
+        # -------------------------------------------------
+
+        if evento == "CICLO_ABIERTO":
+
+            util.logging.info(
+                "[CO2-CICLO] "
+                f"Ciclo abierto | "
+                f"CO2={valor_co2:.0f} ppm | "
+                f"LOW={co2_low:.0f} ppm | "
+                f"id={resultado.get('id')}"
+            )
+
+
+        elif evento == "CICLO_CERRADO":
+
+            duracion = float(resultado.get("duracion_segundos", 0 ))
+
+            horas = (duracion / 3600.0)
+
+            util.logging.info(
+                "[CO2-CICLO] "
+                f"Ciclo cerrado | "
+                f"CO2={valor_co2:.0f} ppm | "
+                f"HIGH={co2_high:.0f} ppm | "
+                f"duracion={horas:.2f} h | "
+                f"id={resultado.get('id')}"
+            )
+
+
+    except Exception as e:
+
+        # Esta función jamás debe detener
+        # el control de la cámara.
+
+        util.logging.error(
+            "[CO2-CICLO] "
+            f"Error procesando ciclo: "
+            f"{type(e).__name__}: {e}"
+        )
 
 #-----------------------------------------------------------------------------------------------------------   
 # Rutina de lectura de sensores Modbus RTU y devuelve datos en formato JSON 
