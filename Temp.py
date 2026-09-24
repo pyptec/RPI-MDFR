@@ -4,8 +4,8 @@ import time, json
 import RPi.GPIO as GPIO
 import util
 import threading
-import signal
-import modbusdevices, awsaccess, fileventqueue, modbusdevices
+import modbusdevices
+from webapp.services import db_service
 
 RELAY_YAML = os.getenv("RELAY_YAML","/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml")
 #RELAY_YAML = '/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml'
@@ -316,23 +316,48 @@ def _payload_ivu(i_value: int, v_list, u_list):
 # Publica IVU puerta abierta o cerrada
 #-----------------------------------------------------------------------------------------------------------
 def _publish_ivu(i_value: int, v_list, u_list):
-    try:
-        msg = json.dumps(_payload_ivu(i_value, v_list, u_list))
-        if util.ensure_internet_failover():
-            cli = awsaccess.connect_to_mqtt()
-            if cli:
-                awsaccess.publish_mediciones(cli, msg)
-                awsaccess.disconnect_from_aws_iot(cli)
-                util.logging.info(f"[DOOR] Dato enviado (i={i_value}, v={v_list}, u={u_list})")
-            else:
-                #util.logging.error("[DOOR] MQTT no disponible. Cola local.")
-                fileventqueue.agregar_evento(msg)
-        else:
-            #util.logging.error("[DOOR] Sin internet. Cola local.")
-            fileventqueue.agregar_evento(msg)
-    except Exception as e:
-        util.logging.error(f"[DOOR] Error publicando IVU: {type(e).__name__}: {e}")
+    """
+    Guarda el evento de puerta en la cola persistente SQLite.
 
+    La transmisión hacia AWS se realiza posteriormente
+    mediante process_event_queue().
+    """
+
+    try:
+
+        msg = json.dumps(_payload_ivu(i_value, v_list, u_list ))
+
+        topic = os.getenv("TOPIC")
+
+        if not topic:
+
+            raise RuntimeError(
+                "TOPIC no configurado en .env"
+            )
+
+        queue_id = (
+            db_service.aws_queue_agregar(
+                topic=topic,
+                payload=msg
+            )
+        )
+
+        util.logging.info(
+            "[DOOR][AWS_QUEUE] "
+            f"Evento encolado | "
+            f"id={queue_id} | "
+            f"i={i_value} | "
+            f"v={v_list} | "
+            f"u={u_list}"
+        )
+
+    except Exception as e:
+
+        util.logging.error(
+            "[DOOR][AWS_QUEUE] "
+            f"Error encolando IVU: "
+            f"{type(e).__name__}: {e}"
+        )
 #-----------------------------------------------------------------------------------------------------------
 #Configura interrupción GPIO de puerta solo una vez
 #-----------------------------------------------------------------------------------------------------------
