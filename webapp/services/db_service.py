@@ -586,3 +586,46 @@ def consultar_historico(
         }
         for fila in filas
     ]
+    
+def obtener_ultimo_valor(
+    sensor,
+    variable
+):
+    """
+    Devuelve la última medición disponible
+    para un sensor/variable.
+    """
+
+    init_db()
+
+    with _DB_LOCK:
+        with sqlite3.connect(DB_PATH) as conn:
+
+            conn.row_factory = sqlite3.Row
+
+            fila = conn.execute(
+                """
+                SELECT
+                    timestamp_utc,
+                    valor,
+                    unidad
+                FROM mediciones
+                WHERE sensor = ?
+                  AND variable = ?
+                ORDER BY timestamp_utc DESC
+                LIMIT 1
+                """,
+                (
+                    sensor,
+                    variable
+                )
+            ).fetchone()
+
+    if fila is None:
+        return None
+
+    return {
+        "timestamp_utc": fila["timestamp_utc"],
+        "valor": fila["valor"],
+        "unidad": fila["unidad"]
+    }

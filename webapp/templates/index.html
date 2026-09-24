@@ -7,49 +7,147 @@
 </h1>
 
 <p class="subtitle">
-    Monitoreo y control local
+    Monitoreo actual del proceso
 </p>
 
 
 <div class="cards">
 
     <div class="card">
-        <h3>Temperatura</h3>
-        <div class="value">-- °C</div>
-        <small>THT03R</small>
+
+        <h3>
+            Temperatura ambiente
+        </h3>
+
+        <div
+            class="value"
+            id="valorTemperatura"
+        >
+            -- °C
+        </div>
+
+        <small>
+            THT03R
+        </small>
+
     </div>
 
-    <div class="card">
-        <h3>Humedad</h3>
-        <div class="value">-- %</div>
-        <small>THT03R</small>
-    </div>
 
     <div class="card">
-        <h3>CO₂</h3>
-        <div class="value">-- ppm</div>
-        <small>CT01CO2</small>
+
+        <h3>
+            Humedad
+        </h3>
+
+        <div
+            class="value"
+            id="valorHumedad"
+        >
+            -- %
+        </div>
+
+        <small>
+            THT03R
+        </small>
+
     </div>
 
-    <div class="card">
-        <h3>Etileno C₂H₄</h3>
-        <div class="value">-- ppm</div>
-        <small>ZONEWU</small>
-    </div>
 
     <div class="card">
-        <h3>PT1000</h3>
-        <div class="value">-- °C</div>
-        <small>CWT CH1</small>
+
+        <h3>
+            CO₂
+        </h3>
+
+        <div
+            class="value"
+            id="valorCO2"
+        >
+            -- ppm
+        </div>
+
+        <small>
+            CT01CO2
+        </small>
+
     </div>
 
+
     <div class="card">
-        <h3>Puerta</h3>
-        <div class="value">--</div>
-        <small>Estado actual</small>
+
+        <h3>
+            Etileno C₂H₄
+        </h3>
+
+        <div
+            class="value"
+            id="valorC2H4"
+        >
+            -- ppm
+        </div>
+
+        <small>
+            ZONEWU
+        </small>
+
+    </div>
+
+
+    <div class="card">
+
+        <h3>
+            PT100
+        </h3>
+
+        <div
+            class="value"
+            id="valorPT100"
+        >
+            --
+        </div>
+
+        <small>
+            PT21A01
+        </small>
+
+    </div>
+
+
+    <div class="card">
+
+        <h3>
+            PT1000
+        </h3>
+
+        <div
+            class="value"
+            id="valorPT1000"
+        >
+            -- °C
+        </div>
+
+        <small>
+            CWT CH1
+        </small>
+
     </div>
 
 </div>
+
+
+<section class="panel">
+
+    <h2>
+        Última actualización
+    </h2>
+
+    <div
+        id="ultimaActualizacion"
+    >
+        Consultando...
+    </div>
+
+</section>
 
 
 <section class="panel">
@@ -62,31 +160,53 @@
 
         <div>
             <span>Estado</span>
-            <strong>--</strong>
+            <strong id="estadoProceso">
+                --
+            </strong>
         </div>
 
         <div>
             <span>Inicio</span>
-            <strong>--</strong>
+            <strong id="inicioProceso">
+                --
+            </strong>
         </div>
 
         <div>
-            <span>Tiempo transcurrido</span>
-            <strong>--</strong>
+            <span>
+                Tiempo transcurrido
+            </span>
+
+            <strong id="tiempoProceso">
+                --
+            </strong>
         </div>
 
         <div>
-            <span>Ciclos CO₂</span>
-            <strong>--</strong>
+            <span>
+                Ciclos CO₂
+            </span>
+
+            <strong id="ciclosCO2">
+                --
+            </strong>
         </div>
 
         <div>
-            <span>Último LOW → HIGH</span>
-            <strong>--</strong>
+            <span>
+                Último LOW → HIGH
+            </span>
+
+            <strong id="ultimoCicloCO2">
+                --
+            </strong>
         </div>
 
     </div>
 
 </section>
+
+
+<script src="/static/js/index.js"></script>
 
 {% endblock %}

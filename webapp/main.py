@@ -143,85 +143,71 @@ async def graficas(
 # =========================================================
 
 @app.get(
-    "/api/historico"
+    "/api/actual"
 )
-async def api_historico(
+async def api_actual():
 
-    sensor: str = Query(...),
+    variables = {
 
-    variable: str = Query(...),
+        "co2": (
+            "CT01CO2",
+            "co2"
+        ),
 
-    desde: str = Query(...),
+        "temperatura": (
+            "THT03R",
+            "temperatura"
+        ),
 
-    hasta: str = Query(...)
-):
+        "humedad": (
+            "THT03R",
+            "humedad"
+        ),
 
-    try:
+        "c2h4": (
+            "C2H4",
+            "c2h4"
+        ),
 
-        desde_dt = datetime.fromisoformat(
-            desde
+        "pt100": (
+            "PT21A01",
+            "temperatura"
+        ),
+
+        "pt1000": (
+            "CWT",
+            "temperatura_ch1"
         )
+    }
 
-        hasta_dt = datetime.fromisoformat(
-            hasta
-        )
+    resultado = {}
 
-        diferencia = (
-            hasta_dt - desde_dt
-        ).total_seconds()
+    for nombre, (
+        sensor,
+        variable
+    ) in variables.items():
 
-        # Rango mínimo permitido: 10 minutos
-        if diferencia < 600:
-
-            raise HTTPException(
-                status_code=400,
-                detail="El rango mínimo es de 10 minutos."
-            )
-
-        if hasta_dt <= desde_dt:
-
-            raise HTTPException(
-                status_code=400,
-                detail="La fecha final debe ser mayor que la inicial."
-            )
-
-        desde_utc = local_a_utc_iso(
-            desde
-        )
-
-        hasta_utc = local_a_utc_iso(
-            hasta
-        )
-
-        datos = db_service.consultar_historico(
+        dato = db_service.obtener_ultimo_valor(
             sensor=sensor,
-            variable=variable,
-            desde_utc=desde_utc,
-            hasta_utc=hasta_utc
+            variable=variable
         )
 
-        for punto in datos:
+        if dato is None:
 
-            punto["timestamp_utc"] = punto["timestamp"]
+            resultado[nombre] = {
+                "valor": None,
+                "unidad": None,
+                "timestamp": None
+            }
 
-            punto["timestamp"] = utc_a_colombia_iso(
-                punto["timestamp"]
+            continue
+
+        resultado[nombre] = {
+            "valor": dato["valor"],
+            "unidad": dato["unidad"],
+            "timestamp": utc_a_colombia_iso(
+                dato["timestamp_utc"]
             )
-        return {
-            "sensor": sensor,
-            "variable": variable,
-            "desde": desde,
-            "hasta": hasta,
-            "cantidad": len(datos),
-            "datos": datos
         }
 
-    except HTTPException:
-        raise
-
-    except Exception as e:
-
-        raise HTTPException(
-            status_code=400,
-            detail=str(e)
-        )
+    return resultado
