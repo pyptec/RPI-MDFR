@@ -1,9 +1,8 @@
 # rasp_loop.py
 import json
+import os
 import util
 import Temp
-import awsaccess
-import fileventqueue
 from webapp.services import db_service
 
 def ejecutar_raspberry(tempRaspberry, TIMERCHEQUEOTEMPERATURA, contador_envio):
@@ -14,31 +13,57 @@ def ejecutar_raspberry(tempRaspberry, TIMERCHEQUEOTEMPERATURA, contador_envio):
     try:
         if tempRaspberry == 0:
             tempRaspberry = TIMERCHEQUEOTEMPERATURA
-
+            
+            # =================================================
             # Estado del sistema
+            # =================================================
             json_estado = util.payload_estado_sistema_y_medidor()
             Sistema = json.dumps(json_estado)
 
+            # =================================================
             # Watchdog
+            # =================================================
+            
             Temp.iniciar_wdt()
 
-            # Envío cada 3 ciclos
+            # =================================================
+            # ENCOLAR CADA 10 CICLOS
+            # =================================================
+       
             contador_envio += 1
             util.logging.info(f"[RASPBERRY] contador_envio={contador_envio}")
 
             if contador_envio >= 10:
+
                 contador_envio = 0
-                if util.ensure_internet_failover():
-                    mqtt_client = awsaccess.connect_to_mqtt()
-                    if mqtt_client:
-                        awsaccess.publish_mediciones(mqtt_client, Sistema)
-                        awsaccess.disconnect_from_aws_iot(mqtt_client)
-                        util.logging.info("[RASPBERRY] Publicación a AWS exitosa.")
-                    else:
-                        util.logging.warning("[RASPBERRY] No se pudo conectar a AWS IoT Core.")
-                else:
-                    util.logging.warning("[RASPBERRY] Sin conexión. Evento guardado localmente.")
-                    fileventqueue.agregar_evento(Sistema)
+
+                try:
+
+                    topic = os.getenv("TOPIC")
+
+                    if not topic:
+                        raise RuntimeError(
+                            "TOPIC no configurado en .env"
+                        )
+
+                    queue_id = db_service.aws_queue_agregar(
+                        topic=topic,
+                        payload=Sistema
+                    )
+
+                    util.logging.info(
+                        "[RASPBERRY][AWS_QUEUE] "
+                        f"Estado del sistema encolado | "
+                        f"id={queue_id}"
+                    )
+
+                except Exception as e:
+
+                    util.logging.error(
+                        "[RASPBERRY][AWS_QUEUE] "
+                        f"Error encolando estado: "
+                        f"{type(e).__name__}: {e}"
+                    )
 
         return tempRaspberry, contador_envio
 
