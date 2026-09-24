@@ -170,29 +170,19 @@ def connect_to_aws_iot(
         # durante una conexión, pero no es nuestra
         # persistencia principal.
 
-        mqtt_client.configureOfflinePublishQueueing(
-            -1
-        )
+        mqtt_client.configureOfflinePublishQueueing(0)
 
 
-        mqtt_client.configureDrainingFrequency(
-            2
-        )
+        mqtt_client.configureDrainingFrequency(2)
 
 
-        mqtt_client.configureConnectDisconnectTimeout(
-            30
-        )
+        mqtt_client.configureConnectDisconnectTimeout(30)
 
 
-        mqtt_client.configureMQTTOperationTimeout(
-            5
-        )
+        mqtt_client.configureMQTTOperationTimeout(5)
 
 
-        mqtt_client.onConnect = (
-            on_connect
-        )
+        mqtt_client.onConnect = (on_connect)
 
 
         # -------------------------------------------------

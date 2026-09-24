@@ -11,7 +11,7 @@ import util
 import struct
 import awsaccess
 import Temp
-import fileventqueue
+
 import threading
 import eventHandler
 import shared
