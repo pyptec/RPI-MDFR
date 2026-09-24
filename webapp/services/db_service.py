@@ -798,3 +798,367 @@ def finalizar_proceso():
                 "id": proceso_id,
                 "fin_utc": fin_utc
             }
+            
+def _obtener_proceso_activo_id():
+    """
+    Devuelve el ID del proceso activo.
+    """
+
+    init_db()
+
+    with _DB_LOCK:
+
+        with sqlite3.connect(DB_PATH) as conn:
+
+            fila = conn.execute("""
+                SELECT id
+                FROM procesos
+                WHERE estado = 'ACTIVO'
+                ORDER BY id DESC
+                LIMIT 1
+            """).fetchone()
+
+    if fila is None:
+        return None
+
+    return fila[0]
+
+
+def _asegurar_proceso_id_ciclos():
+    """
+    Agrega proceso_id a ciclos_co2 si todavía
+    no existe en una base creada anteriormente.
+    """
+
+    with _DB_LOCK:
+
+        with sqlite3.connect(DB_PATH) as conn:
+
+            columnas = conn.execute(
+                """
+                PRAGMA table_info(ciclos_co2)
+                """
+            ).fetchall()
+
+            nombres = [
+                columna[1]
+                for columna in columnas
+            ]
+
+            if "proceso_id" not in nombres:
+
+                conn.execute("""
+                    ALTER TABLE ciclos_co2
+                    ADD COLUMN proceso_id INTEGER
+                """)
+
+                conn.commit()
+
+
+def procesar_ciclo_co2(
+    valor_co2,
+    timestamp_utc,
+    co2_low,
+    co2_high
+):
+    """
+    Detecta automáticamente ciclos CO2 LOW -> HIGH.
+
+    El ciclo comienza cuando:
+        CO2 <= co2_low
+
+    El ciclo finaliza cuando:
+        CO2 >= co2_high
+
+    Solo funciona si hay proceso de maduración activo.
+    """
+
+    init_db()
+
+    _asegurar_proceso_id_ciclos()
+
+    try:
+
+        valor_co2 = float(
+            valor_co2
+        )
+
+        co2_low = float(
+            co2_low
+        )
+
+        co2_high = float(
+            co2_high
+        )
+
+    except (TypeError, ValueError):
+
+        return {
+            "evento": None
+        }
+
+
+    timestamp_utc = (
+        _normalizar_timestamp_utc(
+            timestamp_utc
+        )
+    )
+
+
+    proceso_id = (
+        _obtener_proceso_activo_id()
+    )
+
+
+    if proceso_id is None:
+
+        return {
+            "evento": None
+        }
+
+
+    with _DB_LOCK:
+
+        with sqlite3.connect(DB_PATH) as conn:
+
+            conn.row_factory = sqlite3.Row
+
+
+            # =============================================
+            # ¿HAY CICLO ABIERTO?
+            # =============================================
+
+            ciclo = conn.execute(
+                """
+                SELECT
+                    id,
+                    inicio_utc,
+                    co2_low,
+                    co2_high
+                FROM ciclos_co2
+                WHERE proceso_id = ?
+                  AND estado = 'ABIERTO'
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (
+                    proceso_id,
+                )
+            ).fetchone()
+
+
+            # =============================================
+            # NO HAY CICLO:
+            # ABRIR SI CO2 <= LOW
+            # =============================================
+
+            if ciclo is None:
+
+                if valor_co2 <= co2_low:
+
+                    cursor = conn.execute(
+                        """
+                        INSERT INTO ciclos_co2 (
+                            proceso_id,
+                            inicio_utc,
+                            co2_low,
+                            co2_high,
+                            estado
+                        )
+                        VALUES (?, ?, ?, ?, 'ABIERTO')
+                        """,
+                        (
+                            proceso_id,
+                            timestamp_utc,
+                            co2_low,
+                            co2_high
+                        )
+                    )
+
+                    conn.commit()
+
+                    return {
+                        "evento": "CICLO_ABIERTO",
+                        "id": cursor.lastrowid,
+                        "proceso_id": proceso_id,
+                        "inicio_utc": timestamp_utc
+                    }
+
+
+                return {
+                    "evento": None
+                }
+
+
+            # =============================================
+            # CICLO ABIERTO:
+            # CERRAR SI CO2 >= HIGH
+            # =============================================
+
+            if valor_co2 >= co2_high:
+
+                ciclo_id = ciclo["id"]
+
+                inicio_utc = datetime.fromisoformat(
+                    str(
+                        ciclo["inicio_utc"]
+                    ).replace(
+                        "Z",
+                        "+00:00"
+                    )
+                )
+
+                fin_utc = datetime.fromisoformat(
+                    str(
+                        timestamp_utc
+                    ).replace(
+                        "Z",
+                        "+00:00"
+                    )
+                )
+
+                duracion_segundos = (
+                    fin_utc -
+                    inicio_utc
+                ).total_seconds()
+
+
+                # =========================================
+                # PROMEDIOS DURANTE EL CICLO
+                # =========================================
+
+                temperatura = conn.execute(
+                    """
+                    SELECT AVG(valor)
+                    FROM mediciones
+                    WHERE sensor = 'THT03R'
+                      AND variable = 'temperatura'
+                      AND timestamp_utc >= ?
+                      AND timestamp_utc <= ?
+                    """,
+                    (
+                        ciclo["inicio_utc"],
+                        timestamp_utc
+                    )
+                ).fetchone()[0]
+
+
+                humedad = conn.execute(
+                    """
+                    SELECT AVG(valor)
+                    FROM mediciones
+                    WHERE sensor = 'THT03R'
+                      AND variable = 'humedad'
+                      AND timestamp_utc >= ?
+                      AND timestamp_utc <= ?
+                    """,
+                    (
+                        ciclo["inicio_utc"],
+                        timestamp_utc
+                    )
+                ).fetchone()[0]
+
+
+                c2h4 = conn.execute(
+                    """
+                    SELECT AVG(valor)
+                    FROM mediciones
+                    WHERE sensor = 'C2H4'
+                      AND variable = 'c2h4'
+                      AND timestamp_utc >= ?
+                      AND timestamp_utc <= ?
+                    """,
+                    (
+                        ciclo["inicio_utc"],
+                        timestamp_utc
+                    )
+                ).fetchone()[0]
+
+
+                conn.execute(
+                    """
+                    UPDATE ciclos_co2
+
+                    SET
+                        fin_utc = ?,
+                        duracion_segundos = ?,
+                        temperatura_media = ?,
+                        humedad_media = ?,
+                        c2h4_medio = ?,
+                        estado = 'CERRADO'
+
+                    WHERE id = ?
+                    """,
+                    (
+                        timestamp_utc,
+                        duracion_segundos,
+                        temperatura,
+                        humedad,
+                        c2h4,
+                        ciclo_id
+                    )
+                )
+
+                conn.commit()
+
+
+                return {
+                    "evento": "CICLO_CERRADO",
+                    "id": ciclo_id,
+                    "proceso_id": proceso_id,
+                    "inicio_utc":
+                        ciclo["inicio_utc"],
+                    "fin_utc":
+                        timestamp_utc,
+                    "duracion_segundos":
+                        duracion_segundos
+                }
+
+
+    return {
+        "evento": None
+    }
+    
+def obtener_ciclos_proceso(
+    proceso_id
+):
+
+    init_db()
+
+    _asegurar_proceso_id_ciclos()
+
+    with _DB_LOCK:
+
+        with sqlite3.connect(DB_PATH) as conn:
+
+            conn.row_factory = sqlite3.Row
+
+            filas = conn.execute(
+                """
+                SELECT
+                    id,
+                    inicio_utc,
+                    fin_utc,
+                    co2_low,
+                    co2_high,
+                    duracion_segundos,
+                    temperatura_media,
+                    humedad_media,
+                    c2h4_medio,
+                    estado
+
+                FROM ciclos_co2
+
+                WHERE proceso_id = ?
+
+                ORDER BY inicio_utc ASC
+                """,
+                (
+                    proceso_id,
+                )
+            ).fetchall()
+
+    return [
+        dict(fila)
+        for fila in filas
+    ]
