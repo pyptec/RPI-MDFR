@@ -166,6 +166,49 @@ def _utc_now():
     ).isoformat()
 
 
+def _normalizar_timestamp_utc(timestamp):
+    """
+    Normaliza cualquier timestamp recibido a ISO 8601 UTC.
+    """
+
+    if timestamp in [None, "", "None"]:
+        return _utc_now()
+
+    if isinstance(timestamp, (int, float)):
+        return datetime.fromtimestamp(
+            float(timestamp),
+            tz=timezone.utc
+        ).isoformat()
+
+    texto = str(timestamp).strip()
+
+    try:
+        epoch = float(texto)
+        return datetime.fromtimestamp(
+            epoch,
+            tz=timezone.utc
+        ).isoformat()
+    except (TypeError, ValueError):
+        pass
+
+    try:
+        dt = datetime.fromisoformat(
+            texto.replace("Z", "+00:00")
+        )
+
+        if dt.tzinfo is None:
+            dt = dt.replace(
+                tzinfo=timezone.utc
+            )
+
+        return dt.astimezone(
+            timezone.utc
+        ).isoformat()
+
+    except (TypeError, ValueError):
+        return _utc_now()
+
+
 # =========================================================
 # INSERTAR MEDICIÓN
 # =========================================================
@@ -191,9 +234,10 @@ def guardar_medicion(
         return False
 
 
-    if timestamp_utc is None:
-
-        timestamp_utc = _utc_now()
+    # Siempre normalizar, venga como epoch, ISO o None.
+    timestamp_utc = _normalizar_timestamp_utc(
+        timestamp_utc
+    )
 
 
     with _DB_LOCK:
@@ -240,9 +284,10 @@ def guardar_evento(
     timestamp_utc=None
 ):
 
-    if timestamp_utc is None:
-
-        timestamp_utc = _utc_now()
+    # Mantener todos los eventos en ISO 8601 UTC.
+    timestamp_utc = _normalizar_timestamp_utc(
+        timestamp_utc
+    )
 
 
     with _DB_LOCK:
