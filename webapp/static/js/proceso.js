@@ -2,27 +2,42 @@ let inicioProcesoMs = null;
 let modoCiclos = "historico";
 
 
+function elemento(id) {
+    return document.getElementById(id);
+}
+
+
 function formatoFecha(timestamp) {
 
     if (!timestamp) {
         return "--";
     }
 
-    return new Date(
-        timestamp
-    ).toLocaleString(
-        "es-CO",
-        {
-            timeZone: "America/Bogota",
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-            hour12: false
-        }
-    );
+    try {
+
+        return new Date(timestamp).toLocaleString(
+            "es-CO",
+            {
+                timeZone: "America/Bogota",
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+                hour12: false
+            }
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Error formateando fecha:",
+            error
+        );
+
+        return "--";
+    }
 }
 
 
@@ -31,64 +46,82 @@ function formatoDuracion(segundos) {
     if (
         segundos === null ||
         segundos === undefined ||
-        Number.isNaN(Number(segundos))
+        segundos === "" ||
+        isNaN(Number(segundos))
     ) {
         return "--";
     }
 
-    segundos = Math.max(
+    let total = Math.max(
         0,
         Math.round(Number(segundos))
     );
 
     const dias =
-        Math.floor(
-            segundos / 86400
-        );
+        Math.floor(total / 86400);
 
-    segundos %= 86400;
+    total %= 86400;
 
     const horas =
-        Math.floor(
-            segundos / 3600
-        );
+        Math.floor(total / 3600);
 
-    segundos %= 3600;
+    total %= 3600;
 
     const minutos =
-        Math.floor(
-            segundos / 60
-        );
+        Math.floor(total / 60);
 
-    const seg =
-        segundos % 60;
+    const segundosRestantes =
+        total % 60;
+
 
     if (dias > 0) {
+
         return (
-            `${dias} d ` +
-            `${String(horas).padStart(2, "0")}:` +
-            `${String(minutos).padStart(2, "0")}:` +
-            `${String(seg).padStart(2, "0")}`
+            dias +
+            " d " +
+            String(horas).padStart(2, "0") +
+            ":" +
+            String(minutos).padStart(2, "0") +
+            ":" +
+            String(segundosRestantes).padStart(2, "0")
         );
     }
 
+
     return (
-        `${String(horas).padStart(2, "0")}:` +
-        `${String(minutos).padStart(2, "0")}:` +
-        `${String(seg).padStart(2, "0")}`
+        String(horas).padStart(2, "0") +
+        ":" +
+        String(minutos).padStart(2, "0") +
+        ":" +
+        String(segundosRestantes).padStart(2, "0")
+    );
+}
+
+
+function formatoPpm(valor) {
+
+    if (
+        valor === null ||
+        valor === undefined ||
+        isNaN(Number(valor))
+    ) {
+        return "--";
+    }
+
+    return (
+        Math.round(Number(valor)) +
+        " ppm"
     );
 }
 
 
 function actualizarCronometro() {
 
-    const elemento =
-        document.getElementById(
-            "tiempoActual"
-        );
+    const campo =
+        elemento("tiempoActual");
 
     if (
-        !elemento ||
+        !campo ||
         inicioProcesoMs === null
     ) {
         return;
@@ -103,7 +136,7 @@ function actualizarCronometro() {
             inicioProcesoMs
         ) / 1000;
 
-    elemento.innerText =
+    campo.innerText =
         formatoDuracion(segundos);
 }
 
@@ -114,53 +147,83 @@ async function cargarProceso() {
 
         const response =
             await fetch(
-                "/api/proceso/actual"
+                "/api/proceso/actual",
+                {
+                    cache: "no-store"
+                }
             );
 
         const data =
             await response.json();
 
-        const estado =
-            document.getElementById(
-                "estadoProceso"
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.detail ||
+                "Error consultando proceso"
             );
+        }
+
+
+        const estado =
+            elemento("estadoProceso");
 
         const btnIniciar =
-            document.getElementById(
-                "btnIniciar"
-            );
+            elemento("btnIniciar");
 
         const btnFinalizar =
-            document.getElementById(
-                "btnFinalizar"
-            );
+            elemento("btnFinalizar");
 
 
         if (!data.activo) {
 
-            estado.innerHTML =
-                "<strong>Sin proceso activo</strong>";
+            if (estado) {
 
-            document.getElementById(
-                "loteActual"
-            ).innerText = "--";
+                estado.innerHTML =
+                    "<strong>Sin proceso activo</strong>";
+            }
 
-            document.getElementById(
-                "inicioActual"
-            ).innerText = "--";
 
-            document.getElementById(
-                "tiempoActual"
-            ).innerText = "--";
+            if (elemento("loteActual")) {
+                elemento("loteActual").innerText =
+                    "--";
+            }
 
-            document.getElementById(
-                "observacionesActuales"
-            ).innerText = "--";
+
+            if (elemento("inicioActual")) {
+                elemento("inicioActual").innerText =
+                    "--";
+            }
+
+
+            if (elemento("tiempoActual")) {
+                elemento("tiempoActual").innerText =
+                    "--";
+            }
+
+
+            if (elemento("observacionesActuales")) {
+
+                elemento(
+                    "observacionesActuales"
+                ).innerText =
+                    "--";
+            }
+
 
             inicioProcesoMs = null;
 
-            btnIniciar.disabled = false;
-            btnFinalizar.disabled = true;
+
+            if (btnIniciar) {
+                btnIniciar.disabled = false;
+            }
+
+
+            if (btnFinalizar) {
+                btnFinalizar.disabled = true;
+            }
+
 
             return;
         }
@@ -169,44 +232,86 @@ async function cargarProceso() {
         const proceso =
             data.proceso;
 
-        estado.innerHTML =
-            "<strong>PROCESO ACTIVO</strong>";
 
-        document.getElementById(
-            "loteActual"
-        ).innerText =
-            proceso.lote || "--";
+        if (estado) {
 
-        document.getElementById(
-            "inicioActual"
-        ).innerText =
-            formatoFecha(
-                proceso.inicio
-            );
+            estado.innerHTML =
+                "<strong>PROCESO ACTIVO</strong>";
+        }
 
-        document.getElementById(
-            "observacionesActuales"
-        ).innerText =
-            proceso.observaciones || "--";
+
+        if (elemento("loteActual")) {
+
+            elemento(
+                "loteActual"
+            ).innerText =
+                proceso.lote || "--";
+        }
+
+
+        if (elemento("inicioActual")) {
+
+            elemento(
+                "inicioActual"
+            ).innerText =
+                formatoFecha(
+                    proceso.inicio
+                );
+        }
+
+
+        if (
+            elemento(
+                "observacionesActuales"
+            )
+        ) {
+
+            elemento(
+                "observacionesActuales"
+            ).innerText =
+                proceso.observaciones ||
+                "--";
+        }
+
 
         inicioProcesoMs =
             new Date(
                 proceso.inicio
             ).getTime();
 
+
         actualizarCronometro();
 
-        btnIniciar.disabled = true;
-        btnFinalizar.disabled = false;
+
+        if (btnIniciar) {
+            btnIniciar.disabled = true;
+        }
+
+
+        if (btnFinalizar) {
+            btnFinalizar.disabled = false;
+        }
+
 
     } catch (error) {
 
-        console.error(error);
+        console.error(
+            "Error cargarProceso:",
+            error
+        );
 
-        document.getElementById(
-            "estadoProceso"
-        ).innerText =
-            "Error consultando proceso";
+
+        if (
+            elemento(
+                "estadoProceso"
+            )
+        ) {
+
+            elemento(
+                "estadoProceso"
+            ).innerText =
+                "Error consultando proceso";
+        }
     }
 }
 
@@ -214,176 +319,294 @@ async function cargarProceso() {
 function actualizarBotonesModo() {
 
     const activo =
-        document.getElementById(
+        elemento(
             "btnCiclosActivo"
         );
 
     const historico =
-        document.getElementById(
+        elemento(
             "btnCiclosHistorico"
         );
 
-    if (!activo || !historico) {
-        return;
+
+    if (activo) {
+
+        activo.disabled =
+            modoCiclos === "activo";
     }
 
-    activo.disabled =
-        modoCiclos === "activo";
 
-    historico.disabled =
-        modoCiclos === "historico";
+    if (historico) {
+
+        historico.disabled =
+            modoCiclos === "historico";
+    }
 }
 
 
-function valorPpm(valor) {
+function ponerTexto(
+    id,
+    valor
+) {
 
-    if (
-        valor === null ||
-        valor === undefined
-    ) {
-        return "--";
+    const campo =
+        elemento(id);
+
+    if (campo) {
+
+        campo.innerText =
+            valor;
     }
+}
 
-    return (
-        `${Math.round(Number(valor))} ppm`
+
+function pintarResumen(
+    resumen
+) {
+
+    resumen =
+        resumen || {};
+
+
+    /*
+     * IMPORTANTE:
+     *
+     * La API actual devuelve:
+     *
+     * resumen.ciclos
+     *
+     * NO:
+     * resumen.ciclos_completos
+     */
+
+    ponerTexto(
+        "kpiCiclos",
+        resumen.ciclos !== undefined
+            ? resumen.ciclos
+            : 0
+    );
+
+
+    ponerTexto(
+        "kpiLowHigh",
+        formatoDuracion(
+            resumen.low_high_promedio_s
+        )
+    );
+
+
+    ponerTexto(
+        "kpiPurga",
+        formatoDuracion(
+            resumen.purga_promedio_s
+        )
+    );
+
+
+    ponerTexto(
+        "kpiIntervalo",
+        formatoDuracion(
+            resumen.intervalo_promedio_s
+        )
+    );
+
+
+    ponerTexto(
+        "kpiUltimoIntervalo",
+        formatoDuracion(
+            resumen.ultimo_intervalo_s
+        )
     );
 }
 
 
-function pintarCiclos(data) {
+function pintarOrigen(
+    data
+) {
 
-    const resumen =
-        data.resumen || {};
-
-    document.getElementById(
-        "kpiCiclos"
-    ).innerText =
-        resumen.ciclos_completos ?? 0;
-
-    document.getElementById(
-        "kpiLowHigh"
-    ).innerText =
-        formatoDuracion(
-            resumen.low_high_promedio_s
-        );
-
-    document.getElementById(
-        "kpiPurga"
-    ).innerText =
-        formatoDuracion(
-            resumen.purga_promedio_s
-        );
-
-    document.getElementById(
-        "kpiIntervalo"
-    ).innerText =
-        formatoDuracion(
-            resumen.intervalo_promedio_s
-        );
-
-    document.getElementById(
-        "kpiUltimoIntervalo"
-    ).innerText =
-        formatoDuracion(
-            resumen.ultimo_intervalo_s
-        );
-
-
-    const origen =
-        document.getElementById(
+    const campo =
+        elemento(
             "origenCiclos"
         );
 
-    if (!data.proceso) {
 
-        origen.innerText =
-            modoCiclos === "activo"
-                ? "No existe un proceso activo."
-                : "No existe histórico de prueba.";
-
-    } else {
-
-        const etiqueta =
-            modoCiclos === "activo"
-                ? "Proceso activo"
-                : "Histórico reconstruido de prueba";
-
-        origen.innerText =
-            `${etiqueta} | ` +
-            `Proceso ID ${data.proceso.id} | ` +
-            `Lote ${data.proceso.lote || "--"}`;
+    if (!campo) {
+        return;
     }
 
 
+    if (!data.proceso) {
+
+        if (
+            modoCiclos ===
+            "activo"
+        ) {
+
+            campo.innerText =
+                "No existe un proceso activo.";
+
+        } else {
+
+            campo.innerText =
+                "No existe histórico de prueba.";
+        }
+
+        return;
+    }
+
+
+    if (
+        modoCiclos ===
+        "historico"
+    ) {
+
+        campo.innerText =
+            "Histórico reconstruido de prueba" +
+            " | Proceso ID " +
+            data.proceso.id +
+            " | Lote " +
+            (
+                data.proceso.lote ||
+                "--"
+            );
+
+    } else {
+
+        campo.innerText =
+            "Proceso activo" +
+            " | Proceso ID " +
+            data.proceso.id +
+            " | Lote " +
+            (
+                data.proceso.lote ||
+                "--"
+            );
+    }
+}
+
+
+function pintarTabla(
+    ciclos
+) {
+
     const tbody =
-        document.getElementById(
+        elemento(
             "tablaCiclos"
         );
 
-    const ciclos =
-        data.ciclos || [];
+
+    if (!tbody) {
+
+        console.error(
+            "No existe tablaCiclos en proceso.html"
+        );
+
+        return;
+    }
 
 
-    if (ciclos.length === 0) {
+    if (
+        !Array.isArray(ciclos) ||
+        ciclos.length === 0
+    ) {
 
-        tbody.innerHTML = `
+        tbody.innerHTML =
+            `
             <tr>
                 <td colspan="10">
                     No hay ciclos registrados.
                 </td>
             </tr>
-        `;
+            `;
 
         return;
     }
 
 
-    tbody.innerHTML =
-        ciclos.map(
-            ciclo => `
-                <tr>
-                    <td>
-                        ${ciclo.numero_ciclo ?? ciclo.id ?? "--"}
-                    </td>
+    let html = "";
 
-                    <td>
-                        ${formatoFecha(ciclo.inicio)}
-                    </td>
 
-                    <td>
-                        ${formatoFecha(ciclo.purga_inicio)}
-                    </td>
+    for (
+        const ciclo
+        of ciclos
+    ) {
 
-                    <td>
-                        ${formatoFecha(ciclo.purga_fin)}
-                    </td>
+        const numero =
+            ciclo.numero_ciclo !== null &&
+            ciclo.numero_ciclo !== undefined
 
-                    <td>
-                        ${formatoDuracion(ciclo.duracion_segundos)}
-                    </td>
+                ? ciclo.numero_ciclo
 
-                    <td>
-                        ${formatoDuracion(ciclo.purga_duracion_segundos)}
-                    </td>
+                : ciclo.id;
 
-                    <td>
-                        ${formatoDuracion(ciclo.intervalo_purgas_segundos)}
-                    </td>
 
-                    <td>
-                        ${valorPpm(ciclo.co2_purge_start_ppm)}
-                    </td>
-
-                    <td>
-                        ${valorPpm(ciclo.co2_purge_end_ppm)}
-                    </td>
-
-                    <td>
-                        ${ciclo.estado || "--"}
-                    </td>
-                </tr>
+        html +=
             `
-        ).join("");
+            <tr>
+
+                <td>
+                    ${numero}
+                </td>
+
+                <td>
+                    ${formatoFecha(
+                        ciclo.inicio
+                    )}
+                </td>
+
+                <td>
+                    ${formatoFecha(
+                        ciclo.purga_inicio
+                    )}
+                </td>
+
+                <td>
+                    ${formatoFecha(
+                        ciclo.purga_fin
+                    )}
+                </td>
+
+                <td>
+                    ${formatoDuracion(
+                        ciclo.duracion_segundos
+                    )}
+                </td>
+
+                <td>
+                    ${formatoDuracion(
+                        ciclo.purga_duracion_segundos
+                    )}
+                </td>
+
+                <td>
+                    ${formatoDuracion(
+                        ciclo.intervalo_purgas_segundos
+                    )}
+                </td>
+
+                <td>
+                    ${formatoPpm(
+                        ciclo.co2_purge_start_ppm
+                    )}
+                </td>
+
+                <td>
+                    ${formatoPpm(
+                        ciclo.co2_purge_end_ppm
+                    )}
+                </td>
+
+                <td>
+                    ${ciclo.estado || "--"}
+                </td>
+
+            </tr>
+            `;
+    }
+
+
+    tbody.innerHTML =
+        html;
 }
 
 
@@ -393,47 +616,111 @@ async function cargarCiclos() {
 
         actualizarBotonesModo();
 
+
+        ponerTexto(
+            "origenCiclos",
+            "Consultando ciclos..."
+        );
+
+
+        const url =
+            "/api/proceso/ciclos?modo=" +
+            encodeURIComponent(
+                modoCiclos
+            );
+
+
+        console.log(
+            "Consultando:",
+            url
+        );
+
+
         const response =
             await fetch(
-                `/api/proceso/ciclos?modo=${encodeURIComponent(modoCiclos)}`
+                url,
+                {
+                    cache: "no-store"
+                }
             );
+
 
         const data =
             await response.json();
 
+
+        console.log(
+            "Respuesta ciclos:",
+            data
+        );
+
+
         if (!response.ok) {
+
             throw new Error(
-                data.detail || "Error consultando ciclos"
+                data.detail ||
+                "Error consultando ciclos"
             );
         }
 
-        pintarCiclos(data);
+
+        pintarResumen(
+            data.resumen
+        );
+
+
+        pintarOrigen(
+            data
+        );
+
+
+        pintarTabla(
+            data.ciclos
+        );
+
 
     } catch (error) {
 
-        console.error(error);
+        console.error(
+            "Error cargarCiclos:",
+            error
+        );
 
-        document.getElementById(
-            "origenCiclos"
-        ).innerText =
-            "Error consultando ciclos.";
 
-        document.getElementById(
-            "tablaCiclos"
-        ).innerHTML = `
-            <tr>
-                <td colspan="10">
-                    Error consultando ciclos.
-                </td>
-            </tr>
-        `;
+        ponerTexto(
+            "origenCiclos",
+            "Error consultando ciclos: " +
+            error.message
+        );
+
+
+        const tbody =
+            elemento(
+                "tablaCiclos"
+            );
+
+
+        if (tbody) {
+
+            tbody.innerHTML =
+                `
+                <tr>
+                    <td colspan="10">
+                        Error consultando ciclos.
+                    </td>
+                </tr>
+                `;
+        }
     }
 }
 
 
-async function cambiarModoCiclos(modo) {
+async function cambiarModoCiclos(
+    modo
+) {
 
-    modoCiclos = modo;
+    modoCiclos =
+        modo;
 
     await cargarCiclos();
 }
@@ -441,63 +728,85 @@ async function cambiarModoCiclos(modo) {
 
 async function iniciarProceso() {
 
-    const lote =
-        document.getElementById(
-            "lote"
-        ).value;
+    try {
 
-    const observaciones =
-        document.getElementById(
-            "observaciones"
-        ).value;
+        const lote =
+            elemento(
+                "lote"
+            ).value;
 
-    const form =
-        new FormData();
-
-    form.append(
-        "lote",
-        lote
-    );
-
-    form.append(
-        "observaciones",
-        observaciones
-    );
+        const observaciones =
+            elemento(
+                "observaciones"
+            ).value;
 
 
-    const response =
-        await fetch(
-            "/api/proceso/iniciar",
-            {
-                method: "POST",
-                body: form
-            }
+        const form =
+            new FormData();
+
+
+        form.append(
+            "lote",
+            lote
         );
 
 
-    const data =
-        await response.json();
-
-    if (!response.ok) {
-
-        document.getElementById(
-            "mensajeProceso"
-        ).innerText =
-            data.detail || "Error";
-
-        return;
-    }
+        form.append(
+            "observaciones",
+            observaciones
+        );
 
 
-    document.getElementById(
-        "mensajeProceso"
-    ).innerText =
-        "Proceso iniciado correctamente.";
+        const response =
+            await fetch(
+                "/api/proceso/iniciar",
+                {
+                    method: "POST",
+                    body: form
+                }
+            );
 
-    await cargarProceso();
 
-    if (modoCiclos === "activo") {
-        await cargarCiclos();
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            ponerTexto(
+                "mensajeProceso",
+                data.detail ||
+                "Error"
+            );
+
+            return;
+        }
+
+
+        ponerTexto(
+            "mensajeProceso",
+            "Proceso iniciado correctamente."
+        );
+
+
+        await cargarProceso();
+
+
+        if (
+            modoCiclos ===
+            "activo"
+        ) {
+
+            await cargarCiclos();
+        }
+
+
+    } catch (error) {
+
+        console.error(
+            "Error iniciarProceso:",
+            error
+        );
     }
 }
 
@@ -509,48 +818,78 @@ async function finalizarProceso() {
             "¿Desea finalizar el proceso de maduración actual?"
         );
 
+
     if (!confirmar) {
         return;
     }
 
 
-    const response =
-        await fetch(
-            "/api/proceso/finalizar",
-            {
-                method: "POST"
-            }
+    try {
+
+        const response =
+            await fetch(
+                "/api/proceso/finalizar",
+                {
+                    method: "POST"
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            ponerTexto(
+                "mensajeProceso",
+                data.detail ||
+                "Error"
+            );
+
+            return;
+        }
+
+
+        ponerTexto(
+            "mensajeProceso",
+            "Proceso finalizado."
         );
 
 
-    const data =
-        await response.json();
-
-    if (!response.ok) {
-
-        document.getElementById(
-            "mensajeProceso"
-        ).innerText =
-            data.detail || "Error";
-
-        return;
-    }
+        await cargarProceso();
 
 
-    document.getElementById(
-        "mensajeProceso"
-    ).innerText =
-        "Proceso finalizado.";
+        if (
+            modoCiclos ===
+            "activo"
+        ) {
 
-    await cargarProceso();
+            await cargarCiclos();
+        }
 
-    if (modoCiclos === "activo") {
-        await cargarCiclos();
+
+    } catch (error) {
+
+        console.error(
+            "Error finalizarProceso:",
+            error
+        );
     }
 }
 
 
+// =========================================================
+// INICIO DE LA PÁGINA
+// =========================================================
+
+console.log(
+    "proceso.js MDFR cargado"
+);
+
+
 cargarProceso();
+
 cargarCiclos();
 
 
