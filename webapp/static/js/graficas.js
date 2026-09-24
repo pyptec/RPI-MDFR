@@ -571,13 +571,54 @@ function dibujarGrafica(
 
 
     // ============================
-    // PUNTOS
+    // RANGO REAL DE TIEMPO
+    // ============================
+
+    const desdeTexto =
+        obtenerFechaHora("Desde");
+
+    const hastaTexto =
+        obtenerFechaHora("Hasta");
+
+    // Los filtros de la web se ingresan en hora Colombia.
+    // America/Bogota = UTC-5.
+    const desdeMs = new Date(
+        `${desdeTexto}:00-05:00`
+    ).getTime();
+
+    const hastaMs = new Date(
+        `${hastaTexto}:00-05:00`
+    ).getTime();
+
+    const rangoTiempo =
+        hastaMs - desdeMs;
+
+    if (
+        !Number.isFinite(desdeMs) ||
+        !Number.isFinite(hastaMs) ||
+        rangoTiempo <= 0
+    ) {
+
+        ctx.font = "18px Arial";
+
+        ctx.fillText(
+            "Rango de tiempo inválido.",
+            40,
+            60
+        );
+
+        return;
+    }
+
+
+    // ============================
+    // PUNTOS SEGÚN HORA REAL
     // ============================
 
     const puntos = [];
 
     datos.forEach(
-        (dato, i) => {
+        (dato) => {
 
             const valor =
                 Number(dato.valor);
@@ -588,15 +629,36 @@ function dibujarGrafica(
                 return;
             }
 
+            const tiempoDato =
+                new Date(
+                    dato.timestamp
+                ).getTime();
+
+            if (
+                !Number.isFinite(
+                    tiempoDato
+                )
+            ) {
+                return;
+            }
+
+            const proporcionTiempo =
+                (
+                    tiempoDato -
+                    desdeMs
+                ) /
+                rangoTiempo;
+
+            if (
+                proporcionTiempo < 0 ||
+                proporcionTiempo > 1
+            ) {
+                return;
+            }
+
             const x =
                 margenIzq +
-                (
-                    i /
-                    Math.max(
-                        datos.length - 1,
-                        1
-                    )
-                ) *
+                proporcionTiempo *
                 ancho;
 
             const y =
@@ -614,9 +676,16 @@ function dibujarGrafica(
             puntos.push({
                 x,
                 y,
-                dato
+                dato,
+                tiempoDato
             });
         }
+    );
+
+    puntos.sort(
+        (a, b) =>
+            a.tiempoDato -
+            b.tiempoDato
     );
 
 
@@ -678,11 +747,7 @@ function dibujarGrafica(
     // ETIQUETAS EJE X
     // ============================
 
-    const cantidadEtiquetas =
-        Math.min(
-            6,
-            datos.length
-        );
+    const cantidadEtiquetas = 7;
 
     for (
         let i = 0;
@@ -690,36 +755,53 @@ function dibujarGrafica(
         i++
     ) {
 
-        const indice =
-            Math.round(
-                i *
-                (
-                    datos.length - 1
-                ) /
-                Math.max(
-                    cantidadEtiquetas - 1,
-                    1
-                )
+        const proporcion =
+            i /
+            (
+                cantidadEtiquetas - 1
             );
 
-        const dato =
-            datos[indice];
+        const tiempo =
+            desdeMs +
+            proporcion *
+            rangoTiempo;
+
+        const fecha =
+            new Date(tiempo);
+
+        const hora =
+            fecha.toLocaleTimeString(
+                "es-CO",
+                {
+                    timeZone:
+                        "America/Bogota",
+                    hour:
+                        "2-digit",
+                    minute:
+                        "2-digit",
+                    hour12:
+                        false
+                }
+            );
 
         const x =
             margenIzq +
-            (
-                indice /
-                Math.max(
-                    datos.length - 1,
-                    1
-                )
-            ) *
+            proporcion *
             ancho;
 
-        const hora =
-            formatoHoraColombia(
-                dato.timestamp
-            );
+        ctx.beginPath();
+
+        ctx.moveTo(
+            x,
+            H - margenInf
+        );
+
+        ctx.lineTo(
+            x,
+            H - margenInf + 6
+        );
+
+        ctx.stroke();
 
         ctx.fillText(
             hora,
@@ -730,19 +812,21 @@ function dibujarGrafica(
 
 
     // ============================
-    // FECHA INICIO / FIN
+    // FECHA INICIO / FIN DEL RANGO
     // ============================
 
     const primeraFecha =
         formatoColombia(
-            datos[0].timestamp
+            new Date(
+                desdeMs
+            ).toISOString()
         );
 
     const ultimaFecha =
         formatoColombia(
-            datos[
-                datos.length - 1
-            ].timestamp
+            new Date(
+                hastaMs
+            ).toISOString()
         );
 
     ctx.fillText(
