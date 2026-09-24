@@ -1,35 +1,36 @@
-mdfr_process:
-  id_device: 52
-  name: "MDFR_PROCESS"
+medidores:
+  mdfr_process:
+    id_device: 52
+    name: "MDFR_PROCESS"
 
-  variables:
+    variables:
 
-    co2_low_high_time:
-      name: "co2_low_high_time"
-      unit: 169
-    
-    co2_purge_time:
-      name: "co2_purge_time"
-      unit: 170
-     
-     
-    co2_cycle_interval:
-      name: "co2_cycle_interval"
-      unit: 171
+      co2_low_high_time:
+        name: "co2_low_high_time"
+        unit: 169
       
-    
-    co2_cycle_count:
-      name: "co2_cycle_count"
-      unit: 172
+      co2_purge_time:
+        name: "co2_purge_time"
+        unit: 170
       
-    
+      
+      co2_cycle_interval:
+        name: "co2_cycle_interval"
+        unit: 171
+        
+      
+      co2_cycle_count:
+        name: "co2_cycle_count"
+        unit: 172
+        
+      
 
-    co2_purge_start_ppm:
-      name: "co2_purge_start_ppm"
-      unit: 173
-   
-    co2_purge_end_ppm:
-      name: "co2_purge_end_ppm"
-      unit: 174
-     
+      co2_purge_start_ppm:
+        name: "co2_purge_start_ppm"
+        unit: 173
+    
+      co2_purge_end_ppm:
+        name: "co2_purge_end_ppm"
+        unit: 174
+      
     
