@@ -862,34 +862,32 @@ def procesar_ciclo_co2(
     co2_high
 ):
     """
-    Detecta automáticamente ciclos CO2 LOW -> HIGH.
+    Máquina de estados del ciclo CO2:
 
-    El ciclo comienza cuando:
-        CO2 <= co2_low
+    SIN CICLO
+        CO2 <= LOW
+        -> ABIERTO
 
-    El ciclo finaliza cuando:
-        CO2 >= co2_high
+    ABIERTO
+        CO2 >= HIGH
+        -> EN_PURGA
 
-    Solo funciona si hay proceso de maduración activo.
+    EN_PURGA
+        CO2 <= LOW
+        -> CERRADO
+
+    Devuelve eventos únicamente cuando cambia de estado.
     """
 
     init_db()
 
-    _asegurar_proceso_id_ciclos()
+    _asegurar_columnas_ciclo_completo()
 
     try:
 
-        valor_co2 = float(
-            valor_co2
-        )
-
-        co2_low = float(
-            co2_low
-        )
-
-        co2_high = float(
-            co2_high
-        )
+        valor_co2 = float(valor_co2)
+        co2_low = float(co2_low)
+        co2_high = float(co2_high)
 
     except (TypeError, ValueError):
 
@@ -898,17 +896,12 @@ def procesar_ciclo_co2(
         }
 
 
-    timestamp_utc = (
-        _normalizar_timestamp_utc(
-            timestamp_utc
-        )
+    timestamp_utc = _normalizar_timestamp_utc(
+        timestamp_utc
     )
 
 
-    proceso_id = (
-        _obtener_proceso_activo_id()
-    )
-
+    proceso_id = _obtener_proceso_activo_id()
 
     if proceso_id is None:
 
@@ -924,20 +917,21 @@ def procesar_ciclo_co2(
             conn.row_factory = sqlite3.Row
 
 
-            # =============================================
-            # ¿HAY CICLO ABIERTO?
-            # =============================================
+            # =====================================================
+            # BUSCAR CICLO ACTIVO
+            # ABIERTO o EN_PURGA
+            # =====================================================
 
             ciclo = conn.execute(
                 """
                 SELECT
-                    id,
-                    inicio_utc,
-                    co2_low,
-                    co2_high
+                    *
                 FROM ciclos_co2
                 WHERE proceso_id = ?
-                  AND estado = 'ABIERTO'
+                  AND estado IN (
+                      'ABIERTO',
+                      'EN_PURGA'
+                  )
                 ORDER BY id DESC
                 LIMIT 1
                 """,
@@ -947,10 +941,10 @@ def procesar_ciclo_co2(
             ).fetchone()
 
 
-            # =============================================
-            # NO HAY CICLO:
-            # ABRIR SI CO2 <= LOW
-            # =============================================
+            # =====================================================
+            # 1. NO EXISTE CICLO
+            # ABRIR CUANDO CO2 <= LOW
+            # =====================================================
 
             if ciclo is None:
 
@@ -965,7 +959,9 @@ def procesar_ciclo_co2(
                             co2_high,
                             estado
                         )
-                        VALUES (?, ?, ?, ?, 'ABIERTO')
+                        VALUES (
+                            ?, ?, ?, ?, 'ABIERTO'
+                        )
                         """,
                         (
                             proceso_id,
@@ -981,7 +977,8 @@ def procesar_ciclo_co2(
                         "evento": "CICLO_ABIERTO",
                         "id": cursor.lastrowid,
                         "proceso_id": proceso_id,
-                        "inicio_utc": timestamp_utc
+                        "inicio_utc": timestamp_utc,
+                        "co2": valor_co2
                     }
 
 
@@ -990,16 +987,17 @@ def procesar_ciclo_co2(
                 }
 
 
-            # =============================================
-            # CICLO ABIERTO:
-            # CERRAR SI CO2 >= HIGH
-            # =============================================
+            # =====================================================
+            # 2. CICLO ABIERTO
+            # LLEGÓ A HIGH -> INICIO REAL DE PURGA
+            # =====================================================
 
-            if valor_co2 >= co2_high:
+            if (
+                ciclo["estado"] == "ABIERTO"
+                and valor_co2 >= co2_high
+            ):
 
-                ciclo_id = ciclo["id"]
-
-                inicio_utc = datetime.fromisoformat(
+                inicio_dt = datetime.fromisoformat(
                     str(
                         ciclo["inicio_utc"]
                     ).replace(
@@ -1008,24 +1006,22 @@ def procesar_ciclo_co2(
                     )
                 )
 
-                fin_utc = datetime.fromisoformat(
-                    str(
-                        timestamp_utc
-                    ).replace(
+                high_dt = datetime.fromisoformat(
+                    timestamp_utc.replace(
                         "Z",
                         "+00:00"
                     )
                 )
 
-                duracion_segundos = (
-                    fin_utc -
-                    inicio_utc
+                low_high_segundos = (
+                    high_dt -
+                    inicio_dt
                 ).total_seconds()
 
 
-                # =========================================
-                # PROMEDIOS DURANTE EL CICLO
-                # =========================================
+                # ---------------------------------------------
+                # PROMEDIOS LOW -> HIGH
+                # ---------------------------------------------
 
                 temperatura = conn.execute(
                     """
@@ -1085,17 +1081,152 @@ def procesar_ciclo_co2(
                         temperatura_media = ?,
                         humedad_media = ?,
                         c2h4_medio = ?,
+                        purga_inicio_utc = ?,
+                        co2_purge_start_ppm = ?,
+                        estado = 'EN_PURGA'
+
+                    WHERE id = ?
+                    """,
+                    (
+                        timestamp_utc,
+                        low_high_segundos,
+                        temperatura,
+                        humedad,
+                        c2h4,
+                        timestamp_utc,
+                        valor_co2,
+                        ciclo["id"]
+                    )
+                )
+
+                conn.commit()
+
+                return {
+                    "evento": "PURGA_INICIADA",
+                    "id": ciclo["id"],
+                    "proceso_id": proceso_id,
+                    "purga_inicio_utc": timestamp_utc,
+                    "co2_low_high_time":
+                        low_high_segundos,
+                    "co2_purge_start_ppm":
+                        valor_co2
+                }
+
+
+            # =====================================================
+            # 3. PURGA ACTIVA
+            # REGRESA A LOW -> CERRAR CICLO COMPLETO
+            # =====================================================
+
+            if (
+                ciclo["estado"] == "EN_PURGA"
+                and valor_co2 <= co2_low
+            ):
+
+                purga_inicio = datetime.fromisoformat(
+                    str(
+                        ciclo[
+                            "purga_inicio_utc"
+                        ]
+                    ).replace(
+                        "Z",
+                        "+00:00"
+                    )
+                )
+
+                purga_fin = datetime.fromisoformat(
+                    timestamp_utc.replace(
+                        "Z",
+                        "+00:00"
+                    )
+                )
+
+                purga_segundos = (
+                    purga_fin -
+                    purga_inicio
+                ).total_seconds()
+
+
+                # ---------------------------------------------
+                # PURGA ANTERIOR
+                # ---------------------------------------------
+
+                anterior = conn.execute(
+                    """
+                    SELECT
+                        purga_inicio_utc
+                    FROM ciclos_co2
+                    WHERE proceso_id = ?
+                      AND estado = 'CERRADO'
+                      AND purga_inicio_utc IS NOT NULL
+                    ORDER BY purga_inicio_utc DESC
+                    LIMIT 1
+                    """,
+                    (
+                        proceso_id,
+                    )
+                ).fetchone()
+
+
+                intervalo_segundos = None
+
+                if anterior is not None:
+
+                    anterior_dt = datetime.fromisoformat(
+                        str(
+                            anterior[
+                                "purga_inicio_utc"
+                            ]
+                        ).replace(
+                            "Z",
+                            "+00:00"
+                        )
+                    )
+
+                    intervalo_segundos = (
+                        purga_inicio -
+                        anterior_dt
+                    ).total_seconds()
+
+
+                # ---------------------------------------------
+                # NUMERO DE CICLO
+                # ---------------------------------------------
+
+                numero_ciclo = conn.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM ciclos_co2
+                    WHERE proceso_id = ?
+                      AND estado = 'CERRADO'
+                    """,
+                    (
+                        proceso_id,
+                    )
+                ).fetchone()[0] + 1
+
+
+                conn.execute(
+                    """
+                    UPDATE ciclos_co2
+
+                    SET
+                        purga_fin_utc = ?,
+                        purga_duracion_segundos = ?,
+                        intervalo_purgas_segundos = ?,
+                        co2_purge_end_ppm = ?,
+                        numero_ciclo = ?,
                         estado = 'CERRADO'
 
                     WHERE id = ?
                     """,
                     (
                         timestamp_utc,
-                        duracion_segundos,
-                        temperatura,
-                        humedad,
-                        c2h4,
-                        ciclo_id
+                        purga_segundos,
+                        intervalo_segundos,
+                        valor_co2,
+                        numero_ciclo,
+                        ciclo["id"]
                     )
                 )
 
@@ -1103,15 +1234,41 @@ def procesar_ciclo_co2(
 
 
                 return {
-                    "evento": "CICLO_CERRADO",
-                    "id": ciclo_id,
-                    "proceso_id": proceso_id,
-                    "inicio_utc":
-                        ciclo["inicio_utc"],
-                    "fin_utc":
-                        timestamp_utc,
-                    "duracion_segundos":
-                        duracion_segundos
+                    "evento": "CICLO_COMPLETO",
+
+                    "id":
+                        ciclo["id"],
+
+                    "proceso_id":
+                        proceso_id,
+
+                    "numero_ciclo":
+                        numero_ciclo,
+
+                    "co2_low_high_time":
+                        ciclo[
+                            "duracion_segundos"
+                        ],
+
+                    "co2_purge_time":
+                        purga_segundos,
+
+                    "co2_cycle_interval":
+                        intervalo_segundos,
+
+                    "co2_cycle_count":
+                        numero_ciclo,
+
+                    "co2_purge_start_ppm":
+                        ciclo[
+                            "co2_purge_start_ppm"
+                        ],
+
+                    "co2_purge_end_ppm":
+                        valor_co2,
+
+                    "timestamp_utc":
+                        timestamp_utc
                 }
 
 
@@ -1162,3 +1319,40 @@ def obtener_ciclos_proceso(
         dict(fila)
         for fila in filas
     ]
+    
+def _asegurar_columnas_ciclo_completo():
+
+    columnas_requeridas = {
+        "proceso_id": "INTEGER",
+        "purga_inicio_utc": "TEXT",
+        "purga_fin_utc": "TEXT",
+        "purga_duracion_segundos": "REAL",
+        "intervalo_purgas_segundos": "REAL",
+        "co2_purge_start_ppm": "REAL",
+        "co2_purge_end_ppm": "REAL",
+        "numero_ciclo": "INTEGER"
+    }
+
+    with _DB_LOCK:
+
+        with sqlite3.connect(DB_PATH) as conn:
+
+            existentes = {
+                fila[1]
+                for fila in conn.execute(
+                    "PRAGMA table_info(ciclos_co2)"
+                ).fetchall()
+            }
+
+            for nombre, tipo in columnas_requeridas.items():
+
+                if nombre not in existentes:
+
+                    conn.execute(
+                        f"""
+                        ALTER TABLE ciclos_co2
+                        ADD COLUMN {nombre} {tipo}
+                        """
+                    )
+
+            conn.commit()

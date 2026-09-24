@@ -94,187 +94,182 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                         co2_timestamp_utc = (registro_co2.get('t'))
 
                 if co2_raw in [None, "None", ""]:
-                    util.logging.warning("CT01CO2 sin dato válido; se omite control CO2 este ciclo.")
+                    util.logging.warning(
+                        "CT01CO2 sin dato válido; se omite control CO2 este ciclo."
+                    )
                 else:
                     co2_ppm = int(float(co2_raw))
-                    util.logging.info(f"[CT01CO2] CO2={co2_ppm} ppm | LOW={CO2_LOW} | HIGH={CO2_HIGH}")
-                    
-                # =========================================================
-                # REGISTRO DE CICLO CO2
-                # Usa la misma lectura rápida del control MDFR.
-                # NO depende del envío de 10 minutos a AWS.
-                # =========================================================
+                    util.logging.info(
+                        f"[CT01CO2] CO2={co2_ppm} ppm | LOW={CO2_LOW} | HIGH={CO2_HIGH}"
+                    )
 
-                try:
-
-                    resultado_ciclo = (
-                        db_service.procesar_ciclo_co2(
+                    # =========================================================
+                    # REGISTRO DE CICLO CO2
+                    # Usa la misma lectura rápida del control MDFR.
+                    # NO depende del envío de 10 minutos a AWS.
+                    # =========================================================
+                    try:
+                        resultado_ciclo = db_service.procesar_ciclo_co2(
                             valor_co2=co2_ppm,
                             timestamp_utc=co2_timestamp_utc,
                             co2_low=CO2_LOW,
                             co2_high=CO2_HIGH
                         )
-                    )
 
-                    evento_ciclo = (
-                        resultado_ciclo.get(
-                            "evento"
-                        )
-                        if resultado_ciclo
-                        else None
-                    )
-
-                    if evento_ciclo == "CICLO_ABIERTO":
-
-                        util.logging.info(
-                            "[CO2-CICLO] "
-                            f"ABIERTO | "
-                            f"CO2={co2_ppm} ppm | "
-                            f"LOW={CO2_LOW} | "
-                            f"id={resultado_ciclo.get('id')}"
+                        evento_ciclo = (
+                            resultado_ciclo.get("evento")
+                            if resultado_ciclo
+                            else None
                         )
 
-
-                    elif evento_ciclo == "CICLO_CERRADO":
-
-                        duracion_segundos = float(
-                            resultado_ciclo.get(
-                                "duracion_segundos",
-                                0
+                        if evento_ciclo == "CICLO_ABIERTO":
+                            util.logging.info(
+                                "[CO2-CICLO] "
+                                f"ABIERTO | "
+                                f"CO2={co2_ppm} ppm | "
+                                f"LOW={CO2_LOW} | "
+                                f"id={resultado_ciclo.get('id')}"
                             )
-                        )
 
-                        util.logging.warning(
+                        elif evento_ciclo == "PURGA_INICIADA":
+                            low_high_s = float(
+                                resultado_ciclo.get("co2_low_high_time", 0) or 0
+                            )
+                            util.logging.warning(
+                                "[CO2-CICLO] "
+                                f"PURGA INICIADA | "
+                                f"CO2={co2_ppm} ppm | "
+                                f"HIGH={CO2_HIGH} | "
+                                f"LOW→HIGH={low_high_s / 3600.0:.2f} h | "
+                                f"id={resultado_ciclo.get('id')}"
+                            )
+
+                        elif evento_ciclo == "CICLO_COMPLETO":
+                            low_high_s = float(
+                                resultado_ciclo.get("co2_low_high_time", 0) or 0
+                            )
+                            purga_s = float(
+                                resultado_ciclo.get("co2_purge_time", 0) or 0
+                            )
+                            intervalo_s = resultado_ciclo.get("co2_cycle_interval")
+
+                            util.logging.warning(
+                                "[CO2-CICLO] "
+                                f"CICLO COMPLETO | "
+                                f"n={resultado_ciclo.get('co2_cycle_count')} | "
+                                f"LOW→HIGH={low_high_s / 3600.0:.2f} h | "
+                                f"PURGA={purga_s / 60.0:.1f} min | "
+                                f"INTERVALO={intervalo_s} s | "
+                                f"CO2 inicio={resultado_ciclo.get('co2_purge_start_ppm')} ppm | "
+                                f"CO2 fin={resultado_ciclo.get('co2_purge_end_ppm')} ppm"
+                            )
+
+                    except Exception as e:
+                        # El registro histórico jamás debe interferir
+                        # con el control físico de la cámara.
+                        util.logging.error(
                             "[CO2-CICLO] "
-                            f"CERRADO POR HIGH REAL | "
-                            f"CO2={co2_ppm} ppm | "
-                            f"HIGH={CO2_HIGH} | "
-                            f"duracion="
-                            f"{duracion_segundos / 3600.0:.2f} h | "
-                            f"id={resultado_ciclo.get('id')}"
+                            f"Error registrando ciclo: "
+                            f"{type(e).__name__}: {e}"
                         )
 
-
-                except Exception as e:
-
-                    # El registro histórico jamás debe
-                    # interferir con el control de la cámara.
-                    util.logging.error(
-                        "[CO2-CICLO] "
-                        f"Error registrando ciclo: "
-                        f"{type(e).__name__}: {e}"
-                    )#util.logging.info(f"[MDFR] CO2={co2_ppm} (LOW={CO2_LOW}, HIGH={CO2_HIGH})")
-
-                                    
-                    minutos_aire = float(ctl_co2.get('aire_fresco_minutos', 2))
+                    # =========================================================
+                    # CONFIGURACIÓN DEL AIRE FRESCO
+                    # =========================================================
+                    minutos_aire = float(
+                        ctl_co2.get('aire_fresco_minutos', 2)
+                    )
                     duracion_s = minutos_aire * 60
                     now = time.monotonic()
 
-                # =========================================================
-                # CONTROL ETILENO / CO2
-                # =========================================================
-                #
-                # Lógica:
-                #
-                # - Mientras CO2 esté por debajo del HIGH:
-                #       ETILENO debe permanecer ON.
-                #
-                # - Si CO2 supera HIGH:
-                #       ETILENO OFF
-                #       EXTRACTOR ON
-                #       AIRE_FRESCO ON temporizado
-                #
-                # - Cuando CO2 baja por debajo del LOW:
-                #       EXTRACTOR OFF
-                #       AIRE_FRESCO OFF
-                #
-                # Esto evita que el etileno se pierda si el relay
-                # se apaga accidentalmente.
-                #
-                if co2_ppm >= CO2_HIGH and not _purga_co2_activa:
+                    # =========================================================
+                    # CONTROL ETILENO / CO2
+                    # =========================================================
+                    # - Mientras CO2 esté por debajo del HIGH:
+                    #       ETILENO debe permanecer ON.
+                    # - Si CO2 supera HIGH:
+                    #       ETILENO OFF
+                    #       EXTRACTOR ON
+                    #       AIRE_FRESCO ON temporizado
+                    # - Cuando CO2 baja por debajo del LOW:
+                    #       EXTRACTOR OFF
+                    #       AIRE_FRESCO OFF
+                    # =========================================================
 
-                    util.logging.warning(
-                        f"[CT01CO2] CO2 ALTO={co2_ppm} ppm >= {CO2_HIGH} → "
-                        f"INICIA PURGA | ETILENO=OFF | EXTRACTOR=ON | "
-                        f"AIRE_FRESCO=ON por {minutos_aire} min"
-                    )
+                    if co2_ppm >= CO2_HIGH and not _purga_co2_activa:
+                        util.logging.warning(
+                            f"[CT01CO2] CO2 ALTO={co2_ppm} ppm >= {CO2_HIGH} → "
+                            f"INICIA PURGA | ETILENO=OFF | EXTRACTOR=ON | "
+                            f"AIRE_FRESCO=ON por {minutos_aire} min"
+                        )
 
-                    _purga_co2_activa = True
+                        _purga_co2_activa = True
 
-                    Temp.setgas(False)
-                    Temp.setextractor(True)
-                    Temp.setairefresco(True)
+                        Temp.setgas(False)
+                        Temp.setextractor(True)
+                        Temp.setairefresco(True)
 
-                    _aire_fresco_activo = True
-                    _aire_fresco_until = now + duracion_s
+                        _aire_fresco_activo = True
+                        _aire_fresco_until = now + duracion_s
 
+                    elif _purga_co2_activa:
+                        # Mientras está en purga, el etileno debe permanecer
+                        # apagado y el extractor encendido.
+                        Temp.setgas(False)
+                        Temp.setextractor(True)
 
-                elif _purga_co2_activa:
-
-                    # Mientras está en purga, el etileno debe permanecer apagado
-                    # y el extractor encendido.
-                    Temp.setgas(False)
-                    Temp.setextractor(True)
-
-                    if _aire_fresco_activo:
-
-                        restante = round(_aire_fresco_until - time.monotonic(), 1)
-
-                        if restante > 0:
-
-                            Temp.setairefresco(True)
-
-                            util.logging.info(
-                                f"[CT01CO2] PURGA ACTIVA | CO2={co2_ppm} ppm | "
-                                f"ETILENO=OFF | EXTRACTOR=ON | "
-                                f"AIRE_FRESCO=ON | restante={restante}s"
+                        if _aire_fresco_activo:
+                            restante = round(
+                                _aire_fresco_until - time.monotonic(),
+                                1
                             )
 
-                        else:
+                            if restante > 0:
+                                Temp.setairefresco(True)
+                                util.logging.info(
+                                    f"[CT01CO2] PURGA ACTIVA | CO2={co2_ppm} ppm | "
+                                    f"ETILENO=OFF | EXTRACTOR=ON | "
+                                    f"AIRE_FRESCO=ON | restante={restante}s"
+                                )
+                            else:
+                                Temp.setairefresco(False)
+                                _aire_fresco_activo = False
+                                _aire_fresco_until = 0
 
+                                util.logging.info(
+                                    "[CT01CO2] AIRE_FRESCO=OFF | temporizador cumplido | "
+                                    "EXTRACTOR sigue ON hasta CO2 bajo"
+                                )
+                        else:
+                            util.logging.info(
+                                f"[CT01CO2] PURGA ACTIVA | CO2={co2_ppm} ppm | "
+                                "AIRE_FRESCO=OFF | EXTRACTOR=ON | esperando CO2 bajo"
+                            )
+
+                        if co2_ppm <= CO2_LOW:
+                            Temp.setextractor(False)
+                            Temp.setgas(True)
                             Temp.setairefresco(False)
+
+                            _purga_co2_activa = False
                             _aire_fresco_activo = False
                             _aire_fresco_until = 0
 
                             util.logging.info(
-                                "[CT01CO2] AIRE_FRESCO=OFF | temporizador cumplido | "
-                                "EXTRACTOR sigue ON hasta CO2 bajo"
+                                f"[CT01CO2] CO2 BAJO={co2_ppm} ppm <= {CO2_LOW} → "
+                                "TERMINA PURGA | ETILENO=ON | EXTRACTOR=OFF | AIRE_FRESCO=OFF"
                             )
 
                     else:
-
-                        util.logging.info(
-                            f"[CT01CO2] PURGA ACTIVA | CO2={co2_ppm} ppm | "
-                            "AIRE_FRESCO=OFF | EXTRACTOR=ON | esperando CO2 bajo"
-                        )
-
-                    if co2_ppm <= CO2_LOW:
-
-                        Temp.setextractor(False)
+                        # Estado normal de maduración:
+                        # mientras no se llegue al HIGH, se refuerza etileno ON.
                         Temp.setgas(True)
-                        Temp.setairefresco(False)
-
-                        _purga_co2_activa = False
-                        _aire_fresco_activo = False
-                        _aire_fresco_until = 0
+                        Temp.setextractor(False)
 
                         util.logging.info(
-                            f"[CT01CO2] CO2 BAJO={co2_ppm} ppm <= {CO2_LOW} → "
-                            "TERMINA PURGA | ETILENO=ON | EXTRACTOR=OFF | AIRE_FRESCO=OFF"
+                            f"[CT01CO2] NORMAL | CO2={co2_ppm} ppm | "
+                            "ETILENO=ON reforzado | EXTRACTOR=OFF | AIRE_FRESCO=OFF"
                         )
-
-
-                else:
-
-                    # Estado normal de maduración:
-                    # mientras no se llegue al HIGH, se refuerza etileno ON.
-                    Temp.setgas(True)
-                    Temp.setextractor(False)
-
-                    util.logging.info(
-                        f"[CT01CO2] NORMAL | CO2={co2_ppm} ppm | "
-                        f"ETILENO=ON reforzado | EXTRACTOR=OFF | AIRE_FRESCO=OFF"
-                    )
                   
             except Exception as e:
                 util.logging.error(f"No se pudo procesar CO2 para relés: {e}")
