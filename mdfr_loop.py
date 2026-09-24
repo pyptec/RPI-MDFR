@@ -10,6 +10,235 @@ _aire_fresco_until = 0
 _aire_fresco_activo = False
 _purga_co2_activa = False
 
+def encolar_mdfr_process(resultado_ciclo):
+    """
+    Construye el payload MDFR_PROCESS.
+
+    YAML define:
+        - g / id_device
+        - variables
+        - Unit IDs
+
+    resultado_ciclo contiene:
+        - los valores calculados
+
+    La función solo relaciona:
+        variable YAML -> valor calculado
+    """
+
+    try:
+
+        if not resultado_ciclo:
+
+            return None
+
+
+        # =================================================
+        # CARGAR YAML
+        # =================================================
+
+        config = util.cargar_configuracion(
+            os.getenv("CFG_MDFR_PROCESS"),
+            os.getenv("CFG_MDFR_PROCESS_SECTION")
+        )
+
+
+        if not isinstance(config, dict):
+
+            raise ValueError(
+                "Configuración MDFR_PROCESS inválida"
+            )
+
+
+        # =================================================
+        # DEVICE ID
+        # =================================================
+
+        id_device = config.get(
+            "id_device"
+        )
+
+
+        if id_device is None:
+
+            raise ValueError(
+                "MDFR_PROCESS sin id_device"
+            )
+
+
+        # =================================================
+        # VARIABLES CONFIGURADAS
+        # =================================================
+
+        variables = config.get(
+            "variables"
+        )
+
+
+        if not isinstance(variables, dict):
+
+            raise ValueError(
+                "MDFR_PROCESS sin variables"
+            )
+
+
+        valores = []
+        unidades = []
+
+
+        # =================================================
+        # CONSTRUIR v / u DIRECTAMENTE DESDE YAML
+        # =================================================
+        #
+        # Ejemplo:
+        #
+        # YAML:
+        #
+        # co2_low_high_time:
+        #     unit: 169
+        #
+        # resultado:
+        #
+        # co2_low_high_time = 100
+        #
+        # PAYLOAD:
+        #
+        # v = ["100"]
+        # u = ["169"]
+        #
+        # =================================================
+
+        for variable, cfg_variable in variables.items():
+
+            if not isinstance(
+                cfg_variable,
+                dict
+            ):
+
+                continue
+
+
+            unidad = cfg_variable.get(
+                "unit"
+            )
+
+
+            if unidad is None:
+
+                util.logging.warning(
+                    "[MDFR_PROCESS] "
+                    f"{variable} sin unit en YAML"
+                )
+
+                continue
+
+
+            valor = resultado_ciclo.get(
+                variable
+            )
+
+
+            # ---------------------------------------------
+            # Si todavía no existe valor, no publicarlo.
+            #
+            # Ejemplo:
+            # primer ciclo no tiene intervalo anterior.
+            # No queremos mandar "None" a iotrack.
+            # ---------------------------------------------
+
+            if valor is None:
+
+                util.logging.info(
+                    "[MDFR_PROCESS] "
+                    f"{variable} sin valor; "
+                    "se omite del payload."
+                )
+
+                continue
+
+
+            valores.append(
+                str(valor)
+            )
+
+
+            unidades.append(
+                str(unidad)
+            )
+
+
+        # =================================================
+        # VALIDACIÓN
+        # =================================================
+
+        if not valores:
+
+            util.logging.warning(
+                "[MDFR_PROCESS] "
+                "No existen valores para publicar."
+            )
+
+            return None
+
+
+        # =================================================
+        # PAYLOAD IOTRACK
+        # =================================================
+
+        payload = {
+
+            "d": [{
+
+                "t": util.get__time_utc(),
+
+                "g": id_device,
+
+                "v": valores,
+
+                "u": unidades
+
+            }]
+        }
+
+
+        # =================================================
+        # GUARDAR EN COLA SQLITE
+        # =================================================
+
+        queue_id = (
+            db_service.aws_queue_agregar(
+
+                topic=os.getenv(
+                    "TOPIC"
+                ),
+
+                payload=payload
+            )
+        )
+
+
+        util.logging.info(
+            "[MDFR_PROCESS] "
+            f"queue_id={queue_id} | "
+            f"g={id_device} | "
+            f"v={valores} | "
+            f"u={unidades}"
+        )
+
+
+        return queue_id
+
+
+    except Exception as e:
+
+        util.logging.error(
+            "[MDFR_PROCESS] "
+            f"Error: "
+            f"{type(e).__name__}: {e}"
+        )
+
+        return None
+
 def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
     global _aire_fresco_until, _aire_fresco_activo, _purga_co2_activa
     try:
