@@ -4,7 +4,7 @@ import util
 import Temp
 import awsaccess
 import fileventqueue
-
+from webapp.services import db_service
 
 def ejecutar_raspberry(tempRaspberry, TIMERCHEQUEOTEMPERATURA, contador_envio):
     """

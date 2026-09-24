@@ -2,9 +2,9 @@
 import json
 import util
 import Temp
-import awsaccess
-import fileventqueue
 import eventHandler
+import os
+from webapp.services import db_service
 
 def ejecutar_datos_iniciales(obtener_datos_medidores_y_sensor):
     """
@@ -16,48 +16,80 @@ def ejecutar_datos_iniciales(obtener_datos_medidores_y_sensor):
     """
 
     try:
+        # =================================================
         # === Conexión AWS (identificación de dispositivo) ===
+        # =================================================
+        
         conneced_aws = json.dumps(eventHandler.pyp_Conect())
-
+        
+        # =================================================
         # === Medición inicial de sensores ===
+        # =================================================
+        
         datos = obtener_datos_medidores_y_sensor()
-
+        
+        # =================================================
         # === Iniciar watchdog ===
+        # =================================================
+        
         Temp.iniciar_wdt()
+        
+        # =================================================
+        # === Guardar datos iniciales en cola SQLite ===
+        # =================================================
 
-        # === Verificar conexión a Internet ===
-        if util.ensure_internet_failover():
-            mqtt_client = awsaccess.connect_to_mqtt()
-            if mqtt_client:
-                util.logging.info("[INICIO] Conectado a AWS IoT. Publicando datos iniciales...")
+        eventos = [
+            conneced_aws,
+            datos['sensor_CT01CO2'],
+            datos['sensor_THT03R'],
+            datos['sensor_PT21A01'],
+            datos['sensor_C2H4'],
+            datos['sensor_CWT']
+        ]
 
-                awsaccess.publish_mediciones(mqtt_client, conneced_aws)
-                awsaccess.publish_mediciones(mqtt_client, datos['sensor_CT01CO2'])
-                awsaccess.publish_mediciones(mqtt_client, datos['sensor_THT03R'])
-                awsaccess.publish_mediciones(mqtt_client, datos['sensor_PT21A01'])
-                awsaccess.publish_mediciones(mqtt_client, datos['sensor_C2H4'])
-                awsaccess.publish_mediciones(mqtt_client, datos['sensor_CWT'])
-                
-                
-                awsaccess.disconnect_from_aws_iot(mqtt_client)
-                util.logging.info("[INICIO] Publicación inicial completada.")
-            else:
-                util.logging.error("[INICIO] No hay conexión MQTT. Guardando eventos localmente.")
-                fileventqueue.agregar_evento(datos['sensor_CT01CO2'])
-                fileventqueue.agregar_evento(datos['sensor_THT03R'])
-                fileventqueue.agregar_evento(datos['sensor_PT21A01'])
-                fileventqueue.agregar_evento(datos['sensor_C2H4'])
-                fileventqueue.agregar_evento(datos['sensor_CWT'])
-                
-                fileventqueue.agregar_evento(conneced_aws)
-        else:
-            util.logging.error("[INICIO] Sin conexión a Internet. Guardando eventos localmente.")
-            fileventqueue.agregar_evento(datos['sensor_CT01CO2'])
-            fileventqueue.agregar_evento(datos['sensor_THT03R'])
-            fileventqueue.agregar_evento(datos['sensor_PT21A01'])
-            fileventqueue.agregar_evento(datos['sensor_C2H4'])
-            fileventqueue.agregar_evento(datos['sensor_CWT'])
-            fileventqueue.agregar_evento(conneced_aws)
+        topic = os.getenv("TOPIC")
+
+        if not topic:
+            raise RuntimeError(
+                "TOPIC no configurado en .env"
+            )
+
+        encolados = 0
+
+        for evento in eventos:
+
+            if evento in [None, "", "None"]:
+                continue
+
+            try:
+
+                queue_id = db_service.aws_queue_agregar(
+                    topic=topic,
+                    payload=evento
+                )
+
+                if queue_id is not None:
+
+                    encolados += 1
+
+                    util.logging.info(
+                        "[INICIO][AWS_QUEUE] "
+                        f"Evento encolado | id={queue_id}"
+                    )
+
+            except Exception as e:
+
+                util.logging.error(
+                    "[INICIO][AWS_QUEUE] "
+                    f"Error encolando evento: "
+                    f"{type(e).__name__}: {e}"
+                )
+
+        util.logging.info(
+            "[INICIO][AWS_QUEUE] "
+            f"Datos iniciales guardados | "
+            f"total={encolados}"
+        )
 
         # === Verificar temperatura del CPU ===
         Temp.check_temp()
