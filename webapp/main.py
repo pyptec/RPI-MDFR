@@ -40,7 +40,7 @@ app.mount(
 
 
 # =========================================================
-# ZONA HORARIA
+# ZONAS HORARIAS
 # =========================================================
 
 TZ_LOCAL = ZoneInfo(
@@ -53,15 +53,20 @@ TZ_UTC = ZoneInfo(
 
 
 # =========================================================
-# UTILIDAD FECHAS
+# UTILIDADES DE FECHA
 # =========================================================
 
 def local_a_utc_iso(fecha_texto):
     """
-    Entrada:
-        2026-09-23T08:10
+    Convierte una fecha/hora ingresada en hora Colombia
+    a ISO 8601 UTC.
 
-    Se interpreta como hora Colombia y se convierte a UTC.
+    Ejemplo:
+        entrada:
+        2026-09-23T16:00
+
+        salida:
+        2026-09-23T21:00:00+00:00
     """
 
     dt_local = datetime.fromisoformat(
@@ -77,10 +82,12 @@ def local_a_utc_iso(fecha_texto):
     )
 
     return dt_utc.isoformat()
+
+
 def utc_a_colombia_iso(fecha_utc):
     """
-    Convierte fecha almacenada en UTC
-    a hora local Colombia.
+    Convierte una fecha UTC almacenada en SQLite
+    a hora Colombia.
     """
 
     dt = datetime.fromisoformat(
@@ -91,6 +98,7 @@ def utc_a_colombia_iso(fecha_utc):
     )
 
     if dt.tzinfo is None:
+
         dt = dt.replace(
             tzinfo=TZ_UTC
         )
@@ -100,6 +108,8 @@ def utc_a_colombia_iso(fecha_utc):
     )
 
     return dt_colombia.isoformat()
+
+
 # =========================================================
 # INICIO
 # =========================================================
@@ -139,7 +149,7 @@ async def graficas(
 
 
 # =========================================================
-# API HISTÓRICO
+# API - VALORES ACTUALES
 # =========================================================
 
 @app.get(
@@ -197,17 +207,204 @@ async def api_actual():
             resultado[nombre] = {
                 "valor": None,
                 "unidad": None,
-                "timestamp": None
+                "timestamp": None,
+                "timestamp_utc": None
             }
 
             continue
 
         resultado[nombre] = {
-            "valor": dato["valor"],
-            "unidad": dato["unidad"],
-            "timestamp": utc_a_colombia_iso(
-                dato["timestamp_utc"]
-            )
+
+            "valor":
+                dato["valor"],
+
+            "unidad":
+                dato["unidad"],
+
+            "timestamp_utc":
+                dato["timestamp_utc"],
+
+            "timestamp":
+                utc_a_colombia_iso(
+                    dato["timestamp_utc"]
+                )
         }
 
     return resultado
+
+
+# =========================================================
+# API - HISTÓRICO
+# =========================================================
+
+@app.get(
+    "/api/historico"
+)
+async def api_historico(
+
+    sensor: str = Query(...),
+
+    variable: str = Query(...),
+
+    desde: str = Query(...),
+
+    hasta: str = Query(...)
+):
+
+    try:
+
+        # -------------------------------------------------
+        # Validar formato de fechas
+        # -------------------------------------------------
+
+        desde_dt = datetime.fromisoformat(
+            desde
+        )
+
+        hasta_dt = datetime.fromisoformat(
+            hasta
+        )
+
+
+        # -------------------------------------------------
+        # Validar orden
+        # -------------------------------------------------
+
+        if hasta_dt <= desde_dt:
+
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "La fecha final debe ser "
+                    "mayor que la inicial."
+                )
+            )
+
+
+        # -------------------------------------------------
+        # Rango mínimo: 10 minutos
+        # -------------------------------------------------
+
+        diferencia_segundos = (
+            hasta_dt -
+            desde_dt
+        ).total_seconds()
+
+        if diferencia_segundos < 600:
+
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "El rango mínimo es "
+                    "de 10 minutos."
+                )
+            )
+
+
+        # -------------------------------------------------
+        # Convertir filtro Colombia -> UTC
+        # -------------------------------------------------
+
+        desde_utc = local_a_utc_iso(
+            desde
+        )
+
+        hasta_utc = local_a_utc_iso(
+            hasta
+        )
+
+
+        # -------------------------------------------------
+        # Consultar SQLite
+        # -------------------------------------------------
+
+        datos = db_service.consultar_historico(
+            sensor=sensor,
+            variable=variable,
+            desde_utc=desde_utc,
+            hasta_utc=hasta_utc
+        )
+
+
+        # -------------------------------------------------
+        # Agregar hora Colombia para la web
+        # -------------------------------------------------
+
+        datos_web = []
+
+        for punto in datos:
+
+            timestamp_utc = punto[
+                "timestamp"
+            ]
+
+            datos_web.append({
+
+                "timestamp_utc":
+                    timestamp_utc,
+
+                "timestamp":
+                    utc_a_colombia_iso(
+                        timestamp_utc
+                    ),
+
+                "valor":
+                    punto["valor"],
+
+                "unidad":
+                    punto["unidad"]
+            })
+
+
+        return {
+
+            "sensor":
+                sensor,
+
+            "variable":
+                variable,
+
+            "desde":
+                desde,
+
+            "hasta":
+                hasta,
+
+            "desde_utc":
+                desde_utc,
+
+            "hasta_utc":
+                hasta_utc,
+
+            "cantidad":
+                len(datos_web),
+
+            "datos":
+                datos_web
+        }
+
+
+    except HTTPException:
+        raise
+
+
+    except ValueError as e:
+
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Formato de fecha inválido. "
+                "Use YYYY-MM-DDTHH:MM"
+            )
+        ) from e
+
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Error consultando histórico: "
+                f"{type(e).__name__}: {e}"
+            )
+        ) from e
