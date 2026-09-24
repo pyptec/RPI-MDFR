@@ -1,6 +1,7 @@
 from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import sqlite3
 
 from fastapi import FastAPI, Request, Query, HTTPException
 from fastapi.responses import HTMLResponse
@@ -492,3 +493,169 @@ async def api_proceso_finalizar():
         )
 
     return resultado
+
+# =========================================================
+# API - CICLOS CO2 DEL PROCESO
+# =========================================================
+
+@app.get(
+    "/api/proceso/ciclos"
+)
+async def api_proceso_ciclos(
+    modo: str = Query("activo")
+):
+    """
+    Devuelve los ciclos CO2 del proceso activo o del último
+    proceso histórico de prueba.
+
+    modo=activo
+    modo=historico
+    """
+
+    db_service.init_db()
+
+    with sqlite3.connect(db_service.DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+
+        if modo == "historico":
+            proceso = conn.execute(
+                """
+                SELECT
+                    id, inicio_utc, fin_utc, lote,
+                    observaciones, estado
+                FROM procesos
+                WHERE lote = 'HIST-CO2-22SEP-PRUEBA'
+                ORDER BY id DESC
+                LIMIT 1
+                """
+            ).fetchone()
+        else:
+            proceso = conn.execute(
+                """
+                SELECT
+                    id, inicio_utc, fin_utc, lote,
+                    observaciones, estado
+                FROM procesos
+                WHERE estado = 'ACTIVO'
+                ORDER BY id DESC
+                LIMIT 1
+                """
+            ).fetchone()
+
+        if proceso is None:
+            return {
+                "ok": True,
+                "modo": modo,
+                "proceso": None,
+                "resumen": {
+                    "ciclos": 0,
+                    "low_high_promedio_s": None,
+                    "purga_promedio_s": None,
+                    "intervalo_promedio_s": None,
+                    "ultimo_intervalo_s": None
+                },
+                "ciclos": []
+            }
+
+        filas = conn.execute(
+            """
+            SELECT
+                id,
+                proceso_id,
+                numero_ciclo,
+                inicio_utc,
+                fin_utc,
+                purga_inicio_utc,
+                purga_fin_utc,
+                duracion_segundos,
+                purga_duracion_segundos,
+                intervalo_purgas_segundos,
+                co2_purge_start_ppm,
+                co2_purge_end_ppm,
+                temperatura_media,
+                humedad_media,
+                c2h4_medio,
+                estado
+            FROM ciclos_co2
+            WHERE proceso_id = ?
+            ORDER BY COALESCE(numero_ciclo, id) ASC
+            """,
+            (proceso["id"],)
+        ).fetchall()
+
+    ciclos = []
+
+    for fila in filas:
+        item = dict(fila)
+
+        for campo in (
+            "inicio_utc",
+            "fin_utc",
+            "purga_inicio_utc",
+            "purga_fin_utc"
+        ):
+            valor = item.get(campo)
+            item[campo.replace("_utc", "")] = (
+                utc_a_colombia_iso(valor)
+                if valor
+                else None
+            )
+
+        ciclos.append(item)
+
+    cerrados = [
+        c for c in ciclos
+        if c.get("estado") == "CERRADO"
+    ]
+
+    def promedio(campo):
+        valores = [
+            float(c[campo])
+            for c in cerrados
+            if c.get(campo) is not None
+        ]
+        return (
+            sum(valores) / len(valores)
+            if valores
+            else None
+        )
+
+    intervalos = [
+        float(c["intervalo_purgas_segundos"])
+        for c in cerrados
+        if c.get("intervalo_purgas_segundos") is not None
+    ]
+
+    proceso_dict = dict(proceso)
+    proceso_dict["inicio"] = (
+        utc_a_colombia_iso(proceso_dict["inicio_utc"])
+        if proceso_dict.get("inicio_utc")
+        else None
+    )
+    proceso_dict["fin"] = (
+        utc_a_colombia_iso(proceso_dict["fin_utc"])
+        if proceso_dict.get("fin_utc")
+        else None
+    )
+
+    return {
+        "ok": True,
+        "modo": modo,
+        "proceso": proceso_dict,
+        "resumen": {
+            "ciclos": len(cerrados),
+            "low_high_promedio_s": promedio("duracion_segundos"),
+            "purga_promedio_s": promedio("purga_duracion_segundos"),
+            "intervalo_promedio_s": (
+                sum(intervalos) / len(intervalos)
+                if intervalos
+                else None
+            ),
+            "ultimo_intervalo_s": (
+                intervalos[-1]
+                if intervalos
+                else None
+            )
+        },
+        "ciclos": ciclos
+    }

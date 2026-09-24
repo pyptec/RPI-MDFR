@@ -1,4 +1,5 @@
 let inicioProcesoMs = null;
+let modoCiclos = "historico";
 
 
 function formatoFecha(timestamp) {
@@ -27,9 +28,17 @@ function formatoFecha(timestamp) {
 
 function formatoDuracion(segundos) {
 
+    if (
+        segundos === null ||
+        segundos === undefined ||
+        Number.isNaN(Number(segundos))
+    ) {
+        return "--";
+    }
+
     segundos = Math.max(
         0,
-        Math.floor(segundos)
+        Math.round(Number(segundos))
     );
 
     const dias =
@@ -54,8 +63,16 @@ function formatoDuracion(segundos) {
     const seg =
         segundos % 60;
 
+    if (dias > 0) {
+        return (
+            `${dias} d ` +
+            `${String(horas).padStart(2, "0")}:` +
+            `${String(minutos).padStart(2, "0")}:` +
+            `${String(seg).padStart(2, "0")}`
+        );
+    }
+
     return (
-        `${dias} d ` +
         `${String(horas).padStart(2, "0")}:` +
         `${String(minutos).padStart(2, "0")}:` +
         `${String(seg).padStart(2, "0")}`
@@ -194,6 +211,234 @@ async function cargarProceso() {
 }
 
 
+function actualizarBotonesModo() {
+
+    const activo =
+        document.getElementById(
+            "btnCiclosActivo"
+        );
+
+    const historico =
+        document.getElementById(
+            "btnCiclosHistorico"
+        );
+
+    if (!activo || !historico) {
+        return;
+    }
+
+    activo.disabled =
+        modoCiclos === "activo";
+
+    historico.disabled =
+        modoCiclos === "historico";
+}
+
+
+function valorPpm(valor) {
+
+    if (
+        valor === null ||
+        valor === undefined
+    ) {
+        return "--";
+    }
+
+    return (
+        `${Math.round(Number(valor))} ppm`
+    );
+}
+
+
+function pintarCiclos(data) {
+
+    const resumen =
+        data.resumen || {};
+
+    document.getElementById(
+        "kpiCiclos"
+    ).innerText =
+        resumen.ciclos_completos ?? 0;
+
+    document.getElementById(
+        "kpiLowHigh"
+    ).innerText =
+        formatoDuracion(
+            resumen.low_high_promedio_s
+        );
+
+    document.getElementById(
+        "kpiPurga"
+    ).innerText =
+        formatoDuracion(
+            resumen.purga_promedio_s
+        );
+
+    document.getElementById(
+        "kpiIntervalo"
+    ).innerText =
+        formatoDuracion(
+            resumen.intervalo_promedio_s
+        );
+
+    document.getElementById(
+        "kpiUltimoIntervalo"
+    ).innerText =
+        formatoDuracion(
+            resumen.ultimo_intervalo_s
+        );
+
+
+    const origen =
+        document.getElementById(
+            "origenCiclos"
+        );
+
+    if (!data.proceso) {
+
+        origen.innerText =
+            modoCiclos === "activo"
+                ? "No existe un proceso activo."
+                : "No existe histórico de prueba.";
+
+    } else {
+
+        const etiqueta =
+            modoCiclos === "activo"
+                ? "Proceso activo"
+                : "Histórico reconstruido de prueba";
+
+        origen.innerText =
+            `${etiqueta} | ` +
+            `Proceso ID ${data.proceso.id} | ` +
+            `Lote ${data.proceso.lote || "--"}`;
+    }
+
+
+    const tbody =
+        document.getElementById(
+            "tablaCiclos"
+        );
+
+    const ciclos =
+        data.ciclos || [];
+
+
+    if (ciclos.length === 0) {
+
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="10">
+                    No hay ciclos registrados.
+                </td>
+            </tr>
+        `;
+
+        return;
+    }
+
+
+    tbody.innerHTML =
+        ciclos.map(
+            ciclo => `
+                <tr>
+                    <td>
+                        ${ciclo.numero_ciclo ?? ciclo.id ?? "--"}
+                    </td>
+
+                    <td>
+                        ${formatoFecha(ciclo.inicio)}
+                    </td>
+
+                    <td>
+                        ${formatoFecha(ciclo.purga_inicio)}
+                    </td>
+
+                    <td>
+                        ${formatoFecha(ciclo.purga_fin)}
+                    </td>
+
+                    <td>
+                        ${formatoDuracion(ciclo.duracion_segundos)}
+                    </td>
+
+                    <td>
+                        ${formatoDuracion(ciclo.purga_duracion_segundos)}
+                    </td>
+
+                    <td>
+                        ${formatoDuracion(ciclo.intervalo_purgas_segundos)}
+                    </td>
+
+                    <td>
+                        ${valorPpm(ciclo.co2_purge_start_ppm)}
+                    </td>
+
+                    <td>
+                        ${valorPpm(ciclo.co2_purge_end_ppm)}
+                    </td>
+
+                    <td>
+                        ${ciclo.estado || "--"}
+                    </td>
+                </tr>
+            `
+        ).join("");
+}
+
+
+async function cargarCiclos() {
+
+    try {
+
+        actualizarBotonesModo();
+
+        const response =
+            await fetch(
+                `/api/proceso/ciclos?modo=${encodeURIComponent(modoCiclos)}`
+            );
+
+        const data =
+            await response.json();
+
+        if (!response.ok) {
+            throw new Error(
+                data.detail || "Error consultando ciclos"
+            );
+        }
+
+        pintarCiclos(data);
+
+    } catch (error) {
+
+        console.error(error);
+
+        document.getElementById(
+            "origenCiclos"
+        ).innerText =
+            "Error consultando ciclos.";
+
+        document.getElementById(
+            "tablaCiclos"
+        ).innerHTML = `
+            <tr>
+                <td colspan="10">
+                    Error consultando ciclos.
+                </td>
+            </tr>
+        `;
+    }
+}
+
+
+async function cambiarModoCiclos(modo) {
+
+    modoCiclos = modo;
+
+    await cargarCiclos();
+}
+
+
 async function iniciarProceso() {
 
     const lote =
@@ -250,6 +495,10 @@ async function iniciarProceso() {
         "Proceso iniciado correctamente.";
 
     await cargarProceso();
+
+    if (modoCiclos === "activo") {
+        await cargarCiclos();
+    }
 }
 
 
@@ -294,12 +543,24 @@ async function finalizarProceso() {
         "Proceso finalizado.";
 
     await cargarProceso();
+
+    if (modoCiclos === "activo") {
+        await cargarCiclos();
+    }
 }
 
 
 cargarProceso();
+cargarCiclos();
+
 
 setInterval(
     actualizarCronometro,
     1000
+);
+
+
+setInterval(
+    cargarCiclos,
+    30000
 );
