@@ -1282,7 +1282,7 @@ def obtener_ciclos_proceso(
 
     init_db()
 
-    _asegurar_proceso_id_ciclos()
+    _asegurar_columnas_ciclo_completo()
 
     with _DB_LOCK:
 
@@ -1293,15 +1293,41 @@ def obtener_ciclos_proceso(
             filas = conn.execute(
                 """
                 SELECT
+
                     id,
+
+                    proceso_id,
+
                     inicio_utc,
+
                     fin_utc,
+
                     co2_low,
+
                     co2_high,
+
                     duracion_segundos,
+
                     temperatura_media,
+
                     humedad_media,
+
                     c2h4_medio,
+
+                    purga_inicio_utc,
+
+                    purga_fin_utc,
+
+                    purga_duracion_segundos,
+
+                    intervalo_purgas_segundos,
+
+                    co2_purge_start_ppm,
+
+                    co2_purge_end_ppm,
+
+                    numero_ciclo,
+
                     estado
 
                 FROM ciclos_co2
