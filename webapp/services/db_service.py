@@ -182,7 +182,44 @@ def init_db():
                 )
             """)
 
+                        # =================================================
+            # COLA AWS / MQTT
+            # =================================================
 
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS aws_queue (
+
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+                    created_utc TEXT NOT NULL,
+
+                    topic TEXT NOT NULL,
+
+                    payload_json TEXT NOT NULL,
+
+                    estado TEXT NOT NULL DEFAULT 'PENDING',
+
+                    intentos INTEGER NOT NULL DEFAULT 0,
+
+                    ultimo_intento_utc TEXT,
+
+                    enviado_utc TEXT,
+
+                    ultimo_error TEXT
+
+                )
+            """)
+
+
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS
+                idx_aws_queue_estado_id
+
+                ON aws_queue(
+                    estado,
+                    id
+                )
+            """)
             conn.commit()
 
 
@@ -1382,3 +1419,348 @@ def _asegurar_columnas_ciclo_completo():
                     )
 
             conn.commit()
+# =========================================================
+# AWS QUEUE
+# =========================================================
+
+def aws_queue_agregar(
+    topic,
+    payload
+):
+    """
+    Guarda un mensaje MQTT en SQLite.
+
+    El mensaje se guarda SIEMPRE como PENDING.
+
+    payload puede ser:
+        - dict
+        - list
+        - string JSON
+
+    Devuelve el ID de la cola.
+    """
+
+    init_db()
+
+
+    if not topic:
+
+        raise ValueError(
+            "topic no puede estar vacío"
+        )
+
+
+    # =====================================================
+    # NORMALIZAR PAYLOAD
+    # =====================================================
+
+    if isinstance(
+        payload,
+        str
+    ):
+
+        # Verificar que sea JSON válido.
+
+        try:
+
+            objeto = json.loads(
+                payload
+            )
+
+            payload_json = json.dumps(
+                objeto,
+                ensure_ascii=False,
+                separators=(",", ":")
+            )
+
+        except Exception as e:
+
+            raise ValueError(
+                "payload no contiene JSON válido"
+            ) from e
+
+
+    elif isinstance(
+        payload,
+        (dict, list)
+    ):
+
+        payload_json = json.dumps(
+            payload,
+            ensure_ascii=False,
+            separators=(",", ":")
+        )
+
+
+    else:
+
+        raise TypeError(
+            "payload debe ser dict, list o string JSON"
+        )
+
+
+    created_utc = _utc_now()
+
+
+    # =====================================================
+    # INSERTAR
+    # =====================================================
+
+    with _DB_LOCK:
+
+        with sqlite3.connect(
+            DB_PATH
+        ) as conn:
+
+            cursor = conn.execute(
+                """
+                INSERT INTO aws_queue (
+
+                    created_utc,
+                    topic,
+                    payload_json,
+                    estado,
+                    intentos
+
+                )
+
+                VALUES (
+                    ?, ?, ?, 'PENDING', 0
+                )
+                """,
+                (
+                    created_utc,
+                    str(topic),
+                    payload_json
+                )
+            )
+
+
+            conn.commit()
+
+
+            return cursor.lastrowid
+
+
+def aws_queue_obtener_pendientes(
+    limite=48
+):
+    """
+    Devuelve los mensajes PENDING en orden FIFO.
+    """
+
+    init_db()
+
+
+    try:
+
+        limite = int(
+            limite
+        )
+
+    except Exception:
+
+        limite = 48
+
+
+    limite = max(
+        1,
+        limite
+    )
+
+
+    with _DB_LOCK:
+
+        with sqlite3.connect(
+            DB_PATH
+        ) as conn:
+
+            conn.row_factory = (
+                sqlite3.Row
+            )
+
+
+            filas = conn.execute(
+                """
+                SELECT
+
+                    id,
+                    created_utc,
+                    topic,
+                    payload_json,
+                    estado,
+                    intentos,
+                    ultimo_intento_utc,
+                    enviado_utc,
+                    ultimo_error
+
+                FROM aws_queue
+
+                WHERE estado = 'PENDING'
+
+                ORDER BY id ASC
+
+                LIMIT ?
+                """,
+                (
+                    limite,
+                )
+            ).fetchall()
+
+
+    return [
+        dict(fila)
+        for fila in filas
+    ]
+
+
+def aws_queue_marcar_enviado(
+    queue_id
+):
+    """
+    Marca un mensaje como SENT.
+    """
+
+    init_db()
+
+
+    enviado_utc = (
+        _utc_now()
+    )
+
+
+    with _DB_LOCK:
+
+        with sqlite3.connect(
+            DB_PATH
+        ) as conn:
+
+            conn.execute(
+                """
+                UPDATE aws_queue
+
+                SET
+                    estado = 'SENT',
+                    intentos = intentos + 1,
+                    ultimo_intento_utc = ?,
+                    enviado_utc = ?,
+                    ultimo_error = NULL
+
+                WHERE id = ?
+                  AND estado = 'PENDING'
+                """,
+                (
+                    enviado_utc,
+                    enviado_utc,
+                    int(queue_id)
+                )
+            )
+
+
+            conn.commit()
+
+
+def aws_queue_marcar_error(
+    queue_id,
+    error
+):
+    """
+    Mantiene el mensaje PENDING y registra
+    el intento fallido.
+    """
+
+    init_db()
+
+
+    intento_utc = (
+        _utc_now()
+    )
+
+
+    with _DB_LOCK:
+
+        with sqlite3.connect(
+            DB_PATH
+        ) as conn:
+
+            conn.execute(
+                """
+                UPDATE aws_queue
+
+                SET
+                    intentos = intentos + 1,
+                    ultimo_intento_utc = ?,
+                    ultimo_error = ?
+
+                WHERE id = ?
+                  AND estado = 'PENDING'
+                """,
+                (
+                    intento_utc,
+                    str(error)[:1000],
+                    int(queue_id)
+                )
+            )
+
+
+            conn.commit()
+
+
+def aws_queue_contar_pendientes():
+    """
+    Número de mensajes esperando envío.
+    """
+
+    init_db()
+
+
+    with _DB_LOCK:
+
+        with sqlite3.connect(
+            DB_PATH
+        ) as conn:
+
+            fila = conn.execute(
+                """
+                SELECT COUNT(*)
+
+                FROM aws_queue
+
+                WHERE estado = 'PENDING'
+                """
+            ).fetchone()
+
+
+    return int(
+        fila[0]
+    )
+
+
+def aws_queue_contar_enviados():
+    """
+    Número de mensajes enviados.
+    """
+
+    init_db()
+
+
+    with _DB_LOCK:
+
+        with sqlite3.connect(
+            DB_PATH
+        ) as conn:
+
+            fila = conn.execute(
+                """
+                SELECT COUNT(*)
+
+                FROM aws_queue
+
+                WHERE estado = 'SENT'
+                """
+            ).fetchone()
+
+
+    return int(
+        fila[0]
+    )
