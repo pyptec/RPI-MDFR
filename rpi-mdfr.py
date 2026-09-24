@@ -73,29 +73,222 @@ def prueba_relays():
         time.sleep(2)
 
     util.logging.info("=== FIN PRUEBA MANUAL DE RELAYS ===")
-#-----------------------------------------------------------------------------------------------------------    
-# Función para procesar eventos en la cola
-#-----------------------------------------------------------------------------------------------------------
-def process_event_queue():
-    if fileventqueue.contar_eventos() != 0:
-        if util.ensure_internet_failover():
-            mqtt_client = awsaccess.connect_to_mqtt()
-            if mqtt_client:
-                eventos = fileventqueue.procesar_eventos_de_uno_en_uno()
-                for evento in eventos:
-                    hilo_queue = threading.Thread(target=Temp.parpadear_led_500ms)
-                    hilo_queue.start()
-                    awsaccess.publish_to_topic(mqtt_client, os.getenv('TOPIC'), evento)
-                    time.sleep(0.2)
-                    hilo_queue.join()
-                awsaccess.disconnect_from_aws_iot(mqtt_client)
-            else:
-                util.logging.info("No se pudo conectar a AWS IoT para procesar la cola de eventos.")
-        else:
-            util.logging.info("Sin Internet para procesar la cola de eventos.")
-    else:
-        util.logging.info("No hay eventos para procesar.")
-        
+# =========================================================
+# PROCESAR COLA AWS DESDE SQLITE
+# =========================================================
+
+def process_event_queue(limite=48):
+    """
+    Procesa mensajes PENDING almacenados en SQLite.
+
+    Flujo:
+
+        PENDING
+           ↓
+        conectar AWS
+           ↓
+        publicar QoS 1
+           ↓
+        éxito -> SENT
+        error -> sigue PENDING
+
+    Nunca elimina el mensaje antes de confirmar
+    que publish() terminó correctamente.
+    """
+
+    try:
+
+        pendientes = (db_service.aws_queue_obtener_pendientes(limite=limite ))
+
+
+        if not pendientes:
+
+            util.logging.info("[AWS_QUEUE] " "No hay eventos pendientes.")
+
+            return
+
+
+        cantidad = len(pendientes)
+
+
+        util.logging.info(
+            "[AWS_QUEUE] "
+            f"Pendientes a procesar: "
+            f"{cantidad}"
+        )
+
+
+        # =====================================================
+        # CONECTIVIDAD
+        # =====================================================
+
+        if not util.ensure_internet_failover():
+
+            util.logging.warning(
+                "[AWS_QUEUE] "
+                "Sin Internet. "
+                "Los eventos permanecen PENDING."
+            )
+
+            return
+
+
+        # =====================================================
+        # CONECTAR AWS
+        # =====================================================
+
+        mqtt_client = (awsaccess.connect_to_mqtt())
+
+
+        if mqtt_client is None:
+
+            util.logging.warning(
+                "[AWS_QUEUE] "
+                "No fue posible conectar con AWS IoT. "
+                "Los eventos permanecen PENDING."
+            )
+
+            return
+
+
+        # =====================================================
+        # PROCESAR FIFO
+        # =====================================================
+
+        try:
+
+            for evento in pendientes:
+
+                queue_id = evento["id"]
+
+                topic = evento["topic"]
+
+                payload = evento["payload_json"]
+
+
+                util.logging.info(
+                    "[AWS_QUEUE] "
+                    f"Publicando id={queue_id} | "
+                    f"topic={topic} | "
+                    f"intento="
+                    f"{evento.get('intentos', 0) + 1}"
+                )
+
+
+                try:
+
+                    ok = (
+                        awsaccess
+                        .publish_to_topic(
+                            mqtt_client=mqtt_client,
+                            topic=topic,
+                            message=payload,
+                            qos=1
+                        )
+                    )
+
+
+                    if ok:
+
+                        db_service.aws_queue_marcar_enviado(
+                            queue_id
+                        )
+
+
+                        util.logging.info(
+                            "[AWS_QUEUE] "
+                            f"id={queue_id} "
+                            "marcado SENT."
+                        )
+
+
+                        # Indicador visual
+                        try:
+
+                            Temp.parpadear_led_500ms()
+
+                        except Exception as led_error:
+
+                            util.logging.warning(
+                                "[AWS_QUEUE] "
+                                "No se pudo activar LED: "
+                                f"{led_error}"
+                            )
+
+
+                    else:
+
+                        db_service.aws_queue_marcar_error(
+                            queue_id,
+                            "publish_to_topic devolvió False"
+                        )
+
+
+                        util.logging.warning(
+                            "[AWS_QUEUE] "
+                            f"id={queue_id} "
+                            "continúa PENDING."
+                        )
+
+
+                except Exception as e:
+
+                    db_service.aws_queue_marcar_error(
+                        queue_id,
+                        (
+                            f"{type(e).__name__}: "
+                            f"{e}"
+                        )
+                    )
+
+
+                    util.logging.error(
+                        "[AWS_QUEUE] "
+                        f"Error publicando "
+                        f"id={queue_id}: "
+                        f"{type(e).__name__}: {e}"
+                    )
+
+
+                    # Importante:
+                    # continuamos con el siguiente.
+                    continue
+
+
+                # Evitar ráfaga excesiva MQTT
+                time.sleep(
+                    0.2
+                )
+
+
+        finally:
+
+            awsaccess.disconnect_from_aws_iot(
+                mqtt_client
+            )
+
+
+        pendientes_restantes = (
+            db_service
+            .aws_queue_contar_pendientes()
+        )
+
+
+        util.logging.info(
+            "[AWS_QUEUE] "
+            "Procesamiento terminado | "
+            f"pendientes="
+            f"{pendientes_restantes}"
+        )
+
+
+    except Exception as e:
+
+        util.logging.error(
+            "[AWS_QUEUE] "
+            "Error general procesando cola: "
+            f"{type(e).__name__}: {e}"
+        )
 # =========================================================
 # PROCESAMIENTO DE CICLOS CO2 LOW -> HIGH
 # =========================================================
