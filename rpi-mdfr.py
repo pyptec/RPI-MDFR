@@ -1253,10 +1253,9 @@ def main_loop():
                 util.logging.info("[START] Puerta CERRADA → arrancando sistema.")
                 break
             util.logging.warning("[START] Puerta ABIERTA → modo seguro: relés OFF, sin lecturas.")
-            try:
-                Temp.all_relay()
-            except Exception as e:
-                util.logging.error(f"[START] all_relay() falló: {type(e).__name__}: {e}")
+            
+            Temp.restablecer_sistema_post_puerta()
+            
             Temp.iniciar_wdt()
             time.sleep(1.0)
         except Exception as e:
