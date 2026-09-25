@@ -1271,9 +1271,8 @@ def main_loop():
         # GUARD 0: Hombre atrapado
         if getattr(Temp, "_man_state", {}).get("latched"):
             util.logging.warning("[LOOP] Hombre atrapado ACTIVO → sólo sirena/baliza; sin mediciones/control.")
-            Temp.all_relay()
             Temp.setsirena(True)
-            #Temp.setbaliza(True)
+           
             Temp.iniciar_wdt()
             time.sleep(0.2)
             continue
