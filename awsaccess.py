@@ -419,24 +419,16 @@ def iniciar_recepcion_mensajes():
         )
 
 
-        mqtt_client.configureOfflinePublishQueueing(
-            -1
-        )
+        mqtt_client.configureOfflinePublishQueueing(-1)
 
 
-        mqtt_client.configureDrainingFrequency(
-            2
-        )
+        mqtt_client.configureDrainingFrequency(2)
 
 
-        mqtt_client.configureConnectDisconnectTimeout(
-            10
-        )
+        mqtt_client.configureConnectDisconnectTimeout(10)
 
 
-        mqtt_client.configureMQTTOperationTimeout(
-            5
-        )
+        mqtt_client.configureMQTTOperationTimeout(5)
 
 
         mqtt_client.connect()

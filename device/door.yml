@@ -14,7 +14,7 @@ medidores:
         v: 0                # segundos que ha estado abierta 
         u: 145
     man_trapped:
-      i: 12
+    
       invert_active_low: false    # pull-up + botón a GND
       debounce_ms: 120
       registers:
