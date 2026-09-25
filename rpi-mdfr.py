@@ -1267,25 +1267,52 @@ def main_loop():
 
     # Bucle principal
     contador_envio = 0
+    man_log_activo = False
+    door_log_activo = False
     while True:
         # GUARD 0: Hombre atrapado
         if getattr(Temp, "_man_state", {}).get("latched"):
-            util.logging.warning("[LOOP] Hombre atrapado ACTIVO → sólo sirena/baliza; sin mediciones/control.")
+
+            if not man_log_activo:
+                util.logging.warning(
+                    "[LOOP] Hombre atrapado ACTIVO → "
+                    "sólo sirena/baliza; sin mediciones/control."
+                )
+                man_log_activo = True
+
+            door_log_activo = False
+
             Temp.setsirena(True)
-           
+            # Temp.setbaliza(True)
+
             Temp.iniciar_wdt()
+
             time.sleep(0.2)
             continue
 
+        else:
+            man_log_activo = False
+
         # GUARD 1: Puerta abierta
+      
         if Temp.door_is_open():
-            util.logging.warning("[LOOP] Puerta ABIERTA → restablecer sistema y saltar ciclo.")
+
+            if not door_log_activo:
+                util.logging.warning(
+                    "[LOOP] Puerta ABIERTA → "
+                    "sistema bloqueado hasta cierre."
+                )
+                door_log_activo = True
+
             Temp.restablecer_sistema_post_puerta()
-            #Temp.setsirena(True)
-            #Temp.setbaliza(True)
+
             Temp.iniciar_wdt()
+
             time.sleep(0.5)
             continue
+
+        else:
+            door_log_activo = False
         #Temp.setbaliza(False)
         Temp.setsirena(False)
         # Actualizar timers
