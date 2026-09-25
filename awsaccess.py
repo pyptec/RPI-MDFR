@@ -69,17 +69,9 @@ def on_disconnect(
 # RECEPCIÓN MQTT
 # =========================================================
 
-def on_message(
-    client,
-    userdata,
-    message
-):
+def on_message(client, userdata, message):
 
-    payload = (
-        message
-        .payload
-        .decode("utf-8")
-    )
+    payload = (message.payload.decode("utf-8"))
 
     util.logging.info(
         "[MQTT RX] "
@@ -89,9 +81,7 @@ def on_message(
 
     try:
 
-        recibir_mensaje(
-            payload
-        )
+        recibir_mensaje(payload)
 
     except Exception as e:
 
@@ -108,9 +98,7 @@ def recibir_mensaje(
 
     with shared.mensaje_lock:
 
-        shared.mensaje_recibido = (
-            payload
-        )
+        shared.mensaje_recibido = (payload)
 
     util.logging.info(
         "[MQTT RX] "
@@ -122,46 +110,24 @@ def recibir_mensaje(
 # CONEXIÓN AWS IOT
 # =========================================================
 
-def connect_to_aws_iot(
-    client_id,
-    endpoint,
-    root_ca,
-    private_key,
-    certificate,
-    port=8883
-):
+def connect_to_aws_iot(client_id, endpoint, root_ca, private_key, certificate, port=8883):
 
     try:
 
-        mqtt_client = (
-            AWSIoTMQTTClient(
-                client_id
-            )
-        )
+        mqtt_client = (AWSIoTMQTTClient(client_id))
 
 
-        mqtt_client.configureEndpoint(
-            endpoint,
-            port
-        )
+        mqtt_client.configureEndpoint(endpoint, port)
 
 
-        mqtt_client.configureCredentials(
-            root_ca,
-            private_key,
-            certificate
-        )
+        mqtt_client.configureCredentials(root_ca, private_key, certificate)
 
 
         # -------------------------------------------------
         # RECONEXIÓN
         # -------------------------------------------------
 
-        mqtt_client.configureAutoReconnectBackoffTime(
-            1,
-            32,
-            20
-        )
+        mqtt_client.configureAutoReconnectBackoffTime(1, 32, 20)
 
 
         # La cola duradera será manejada por SQLite.
@@ -351,70 +317,6 @@ def publish_to_topic(
 
         return False
 
-
-# =========================================================
-# PUBLICACIÓN DE MEDICIONES
-# =========================================================
-
-def publish_mediciones(
-    mqtt_client,
-    mediciones
-):
-    """
-    Publica una medición y devuelve True/False.
-
-    Esta función NO agrega mensajes a una cola.
-    """
-
-    hilo_medidor = None
-
-    try:
-
-        hilo_medidor = threading.Thread(
-            target=Temp.parpadear_led_500ms
-        )
-
-        hilo_medidor.start()
-
-
-        ok = publish_to_topic(
-            mqtt_client=mqtt_client,
-            topic=os.getenv(
-                "TOPIC"
-            ),
-            message=mediciones,
-            qos=1
-        )
-
-
-        return ok
-
-
-    except Exception as e:
-
-        util.logging.error(
-            "[AWS] "
-            "Error publicando medición: "
-            f"{type(e).__name__}: {e}"
-        )
-
-
-        return False
-
-
-    finally:
-
-        if hilo_medidor is not None:
-
-            try:
-
-                hilo_medidor.join(
-                    timeout=2
-                )
-
-            except Exception:
-
-                pass
 
 
 # =========================================================
