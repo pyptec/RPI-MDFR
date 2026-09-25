@@ -138,9 +138,7 @@ def process_event_queue():
         # CONECTAR AWS
         # =====================================================
 
-        mqtt_client = (
-            awsaccess.connect_to_mqtt()
-        )
+        mqtt_client = (awsaccess.connect_to_mqtt() )
 
 
         if mqtt_client is None:

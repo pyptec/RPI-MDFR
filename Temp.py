@@ -204,13 +204,34 @@ def _door_read_active(invert_low: bool) -> bool:
 #-----------------------------------------------------------------------------------------------------------
 def _door_cfg():
     try:
-        cfg = util.cargar_configuracion(os.getenv("CFG_DOOR"), os.getenv("CFG_DOOR_SECTION"))
-        #cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/door.yml')
-        return cfg.get('medidores', {}).get('door_sensor', {}) if isinstance(cfg, dict) else {}
-    except Exception as e:
-        util.logging.error(f"[DOOR] No se pudo cargar door.yml: {e}")
+        cfg = util.cargar_configuracion(
+            os.getenv("CFG_DOOR"),
+            os.getenv("CFG_DOOR_SECTION")
+        )
+
+        # Si cargar_configuracion(section=...) ya devolvió
+        # directamente door_sensor, usarlo tal cual.
+        if isinstance(cfg, dict) and (
+            "registers" in cfg
+            or "invert_active_low" in cfg
+            or "name" in cfg
+        ):
+            return cfg
+
+        # Compatibilidad por si se carga el YAML completo.
+        if isinstance(cfg, dict):
+            return (
+                cfg.get("medidores", {})
+                   .get("door_sensor", {})
+            )
+
         return {}
 
+    except Exception as e:
+        util.logging.error(
+            f"[DOOR] No se pudo cargar door.yml: {e}"
+        )
+        return {}
 #-----------------------------------------------------------------------------------------------------------
 # Informa si la puerta está abierta
 #-----------------------------------------------------------------------------------------------------------
@@ -239,25 +260,32 @@ def door_is_closed() -> bool:
 # Busca en registers por alias o name; devuelve u en str.
 #-----------------------------------------------------------------------------------------------------------
 def _get_unit(regs, candidates, default_str):
-    cand = set(str(x) for x in candidates)
+    cand = {
+        str(x)
+        for x in candidates
+    }
+
     for r in (regs or []):
-        alias = str(r.get('alias') or r.get('name') or '')
-        if alias in cand:
-            u = r.get('u')
-            if u is not None:
-                return str(u)  # << importante: devolver str
-    util.logging.warning(f"[CFG] u-code no encontrado para {candidates}; usando {default_str}")
-    return str(default_str)
-    """Busca en registers por alias o name; devuelve u en str.
-    cand = set(candidates)
-    for r in regs or []:
-        if str(r.get('alias')) in cand or str(r.get('name')) in cand:
-            u = r.get('u')
+
+        name = str(r.get("name") or "")
+
+        alias = str(r.get("alias") or "")
+
+        if (name in cand or alias in cand):
+
+            u = r.get("u")
+
             if u is not None:
                 return str(u)
-    util.logging.warning(f"[DOOR] u-code no encontrado para {candidates}; usando {default_str}")
+
+    util.logging.warning(
+        "[CFG] "
+        f"u-code no encontrado para "
+        f"{candidates}; "
+        f"usando {default_str}"
+    )
+
     return str(default_str)
-    """
 #-----------------------------------------------------------------------------------------------------------
 # Callback de interrupción de puerta
 #-----------------------------------------------------------------------------------------------------------
@@ -422,10 +450,30 @@ def setup_door_interrupt():
 #-----------------------------------------------------------------------------------------------------------   
 def _btn_cfg():
     try:
-        cfg = util.cargar_configuracion(os.getenv("CFG_DOOR"), os.getenv("CFG_DOOR_SECTION"))
-        #cfg = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/door.yml')
-        return cfg.get('medidores', {}).get('man_trapped', {}) if isinstance(cfg, dict) else {}
-    except Exception:
+        door = _door_cfg()
+
+        if not isinstance(door, dict):
+            return {}
+
+        btn = door.get("man_trapped", {})
+
+        if not isinstance(btn, dict):
+            return {}
+
+        # man_trapped pertenece al mismo grupo lógico
+        # door_sensor, por lo tanto hereda i si no
+        # tiene uno propio.
+        btn = dict(btn)
+
+        if "i" not in btn and "i" in door:
+            btn["i"] = door["i"]
+
+        return btn
+
+    except Exception as e:
+        util.logging.error(
+            f"[MAN] No se pudo cargar configuración: {e}"
+        )
         return {}
 #-----------------------------------------------------------------------------------------------------------
 # Lee el pin del botón hombre atrapado con inversión
