@@ -552,11 +552,46 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                                 hum = float(v[1])
                                 
                 # =========================================================
-                # DISPLAY LOCAL DE TEMPERATURA
+                # --- HUMEDAD: controlar humidificador ---
                 # =========================================================
+                if hum is None or HU_LOW is None or HU_HIGH is None:
+                    util.logging.warning(
+                        "[MDFR] Humedad: dato/umbrales faltantes; "
+                        "se omite control de humidificador."
+                    )
+                else:
+                    HU_LOW = float(HU_LOW)
+                    HU_HIGH = float(HU_HIGH)
 
+                    util.logging.info(
+                        f"[MDFR] HUM={hum}% (LOW={HU_LOW}, HIGH={HU_HIGH})"
+                    )
+
+                    if hum <= HU_LOW:
+                        util.logging.info(
+                            "[MDFR] HUM→ HUMIDIFICADOR ON (relay3)"
+                        )
+                        Temp.sethumidificador(True)
+
+                    elif hum >= HU_HIGH:
+                        util.logging.info(
+                            "[MDFR] HUM→ HUMIDIFICADOR OFF (relay3)"
+                        )
+                        Temp.sethumidificador(False)
+
+                    else:
+                        util.logging.info(
+                            "[MDFR] HUM en banda (sin cambio)"
+                        )
+
+                # =========================================================
+                # DISPLAY LOCAL DE TEMPERATURA
+                # Se actualiza DESPUÉS del humidificador.
+                # En las pruebas, esta secuencia evita que la escritura
+                # al slave 7 afecte la siguiente comunicación con
+                # el DIOUSTOU slave 2.
+                # =========================================================
                 try:
-
                     if temp_c is not None:
 
                         config_display = util.cargar_configuracion(
@@ -568,38 +603,18 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                             config_display,
                             temp_c
                         )
-                        time.sleep(1.0)
-                    else:
 
+                    else:
                         util.logging.warning(
                             "[DISPLAY] THT03R sin temperatura válida; "
                             "display conserva último valor."
                         )
 
                 except Exception as e:
-
                     util.logging.error(
                         f"[DISPLAY] Error actualizando display: "
                         f"{type(e).__name__}: {e}"
                     )
-                # =========================================================
-                # --- HUMEDAD: controlar humidificador ---
-                # =========================================================
-                if hum is None or HU_LOW is None or HU_HIGH is None:
-                    util.logging.warning("[MDFR] Humedad: dato/umbrales faltantes; se omite control de humidificador.")
-                else:
-                    HU_LOW  = float(HU_LOW)
-                    HU_HIGH = float(HU_HIGH)
-                    util.logging.info(f"[MDFR] HUM={hum}% (LOW={HU_LOW}, HIGH={HU_HIGH})")
-
-                    if hum <= HU_LOW:
-                        util.logging.info("[MDFR] HUM→ HUMIDIFICADOR ON (relay3)")
-                        Temp.sethumidificador(True)
-                    elif hum >= HU_HIGH:
-                        util.logging.info("[MDFR] HUM→ HUMIDIFICADOR OFF (relay3)")
-                        Temp.sethumidificador(False)
-                    else:
-                        util.logging.info("[MDFR] HUM en banda (sin cambio)")
 
                 # --- TEMPERATURA: controlar extractor (opcional) ---
                 '''
@@ -648,5 +663,3 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
     except Exception as e:
         util.logging.error(f"Error general en ejecutar_mdfr(): {e}")
         return tempMdfr
-
-
