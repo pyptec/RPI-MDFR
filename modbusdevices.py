@@ -382,25 +382,75 @@ def relay_set(config, relay_name: str, on: bool = False) -> bool:
                 return False
 
             elif fc == 15:
+
                 qty = int(reg['quantity'])
                 data_hex = reg['data_hex']
+
                 data = bytes.fromhex(data_hex)
+
                 payload = bytes([
-                    (addr >> 8) & 0xFF, addr & 0xFF,
-                    (qty >> 8) & 0xFF, qty & 0xFF,
+                    (addr >> 8) & 0xFF,
+                    addr & 0xFF,
+                    (qty >> 8) & 0xFF,
+                    qty & 0xFF,
                     len(data)
                 ]) + data
-                try:
+
+                max_attempts = 2
+
+                for attempt in range(1, max_attempts + 1):
+
                     try:
-                        inst._perform_command(fc, payload)
+
+                        inst._perform_command(
+                            fc,
+                            payload
+                        )
+
                         _dioustou_response_ok()
+
+                        util.logging.info(
+                            f"[{device_name}] "
+                            f"FC15 {relay_name} "
+                            f"(addr={addr} qty={qty}) "
+                            f"enviado OK | "
+                            f"intento={attempt}"
+                        )
+
+                        return True
+
                     except minimalmodbus.NoResponseError:
-                        _dioustou_no_response(config, "FC15")
-                        raise
-                finally:
-                    time.sleep(MODBUS_GAP_S)
-                util.logging.info(f"[{device_name}] FC15 {relay_name} (addr={addr} qty={qty}) enviado OK")
-                return True
+
+                        _dioustou_no_response(
+                            config,
+                            "FC15"
+                        )
+
+                        util.logging.warning(
+                            f"[{device_name}] "
+                            f"FC15 {relay_name} sin respuesta | "
+                            f"intento {attempt}/{max_attempts}"
+                        )
+
+                        if attempt >= max_attempts:
+
+                            util.logging.error(
+                                f"[{device_name}] "
+                                f"FC15 {relay_name} FALLÓ "
+                                f"después de {max_attempts} intentos"
+                            )
+
+                            return False
+
+                    finally:
+
+                        time.sleep(
+                            MODBUS_GAP_S
+                        )
+
+                    # Espera corta antes del segundo intento.
+                    # No cambia ningún parámetro Modbus ni YAML.
+                    time.sleep(0.20)
 
             else:
                 util.logging.warning(f"[{device_name}] Función no soportada fc_write={fc} para {relay_name}")
