@@ -275,7 +275,10 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
             # - Si no hay purga:
             #     ETILENO ON reforzado
             #
+            
             try:
+                if _safety_abort_activo():
+                    return tempMdfr
                 Temp.setrecircular(True)
                 time.sleep(0.5)
                 util.logging.info("[MDFR] RECIRCULAR ON permanente")
@@ -425,7 +428,8 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                     #       EXTRACTOR OFF
                     #       AIRE_FRESCO OFF
                     # =========================================================
-
+                    if _safety_abort_activo():
+                        return tempMdfr
                     if co2_ppm >= CO2_HIGH and not _purga_co2_activa:
                         util.logging.warning(
                             f"[CT01CO2] CO2 ALTO={co2_ppm} ppm >= {CO2_HIGH} → "
@@ -437,8 +441,13 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
 
                         Temp.setgas(False)
                         time.sleep(0.5)
+                        if _safety_abort_activo():
+                            return tempMdfr
                         Temp.setextractor(True)
                         time.sleep(0.5)
+                        
+                        if _safety_abort_activo():
+                            return tempMdfr
                         Temp.setairefresco(True)
 
                         _aire_fresco_activo = True
@@ -449,8 +458,12 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                         # apagado y el extractor encendido.
                         Temp.setgas(False)
                         time.sleep(0.5)
+                        if _safety_abort_activo():
+                            return tempMdfr
                         Temp.setextractor(True)
                         time.sleep(0.5)
+                        if _safety_abort_activo():
+                            return tempMdfr
 
                         if _aire_fresco_activo:
                             restante = round(
@@ -483,8 +496,12 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                         if co2_ppm <= CO2_LOW:
                             Temp.setextractor(False)
                             time.sleep(0.5)
+                            if _safety_abort_activo():
+                                return tempMdfr
                             Temp.setgas(True)
                             time.sleep(0.5)
+                            if _safety_abort_activo():
+                                return tempMdfr
                             Temp.setairefresco(False)
 
                             _purga_co2_activa = False
@@ -501,6 +518,8 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                         # mientras no se llegue al HIGH, se refuerza etileno ON.
                         Temp.setgas(True)
                         time.sleep(0.5)
+                        if _safety_abort_activo():
+                            return tempMdfr
                         Temp.setextractor(False)
                         time.sleep(0.5)
 
@@ -554,6 +573,8 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                 # =========================================================
                 # --- HUMEDAD: controlar humidificador ---
                 # =========================================================
+                if _safety_abort_activo():
+                    return tempMdfr
                 if hum is None or HU_LOW is None or HU_HIGH is None:
                     util.logging.warning(
                         "[MDFR] Humedad: dato/umbrales faltantes; "
@@ -650,7 +671,8 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
             # CONTROL HVAC BANANO
             # =========================================================
             try:
-
+                if _safety_abort_activo():
+                    return tempMdfr
                 hvac_control.control_temperatura_banano(datos.get('sensor_THT03R'))
 
             except Exception as e:
@@ -663,3 +685,33 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
     except Exception as e:
         util.logging.error(f"Error general en ejecutar_mdfr(): {e}")
         return tempMdfr
+def _safety_abort_activo():
+    """
+    True cuando alguna condición de seguridad impide
+    continuar ejecutando controles MDFR.
+    """
+    try:
+        if getattr(Temp, "_man_state", {}).get("latched"):
+            util.logging.warning(
+                "[MDFR][SAFETY] Hombre atrapado activo → "
+                "abortando ciclo de control."
+            )
+            return True
+
+        if Temp.door_is_open():
+            util.logging.warning(
+                "[MDFR][SAFETY] Puerta abierta → "
+                "abortando ciclo de control."
+            )
+            return True
+
+        return False
+
+    except Exception as e:
+        util.logging.error(
+            f"[MDFR][SAFETY] Error verificando seguridad: "
+            f"{type(e).__name__}: {e}"
+        )
+
+        # Fail-safe: ante error de seguridad, no actuar.
+        return True
