@@ -277,6 +277,7 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
             #
             try:
                 Temp.setrecircular(True)
+                time.sleep(0.5)
                 util.logging.info("[MDFR] RECIRCULAR ON permanente")
             except Exception as e:
                 util.logging.error(
@@ -435,7 +436,9 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                         _purga_co2_activa = True
 
                         Temp.setgas(False)
+                        time.sleep(0.5)
                         Temp.setextractor(True)
+                        time.sleep(0.5)
                         Temp.setairefresco(True)
 
                         _aire_fresco_activo = True
@@ -445,7 +448,9 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                         # Mientras está en purga, el etileno debe permanecer
                         # apagado y el extractor encendido.
                         Temp.setgas(False)
+                        time.sleep(0.5)
                         Temp.setextractor(True)
+                        time.sleep(0.5)
 
                         if _aire_fresco_activo:
                             restante = round(
@@ -477,7 +482,9 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
 
                         if co2_ppm <= CO2_LOW:
                             Temp.setextractor(False)
+                            time.sleep(0.5)
                             Temp.setgas(True)
+                            time.sleep(0.5)
                             Temp.setairefresco(False)
 
                             _purga_co2_activa = False
@@ -493,7 +500,9 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                         # Estado normal de maduración:
                         # mientras no se llegue al HIGH, se refuerza etileno ON.
                         Temp.setgas(True)
+                        time.sleep(0.5)
                         Temp.setextractor(False)
+                        time.sleep(0.5)
 
                         util.logging.info(
                             f"[CT01CO2] NORMAL | CO2={co2_ppm} ppm | "
