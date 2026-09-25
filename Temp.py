@@ -237,25 +237,30 @@ def _door_cfg():
 #-----------------------------------------------------------------------------------------------------------
 def door_is_open() -> bool:
     """
-    True si la puerta está ABIERTA. Usa inversión definida en door.yml.
-    NO publica nada; sólo lectura.
+    True si la puerta está ABIERTA.
+
+    El GPIO debe ser configurado una sola vez por
+    setup_door_interrupt(). Aquí únicamente se lee
+    el estado para no destruir la detección de flancos.
     """
     door = _door_cfg()
-    invert = bool(door.get('invert_active_low', True))
-    try:
-        # Asegura modo/entrada (idempotente)
-        GPIO.setwarnings(False)
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setup(DOOR_PIN_BCM, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-    except Exception:
-        pass
-    return _door_read_active(invert)
+    invert = bool(
+        door.get(
+            "invert_active_low",
+            True
+        )
+    )
 
-def door_is_closed() -> bool:
-    """
-    True si la puerta está cerrada.
-    """
-    return not door_is_open()
+    try:
+        return _door_read_active(invert)
+
+    except Exception as e:
+        util.logging.error(
+            "[DOOR] Error leyendo GPIO"
+            f"{DOOR_PIN_BCM}: "
+            f"{type(e).__name__}: {e}"
+        )
+        return False
 #-----------------------------------------------------------------------------------------------------------
 # Busca en registers por alias o name; devuelve u en str.
 #-----------------------------------------------------------------------------------------------------------
