@@ -7,6 +7,8 @@ import threading
 import modbusdevices
 from webapp.services import db_service
 _door_reset_lock = threading.Lock()
+_wdt_last_feed = 0.0
+_wdt_lock = threading.Lock()
 
 RELAY_YAML = os.getenv("RELAY_YAML","/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml")
 #RELAY_YAML = '/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml'
@@ -82,19 +84,57 @@ def parpadear_led_500ms():
 # Función del hilo para el watchdog que da el pulso cada 200 ms
 #-----------------------------------------------------------------------------------------------------------  
 def wdt():
-    util.logging.info("WDT:INICIADO")
-    GPIO.output(GPIO23_WDI, True)
-    time.sleep(0.2)
-    GPIO.output(GPIO23_WDI, False)
-    time.sleep(0.2)
+    try:
+        GPIO.output(GPIO23_WDI, True)
+        time.sleep(0.2)
+
+        GPIO.output(GPIO23_WDI, False)
+        time.sleep(0.2)
+
+        util.logging.info(
+            "[WDT] Pulso enviado correctamente."
+        )
+
+    except Exception as e:
+        util.logging.error(
+            f"[WDT] Error generando pulso: "
+            f"{type(e).__name__}: {e}"
+        )
 #-----------------------------------------------------------------------------------------------------------
 #Inicia el watchdog
 #-----------------------------------------------------------------------------------------------------------
 def iniciar_wdt():
-    # Crear y empezar el hilo que ejecutará la función wdt
-    hilo_wdt = threading.Thread(target=wdt)
-    hilo_wdt.daemon = True  # El hilo se cerrará automáticamente cuando termine el programa principal
-    hilo_wdt.start()
+    global _wdt_last_feed
+
+    try:
+        intervalo = float(os.getenv("TIMER_WDT", "60"))
+        ahora = time.monotonic()
+
+        with _wdt_lock:
+
+            # Todavía no ha pasado el tiempo configurado.
+            if (_wdt_last_feed > 0  and (ahora - _wdt_last_feed) < intervalo):
+                return
+
+            # Reservamos inmediatamente este pulso para evitar que
+            # dos llamadas simultáneas creen dos hilos WDT.
+            _wdt_last_feed = ahora
+
+            hilo_wdt = threading.Thread(
+                target=wdt,
+                daemon=True
+            )
+
+            hilo_wdt.start()
+
+    except Exception as e:
+        util.logging.error(
+            f"[WDT] Error iniciando watchdog: "
+            f"{type(e).__name__}: {e}"
+        )
+
+
+
 #-----------------------------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------------------------    
