@@ -568,7 +568,7 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                             config_display,
                             temp_c
                         )
-
+                        time.sleep(1.0)
                     else:
 
                         util.logging.warning(
