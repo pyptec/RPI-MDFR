@@ -487,36 +487,57 @@ def _btn_read_active(invert_low: bool) -> bool:
 # 
 #-----------------------------------------------------------------------------------------------------------
 def restablecer_sistema_post_puerta():
-    """Apaga todo, libera latch de hombre atrapado y deja sistema listo para reanudar."""
+    """
+    Apaga el sistema una sola vez por cada apertura de puerta,
+    libera el latch de hombre atrapado y mantiene el sistema
+    en estado seguro hasta que la puerta vuelva a cerrar.
+    """
     global _door_restored
+
     try:
-               
-        # 1) Apaga relés del HAT
+        # Esta apertura ya fue atendida.
+        # No volver a transmitir ALL_OFF en cada vuelta del main loop.
+        if _door_restored:
+            return
+
+        # 1) Apagar todos los relés del HAT una sola vez
         try:
             all_relay()
-        except Exception as e:
-            util.logging.error(f"[DOOR] all_relay() falló: {type(e).__name__}: {e}")
 
-        # 2) Asegura sirena y baliza en OFF
+        except Exception as e:
+            util.logging.error(
+                f"[DOOR] all_relay() falló: "
+                f"{type(e).__name__}: {e}"
+            )
+
+        # 2) Estado seguro de sirena/baliza
         try:
             setsirena(True)
-            #setbaliza(True)
-            #setsirena(False)
-            #setbaliza(False)
-        except Exception as e:
-            util.logging.error(f"[DOOR] Apagar sirena/baliza falló: {type(e).__name__}: {e}")
+            # setbaliza(True)
 
-        # 4) Libera latch de “hombre atrapado”
+        except Exception as e:
+            util.logging.error(
+                f"[DOOR] Control sirena/baliza falló: "
+                f"{type(e).__name__}: {e}"
+            )
+
+        # 3) Liberar latch de hombre atrapado
         _man_state["latched"] = False
         _man_state["pressed_ts"] = None
 
-        # 5) Marca restablecido
-        if not _door_restored:
-            util.logging.info("[DOOR] Sistema restablecido por apertura de puerta (todo OFF, latch liberado).")
+        # 4) Marcar que esta apertura ya fue atendida
         _door_restored = True
 
+        util.logging.info(
+            "[DOOR] Sistema restablecido por apertura de puerta "
+            "(todo OFF, latch liberado)."
+        )
+
     except Exception as e:
-        util.logging.error(f"[DOOR] restablecer_sistema_post_puerta() error: {type(e).__name__}: {e}")
+        util.logging.error(
+            "[DOOR] restablecer_sistema_post_puerta() error: "
+            f"{type(e).__name__}: {e}"
+        )
 #-----------------------------------------------------------------------------------------------------------
 # Callback de interrupción de botón hombre atrapado
 #-----------------------------------------------------------------------------------------------------------
