@@ -802,32 +802,43 @@ def payload_event_c2h4(config):
     """
 
     try:
-
         device_name = config.get("device_name", "ZONEWU-C2H4")
         port = config.get("port", "/dev/ttyS0")
         slave_id = int(config.get("slave_id", 5))
 
-        instrument = minimalmodbus.Instrument(port, slave_id)
+        with MODBUS_LOCK:
 
-        instrument.serial.baudrate = int(config.get("baudrate", 9600))
-        instrument.serial.bytesize = int(config.get("bytesize", 8))
-        instrument.serial.parity = config.get("parity", "N")
-        instrument.serial.stopbits = int(config.get("stopbits", 1))
-        instrument.serial.timeout = float(config.get("timeout", 1))
+            instrument = minimalmodbus.Instrument(port, slave_id)
 
-        instrument.mode = minimalmodbus.MODE_RTU
-        instrument.clear_buffers_before_each_transaction = True
+            instrument.serial.baudrate = int(config.get("baudrate", 9600))
 
-        # =====================================================
-        # UNA SOLA CONSULTA:
-        # Slave 05, FC03, inicio 0x0000, cantidad 3
-        # =====================================================
+            instrument.serial.bytesize = int(config.get("bytesize", 8))
 
-        valores = instrument.read_registers(
-            registeraddress=0,
-            number_of_registers=3,
-            functioncode=3
-        )
+            instrument.serial.parity = config.get("parity", "N")
+            instrument.serial.stopbits = int(config.get("stopbits", 1))
+
+            instrument.serial.timeout = float(config.get("timeout", 1))
+
+            instrument.serial.inter_byte_timeout = float(config.get("inter_byte_timeout", 0.2))
+
+            instrument.mode = minimalmodbus.MODE_RTU
+
+            instrument.clear_buffers_before_each_transaction = True
+            instrument.close_port_after_each_call = True
+
+            # =====================================================
+            # UNA SOLA CONSULTA:
+            # Slave 05, FC03, inicio 0x0000, cantidad 3
+            # =====================================================
+
+            try:
+                valores = instrument.read_registers(
+                    registeraddress=0,
+                    number_of_registers=3,
+                    functioncode=3
+                )
+            finally:
+                time.sleep(MODBUS_GAP_S)
 
         if valores is None or len(valores) < 3:
             util.logging.warning(
@@ -843,9 +854,20 @@ def payload_event_c2h4(config):
         if temperatura_raw >= 0x8000:
             temperatura_raw -= 0x10000
 
-        humedad = round(humedad_raw / 10.0, 1)
-        temperatura = round(temperatura_raw / 10.0, 1)
-        c2h4 = round(c2h4_raw / 10.0, 1)
+        humedad = round(
+            humedad_raw / 10.0,
+            1
+        )
+
+        temperatura = round(
+            temperatura_raw / 10.0,
+            1
+        )
+
+        c2h4 = round(
+            c2h4_raw / 10.0,
+            1
+        )
 
         util.logging.info(
             f"[{device_name}] "
@@ -854,8 +876,15 @@ def payload_event_c2h4(config):
             f"C2H4={c2h4} ppm"
         )
 
-        regs = config.get("registers", [])
-        unidades = [str(r.get("unit")) for r in regs]
+        regs = config.get(
+            "registers",
+            []
+        )
+
+        unidades = [
+            str(r.get("unit"))
+            for r in regs
+        ]
 
         return {
             "d": [{
@@ -871,7 +900,6 @@ def payload_event_c2h4(config):
         }
 
     except Exception as e:
-
         util.logging.error(
             f"[{config.get('device_name', 'ZONEWU-C2H4')}] "
             f"Error leyendo C2H4 "
@@ -881,7 +909,6 @@ def payload_event_c2h4(config):
         )
 
         return None
-    
 # -----------------------------------------------------------------------------------------------------------
 # DISPLAY MODBUS - TEMPERATURA
 # -----------------------------------------------------------------------------------------------------------
