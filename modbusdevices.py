@@ -433,6 +433,35 @@ def relay_set(config, relay_name: str, on: bool = False) -> bool:
                             f"intento {attempt}/{max_attempts}"
                         )
 
+                        # Diagnóstico:
+                        # comprobar si FC15 se ejecutó aunque no llegara el ACK.
+                        if attempt == 1:
+                            try:
+                                packed = _relay_read_packed_locked(
+                                    inst,
+                                    config
+                                )
+
+                                start_addr, quantity, data_bytes = packed
+
+                                util.logging.warning(
+                                    f"[{device_name}] "
+                                    f"POST-FC15 SIN ACK | "
+                                    f"FC01 responde | "
+                                    f"start={start_addr} | "
+                                    f"qty={quantity} | "
+                                    f"data={data_bytes.hex()}"
+                                )
+
+                            except Exception as read_error:
+                                util.logging.warning(
+                                    f"[{device_name}] "
+                                    f"POST-FC15 SIN ACK | "
+                                    f"FC01 también falló: "
+                                    f"{type(read_error).__name__}: "
+                                    f"{read_error}"
+                                )
+
                         if attempt >= max_attempts:
 
                             util.logging.error(
