@@ -388,6 +388,10 @@ def relay_set(config, relay_name: str, on: bool = False) -> bool:
 
                 data = bytes.fromhex(data_hex)
 
+                pre_delay = float(config.get("fc15_pre_delay_s", 0.0))
+
+                if pre_delay > 0:
+                    time.sleep(pre_delay)
                 payload = bytes([
                     (addr >> 8) & 0xFF,
                     addr & 0xFF,
