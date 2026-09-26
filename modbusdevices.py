@@ -250,224 +250,156 @@ def _dioustou_recover_if_needed_locked(config):
 
 def relay_set(config, relay_name: str, on: bool = False) -> bool:
     """
-    Enciende/Apaga un relé por nombre usando FC=5 (Write Single Coil).
-    relay_name: nombre de un registro definido en config['registers']
+    Enciende/Apaga un relé por nombre según fc_write definido en YAML.
+
     Soporta:
       - FC5: Write Single Coil
-      - FC15: Write Multiple Coils (para all_off)
+      - FC15: Write Multiple Coils
+
+    Toda la configuración Modbus proviene del YAML.
     """
+
     try:
         device_name = config['device_name']
         port = config['port']
         slave = int(config['slave_id'])
 
-        # buscar el registro por nombre
-        reg = next((r for r in config.get('registers', []) if r.get('name') == relay_name), None)
+        # ---------------------------------------------------------
+        # Buscar registro exclusivamente desde YAML
+        # ---------------------------------------------------------
+        reg = next(
+            (
+                r
+                for r in config.get('registers', [])
+                if r.get('name') == relay_name
+            ),
+            None
+        )
+
         if not reg:
-            util.logging.error(f"[{device_name}] Relay '{relay_name}' no existe en YAML.")
+            util.logging.error(
+                f"[{device_name}] "
+                f"Relay '{relay_name}' no existe en YAML."
+            )
             return False
 
         addr = int(reg['address'])
-        fc   = int(reg.get('fc_write'))
-        
+        fc = int(reg['fc_write'])
+
+        # ---------------------------------------------------------
+        # Todo el acceso al bus queda protegido
+        # ---------------------------------------------------------
         with MODBUS_LOCK:
-            inst = minimalmodbus.Instrument(port, slave)
-            inst.serial.baudrate = int(config['baudrate'])
-            inst.serial.bytesize = int(config['bytesize'])
-            inst.serial.stopbits = int(config['stopbits'])
-            inst.serial.timeout = float(config['timeout'])
-            inst.serial.inter_byte_timeout = float(config['inter_byte_timeout'])
+
+            inst = minimalmodbus.Instrument(
+                port,
+                slave
+            )
+
+            inst.serial.baudrate = int(
+                config['baudrate']
+            )
+
+            inst.serial.bytesize = int(
+                config['bytesize']
+            )
+
+            inst.serial.stopbits = int(
+                config['stopbits']
+            )
+
+            inst.serial.timeout = float(
+                config['timeout']
+            )
+
+            inst.serial.inter_byte_timeout = float(
+                config['inter_byte_timeout']
+            )
+
+            parity_map = {
+                'N': serial.PARITY_NONE,
+                'E': serial.PARITY_EVEN,
+                'O': serial.PARITY_ODD
+            }
+
+            inst.serial.parity = parity_map.get(
+                str(config['parity']).upper(),
+                serial.PARITY_NONE
+            )
+
             inst.mode = minimalmodbus.MODE_RTU
+
             inst.clear_buffers_before_each_transaction = True
+
             inst.close_port_after_each_call = True
 
-            parity_map = {'N': serial.PARITY_NONE, 'E': serial.PARITY_EVEN, 'O': serial.PARITY_ODD}
-            inst.serial.parity = parity_map.get(str(config['parity']).upper(), serial.PARITY_NONE)
-            inst.debug = bool(config.get('debug', False))
+            inst.debug = bool(
+                config.get('debug', False)
+            )
 
+            # =====================================================
+            # FC05 - WRITE SINGLE COIL
+            # =====================================================
             if fc == 5:
+
                 fc_read_value = reg.get('fc_read')
-                if fc_read_value is None or int(fc_read_value) != 1:
+
+                if (
+                    fc_read_value is None
+                    or int(fc_read_value) != 1
+                ):
                     util.logging.warning(
-                        f"[{device_name}] Relay '{relay_name}' sin fc_read=1; "
-                        "no se puede confirmar la escritura."
+                        f"[{device_name}] "
+                        f"Relay '{relay_name}' sin fc_read=1; "
+                        f"no se puede confirmar la escritura."
                     )
                     return False
+
                 expected = bool(on)
 
+                # -------------------------------------------------
+                # Extraer estado del relay desde lectura packed
+                # -------------------------------------------------
                 def packed_state(packed):
+
                     start_addr, quantity, data_bytes = packed
+
                     return _relay_state_from_packed(
-                        data_bytes, start_addr, quantity, addr
+                        data_bytes,
+                        start_addr,
+                        quantity,
+                        addr
                     )
 
+                # -------------------------------------------------
+                # Escritura FC05 individual
+                # -------------------------------------------------
                 def write_once(stage):
+
                     try:
                         try:
-                            inst.write_bit(addr, 1 if expected else 0, functioncode=fc)
+
+                            inst.write_bit(
+                                addr,
+                                1 if expected else 0,
+                                functioncode=fc
+                            )
+
                             _dioustou_response_ok()
+
                             return True
+
                         except minimalmodbus.NoResponseError:
-                            _dioustou_no_response(config, "FC05")
+
+                            _dioustou_no_response(
+                                config,
+                                "FC05"
+                            )
+
                             util.logging.warning(
-                                f"[{device_name}] FC5 {relay_name} sin ACK | {stage}"
-                            )
-                            return False
-                    finally:
-                        time.sleep(MODBUS_GAP_S)
-
-                recovered_packed = None
-                try:
-                    current = packed_state(_relay_read_packed_locked(inst, config))
-                    if current == expected:
-                        util.logging.info(
-                            f"[{device_name}] {relay_name} ya estaba "
-                            f"{'ON' if on else 'OFF'} | CONFIRMADO FC01 PACKED"
-                        )
-                        return True
-                except Exception as e:
-                    util.logging.warning(
-                        f"[{device_name}] Lectura previa FC01 PACKED falló para "
-                        f"'{relay_name}': {type(e).__name__}: {e}"
-                    )
-                    recovered_packed = _dioustou_recover_if_needed_locked(config)
-
-                if recovered_packed is None:
-                    write_once("escritura inicial")
-                    try:
-                        confirmed = packed_state(_relay_read_packed_locked(inst, config))
-                        if confirmed == expected:
-                            util.logging.info(
-                                f"[{device_name}] {relay_name} CMD={'ON' if on else 'OFF'} "
-                                f"REAL={'ON' if confirmed else 'OFF'} CONFIRMADO FC01 PACKED"
-                            )
-                            return True
-                    except Exception as e:
-                        util.logging.warning(
-                            f"[{device_name}] Read-back FC01 PACKED falló para "
-                            f"'{relay_name}': {type(e).__name__}: {e}"
-                        )
-                    recovered_packed = _dioustou_recover_if_needed_locked(config)
-
-                if recovered_packed is None:
-                    util.logging.error(
-                        f"[{device_name}] {relay_name} estado NO CONFIRMADO"
-                    )
-                    return False
-
-                recovered_state = packed_state(recovered_packed)
-                if recovered_state == expected:
-                    util.logging.info(
-                        f"[{device_name}] {relay_name} ya estaba "
-                        f"{'ON' if on else 'OFF'} | CONFIRMADO FC01 PACKED"
-                    )
-                    return True
-
-                write_once("después de recuperación")
-                try:
-                    confirmed = packed_state(_relay_read_packed_locked(inst, config))
-                    if confirmed == expected:
-                        util.logging.info(
-                            f"[{device_name}] {relay_name} CMD={'ON' if on else 'OFF'} "
-                            f"REAL={'ON' if confirmed else 'OFF'} CONFIRMADO FC01 PACKED"
-                        )
-                        return True
-                except Exception as e:
-                    util.logging.warning(
-                        f"[{device_name}] Confirmación posterior a recuperación falló para "
-                        f"'{relay_name}': {type(e).__name__}: {e}"
-                    )
-
-                util.logging.error(f"[{device_name}] {relay_name} estado NO CONFIRMADO")
-                return False
-
-            elif fc == 15:
-
-                qty = int(reg['quantity'])
-                data_hex = reg['data_hex']
-
-                data = bytes.fromhex(data_hex)
-
-               
-                payload = bytes([
-                    (addr >> 8) & 0xFF,
-                    addr & 0xFF,
-                    (qty >> 8) & 0xFF,
-                    qty & 0xFF,
-                    len(data)
-                ]) + data
-
-                max_attempts = 2
-
-                for attempt in range(1, max_attempts + 1):
-
-                    try:
-
-                        inst._perform_command(
-                            fc,
-                            payload
-                        )
-
-                        _dioustou_response_ok()
-
-                        util.logging.info(
-                            f"[{device_name}] "
-                            f"FC15 {relay_name} "
-                            f"(addr={addr} qty={qty}) "
-                            f"enviado OK | "
-                            f"intento={attempt}"
-                        )
-
-                        return True
-
-                    except minimalmodbus.NoResponseError:
-
-                        _dioustou_no_response(
-                            config,
-                            "FC15"
-                        )
-
-                        util.logging.warning(
-                            f"[{device_name}] "
-                            f"FC15 {relay_name} sin respuesta | "
-                            f"intento {attempt}/{max_attempts}"
-                        )
-
-                        # Diagnóstico:
-                        # comprobar si FC15 se ejecutó aunque no llegara el ACK.
-                        if attempt == 1:
-                            try:
-                                packed = _relay_read_packed_locked(
-                                    inst,
-                                    config
-                                )
-
-                                start_addr, quantity, data_bytes = packed
-
-                                util.logging.warning(
-                                    f"[{device_name}] "
-                                    f"POST-FC15 SIN ACK | "
-                                    f"FC01 responde | "
-                                    f"start={start_addr} | "
-                                    f"qty={quantity} | "
-                                    f"data={data_bytes.hex()}"
-                                )
-
-                            except Exception as read_error:
-                                util.logging.warning(
-                                    f"[{device_name}] "
-                                    f"POST-FC15 SIN ACK | "
-                                    f"FC01 también falló: "
-                                    f"{type(read_error).__name__}: "
-                                    f"{read_error}"
-                                )
-
-                        if attempt >= max_attempts:
-
-                            util.logging.error(
                                 f"[{device_name}] "
-                                f"FC15 {relay_name} FALLÓ "
-                                f"después de {max_attempts} intentos"
+                                f"FC5 {relay_name} sin ACK | "
+                                f"{stage}"
                             )
 
                             return False
@@ -478,19 +410,411 @@ def relay_set(config, relay_name: str, on: bool = False) -> bool:
                             MODBUS_GAP_S
                         )
 
-                    # Espera corta antes del segundo intento.
-                    # No cambia ningún parámetro Modbus ni YAML.
-                    time.sleep(0.20)
+                recovered_packed = None
 
+                # -------------------------------------------------
+                # Leer estado ANTES de escribir
+                # -------------------------------------------------
+                try:
+
+                    current = packed_state(
+                        _relay_read_packed_locked(
+                            inst,
+                            config
+                        )
+                    )
+
+                    if current == expected:
+
+                        util.logging.info(
+                            f"[{device_name}] "
+                            f"{relay_name} ya estaba "
+                            f"{'ON' if on else 'OFF'} | "
+                            f"CONFIRMADO FC01 PACKED"
+                        )
+
+                        return True
+
+                except Exception as e:
+
+                    util.logging.warning(
+                        f"[{device_name}] "
+                        f"Lectura previa FC01 PACKED falló para "
+                        f"'{relay_name}': "
+                        f"{type(e).__name__}: {e}"
+                    )
+
+                    recovered_packed = (
+                        _dioustou_recover_if_needed_locked(
+                            config
+                        )
+                    )
+
+                # -------------------------------------------------
+                # Escritura normal
+                # -------------------------------------------------
+                if recovered_packed is None:
+
+                    write_once(
+                        "escritura inicial"
+                    )
+
+                    try:
+
+                        confirmed = packed_state(
+                            _relay_read_packed_locked(
+                                inst,
+                                config
+                            )
+                        )
+
+                        if confirmed == expected:
+
+                            util.logging.info(
+                                f"[{device_name}] "
+                                f"{relay_name} "
+                                f"CMD={'ON' if on else 'OFF'} "
+                                f"REAL={'ON' if confirmed else 'OFF'} "
+                                f"CONFIRMADO FC01 PACKED"
+                            )
+
+                            return True
+
+                    except Exception as e:
+
+                        util.logging.warning(
+                            f"[{device_name}] "
+                            f"Read-back FC01 PACKED falló para "
+                            f"'{relay_name}': "
+                            f"{type(e).__name__}: {e}"
+                        )
+
+                    recovered_packed = (
+                        _dioustou_recover_if_needed_locked(
+                            config
+                        )
+                    )
+
+                # -------------------------------------------------
+                # Si no hubo recuperación disponible
+                # -------------------------------------------------
+                if recovered_packed is None:
+
+                    util.logging.error(
+                        f"[{device_name}] "
+                        f"{relay_name} estado NO CONFIRMADO"
+                    )
+
+                    return False
+
+                # -------------------------------------------------
+                # Verificar estado después de recuperación
+                # -------------------------------------------------
+                recovered_state = packed_state(
+                    recovered_packed
+                )
+
+                if recovered_state == expected:
+
+                    util.logging.info(
+                        f"[{device_name}] "
+                        f"{relay_name} ya estaba "
+                        f"{'ON' if on else 'OFF'} | "
+                        f"CONFIRMADO FC01 PACKED"
+                    )
+
+                    return True
+
+                # -------------------------------------------------
+                # Una escritura posterior a recuperación
+                # -------------------------------------------------
+                write_once(
+                    "después de recuperación"
+                )
+
+                try:
+
+                    confirmed = packed_state(
+                        _relay_read_packed_locked(
+                            inst,
+                            config
+                        )
+                    )
+
+                    if confirmed == expected:
+
+                        util.logging.info(
+                            f"[{device_name}] "
+                            f"{relay_name} "
+                            f"CMD={'ON' if on else 'OFF'} "
+                            f"REAL={'ON' if confirmed else 'OFF'} "
+                            f"CONFIRMADO FC01 PACKED"
+                        )
+
+                        return True
+
+                except Exception as e:
+
+                    util.logging.warning(
+                        f"[{device_name}] "
+                        f"Confirmación posterior a recuperación "
+                        f"falló para '{relay_name}': "
+                        f"{type(e).__name__}: {e}"
+                    )
+
+                util.logging.error(
+                    f"[{device_name}] "
+                    f"{relay_name} estado NO CONFIRMADO"
+                )
+
+                return False
+
+            # =====================================================
+            # FC15 - WRITE MULTIPLE COILS
+            # =====================================================
+            elif fc == 15:
+
+                qty = int(
+                    reg['quantity']
+                )
+
+                data_hex = str(
+                    reg['data_hex']
+                )
+
+                data = bytes.fromhex(
+                    data_hex
+                )
+
+                # Validar que los bytes definidos en YAML
+                # alcanzan para la cantidad de coils solicitada.
+                required_bytes = (
+                    qty + 7
+                ) // 8
+
+                if len(data) < required_bytes:
+
+                    util.logging.error(
+                        f"[{device_name}] "
+                        f"FC15 {relay_name}: "
+                        f"data_hex insuficiente para "
+                        f"quantity={qty}"
+                    )
+
+                    return False
+
+                # -------------------------------------------------
+                # Payload Modbus FC15
+                # -------------------------------------------------
+                payload = bytes([
+                    (addr >> 8) & 0xFF,
+                    addr & 0xFF,
+                    (qty >> 8) & 0xFF,
+                    qty & 0xFF,
+                    len(data)
+                ]) + data
+
+                max_attempts = 2
+
+                # -------------------------------------------------
+                # Verifica por FC01 que TODAS las coils solicitadas
+                # coincidan con data_hex definido en YAML.
+                # -------------------------------------------------
+                def fc15_estado_confirmado(
+                    packed
+                ):
+
+                    (
+                        start_addr,
+                        read_quantity,
+                        data_bytes
+                    ) = packed
+
+                    for offset in range(qty):
+
+                        coil_addr = (
+                            addr + offset
+                        )
+
+                        expected_bit = bool(
+                            (
+                                data[
+                                    offset // 8
+                                ]
+                                >> (
+                                    offset % 8
+                                )
+                            )
+                            & 0x01
+                        )
+
+                        real_bit = (
+                            _relay_state_from_packed(
+                                data_bytes,
+                                start_addr,
+                                read_quantity,
+                                coil_addr
+                            )
+                        )
+
+                        if real_bit != expected_bit:
+
+                            return False
+
+                    return True
+
+                # -------------------------------------------------
+                # Intentos FC15
+                # -------------------------------------------------
+                for attempt in range(
+                    1,
+                    max_attempts + 1
+                ):
+
+                    ack_ok = False
+
+                    try:
+
+                        inst._perform_command(
+                            fc,
+                            payload
+                        )
+
+                        _dioustou_response_ok()
+
+                        ack_ok = True
+
+                    except minimalmodbus.NoResponseError:
+
+                        _dioustou_no_response(
+                            config,
+                            "FC15"
+                        )
+
+                        util.logging.warning(
+                            f"[{device_name}] "
+                            f"FC15 {relay_name} "
+                            f"sin ACK | "
+                            f"intento "
+                            f"{attempt}/"
+                            f"{max_attempts}"
+                        )
+
+                    finally:
+
+                        time.sleep(
+                            MODBUS_GAP_S
+                        )
+
+                    # -------------------------------------------------
+                    # SIEMPRE hacer read-back FC01.
+                    #
+                    # El ACK por sí solo NO confirma que los relés
+                    # realmente hayan cambiado.
+                    # -------------------------------------------------
+                    try:
+
+                        packed = (
+                            _relay_read_packed_locked(
+                                inst,
+                                config
+                            )
+                        )
+
+                        (
+                            start_addr,
+                            read_quantity,
+                            data_bytes
+                        ) = packed
+
+                        confirmed = (
+                            fc15_estado_confirmado(
+                                packed
+                            )
+                        )
+
+                        if confirmed:
+
+                            util.logging.info(
+                                f"[{device_name}] "
+                                f"FC15 {relay_name} "
+                                f"CONFIRMADO FC01 | "
+                                f"data="
+                                f"{data_bytes.hex()} | "
+                                f"intento={attempt} | "
+                                f"ack="
+                                f"{'SI' if ack_ok else 'NO'}"
+                            )
+
+                            return True
+
+                        util.logging.warning(
+                            f"[{device_name}] "
+                            f"FC15 {relay_name} "
+                            f"NO confirmado | "
+                            f"esperado="
+                            f"{data.hex()} | "
+                            f"real="
+                            f"{data_bytes.hex()} | "
+                            f"intento="
+                            f"{attempt}/"
+                            f"{max_attempts}"
+                        )
+
+                    except Exception as read_error:
+
+                        util.logging.warning(
+                            f"[{device_name}] "
+                            f"FC01 post-FC15 falló | "
+                            f"{type(read_error).__name__}: "
+                            f"{read_error}"
+                        )
+
+                    # -------------------------------------------------
+                    # Solo esperar/reintentar si todavía queda
+                    # un intento disponible.
+                    # -------------------------------------------------
+                    if attempt < max_attempts:
+
+                        time.sleep(
+                            0.20
+                        )
+
+                # -------------------------------------------------
+                # Los dos intentos terminaron sin confirmar estado
+                # -------------------------------------------------
+                util.logging.error(
+                    f"[{device_name}] "
+                    f"FC15 {relay_name} FALLÓ: "
+                    f"estado no confirmado después "
+                    f"de {max_attempts} intentos"
+                )
+
+                return False
+
+            # =====================================================
+            # FC no soportada
+            # =====================================================
             else:
-                util.logging.warning(f"[{device_name}] Función no soportada fc_write={fc} para {relay_name}")
+
+                util.logging.warning(
+                    f"[{device_name}] "
+                    f"Función no soportada "
+                    f"fc_write={fc} "
+                    f"para {relay_name}"
+                )
+
                 return False
 
     except Exception as e:
+
         util.logging.error(
-            f"[{config.get('device_name','Relay')}] Error al escribir relay '{relay_name}': "
+            f"[{config.get('device_name', 'Relay')}] "
+            f"Error al escribir relay "
+            f"'{relay_name}': "
             f"{type(e).__name__}: {e}"
         )
+
         return False
 #-----------------------------------------------------------------------------------------------------------
 
