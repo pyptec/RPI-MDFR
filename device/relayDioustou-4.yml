@@ -1,7 +1,7 @@
 medidores:
   relayDioustou_4r:
     device_name: "DIOUSTOU-4R"
-    debug: False            # <— para ver tramas de minimalmodbus
+    debug: True            # <— para ver tramas de minimalmodbus
     id_device: 46   #20
     port: "/dev/ttyS0"   # AJUSTA si es distinto
     slave_id: 2            # Recomendado (no uses 255)
@@ -11,7 +11,7 @@ medidores:
     stopbits: 1
     timeout: 1
     inter_byte_timeout: 0.2
-    fc15_pre_delay_s: 0.15
+   
 # Mapa simple de relés → dirección de coil
     registers:
       - name: recircular      #Relay_1
