@@ -7,6 +7,11 @@ import threading
 import modbusdevices
 from webapp.services import db_service
 _door_reset_lock = threading.Lock()
+# Serializa seguridad y actuaciones físicas.
+# RLock permite que un callback de seguridad llame all_relay()
+# mientras ya posee este mismo lock.
+_safety_actuation_lock = threading.RLock()
+
 _wdt_last_feed = 0.0
 _wdt_lock = threading.Lock()
 
@@ -146,44 +151,131 @@ def _cfg_relays():
     cfg = util.cargar_configuracion(RELAY_YAML, RELAY_KEY)
     util.logging.info(f"[RELAYS] {cfg.get('device_name')} port={cfg.get('port')} slave={cfg.get('slave_id')}")
     return cfg
+#-----------------------------------------------------------------
+#
+#-----------------------------------------------------------------
+def _safety_allows_on(actuator_name: str) -> bool:
+    """
+    Autoriza una salida ON solo si no existe
+    una condición de seguridad activa.
+    Debe llamarse manteniendo _safety_actuation_lock.
+    """
+
+    if _man_state.get("latched"):
+
+        util.logging.warning(
+            f"[SAFETY] ON bloqueado para "
+            f"{actuator_name}: "
+            f"hombre atrapado activo."
+        )
+
+        return False
+
+    try:
+
+        if door_is_open():
+
+            util.logging.warning(
+                f"[SAFETY] ON bloqueado para "
+                f"{actuator_name}: "
+                f"puerta abierta."
+            )
+
+            return False
+
+    except Exception as e:
+
+        # Fail-safe:
+        # si no podemos validar la puerta,
+        # no se permite energizar una salida.
+        util.logging.error(
+            f"[SAFETY] No se pudo validar puerta "
+            f"para {actuator_name}: "
+            f"{type(e).__name__}: {e}"
+        )
+
+        return False
+
+    return True
+
+
 #-----------------------------------------------------------------------------------------------------------
 # inyecta gas etileno
 #-----------------------------------------------------------------------------------------------------------
 def setgas(on: bool):
+
     """Histórico: 'gas' ahora corresponde a RELAY 4 = 'etileno'."""
-    cfg = _cfg_relays()
-    ok = modbusdevices.relay_set(cfg, 'etileno', bool(on))
-    return ok
+
+    with _safety_actuation_lock:
+
+        if bool(on) and not _safety_allows_on("etileno"):
+            return False
+
+        cfg = _cfg_relays()
+
+        return modbusdevices.relay_set(cfg, 'etileno', bool(on))
+
 
 #-----------------------------------------------------------------------------------------------------------
-#rele extractor abre una ventana
+# rele extractor abre una ventana
 #-----------------------------------------------------------------------------------------------------------
 def setextractor(on: bool):
+
     """Extractor corresponde a RELAY 2 = 'extractor'."""
-    cfg = _cfg_relays()
-    ok = modbusdevices.relay_set(cfg, 'extractor', bool(on))
-    return ok
-	
-#-----------------------------------------------------------------------------------------------------------
-#Rele que activa la recirculacion del aire
-#-----------------------------------------------------------------------------------------------------------
-def setrecircular(on: bool):
-    cfg = _cfg_relays()
-    return modbusdevices.relay_set(cfg, 'recircular', bool(on))
+
+    with _safety_actuation_lock:
+
+        if bool(on) and not _safety_allows_on("extractor"):
+            return False
+
+        cfg = _cfg_relays()
+
+        return modbusdevices.relay_set(cfg, 'extractor', bool(on))
+
 
 #-----------------------------------------------------------------------------------------------------------
-#Rele que activa el humidificador
+# Rele que activa la recirculacion del aire
+#-----------------------------------------------------------------------------------------------------------
+def setrecircular(on: bool):
+
+    with _safety_actuation_lock:
+
+        if bool(on) and not _safety_allows_on("recircular"):
+            return False
+
+        cfg = _cfg_relays()
+
+        return modbusdevices.relay_set(cfg, 'recircular', bool(on))
+
+
+#-----------------------------------------------------------------------------------------------------------
+# Rele que activa el humidificador
 #-----------------------------------------------------------------------------------------------------------
 def sethumidificador(on: bool):
-    cfg = _cfg_relays()
-    return modbusdevices.relay_set(cfg, 'humidificador', bool(on)) 
+
+    with _safety_actuation_lock:
+
+        if bool(on) and not _safety_allows_on("humidificador"):
+            return False
+
+        cfg = _cfg_relays()
+
+        return modbusdevices.relay_set(cfg, 'humidificador', bool(on))
+
+
 #-----------------------------------------------------------------------------------------------------------
-#Apaga todos los relays
+# Apaga todos los relays
 #-----------------------------------------------------------------------------------------------------------
 def all_relay():
-    cfg = _cfg_relays()
-    #util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/relayDioustou-4.yml', 'relayDioustou_4r')
-    return modbusdevices.relay_set(cfg, 'all_off')
+
+    # OFF siempre está permitido.
+    # Queda serializado con cualquier intento de ON.
+
+    with _safety_actuation_lock:
+
+        cfg = _cfg_relays()
+
+        return modbusdevices.relay_set(cfg, 'all_off')
 #-----------------------------------------------------------------------------------------------------------
 #Rele interno que activa la sirena 
 #-----------------------------------------------------------------------------------------------------------
@@ -198,12 +290,20 @@ def setsirena(on:bool):
 #-----------------------------------------------------------------------------------------------------------
 #Rele interno del board que activa el aire fresco
 #----------------------------------------------------------------------------------------------------------- 
-def setairefresco(on:bool):
+def setairefresco(on: bool):
     """
     Salida optoaislada del HAT para inyección de aire fresco.
     GPIO10.
     """
-    GPIO.output(GPIO10_RELAY_AIRE_FRESCO, bool(on))
+
+    with _safety_actuation_lock:
+
+        if bool(on) and not _safety_allows_on("aire_fresco"):
+            return False
+
+        GPIO.output(GPIO10_RELAY_AIRE_FRESCO, bool(on))
+
+        return True
 #-----------------------------------------------------------------------------------------------------------
 #Rele interno del board que lee el estado el aire fresco
 #----------------------------------------------------------------------------------------------------------- 
@@ -285,12 +385,7 @@ def door_is_open() -> bool:
     el estado para no destruir la detección de flancos.
     """
     door = _door_cfg()
-    invert = bool(
-        door.get(
-            "invert_active_low",
-            True
-        )
-    )
+    invert = bool(door['invert_active_low'])
 
     try:
         return _door_read_active(invert)
@@ -336,48 +431,132 @@ def _get_unit(regs, candidates, default_str):
 # Callback de interrupción de puerta
 #-----------------------------------------------------------------------------------------------------------
 def _door_callback(channel):
-    door = _door_cfg()
-    i_value = int(door.get('i', 12))
-    regs = door.get('registers', [])
-    # usa lo que venga en YAML; defaults: abierta=145, duración=138
-    u_open = _get_unit(regs, {"door_open", "estado_puerta"}, "138")
-    u_dur  = _get_unit(regs, {"door_open_duration_s", "duracion_abierta"}, "145")
 
-    #invert = bool(door.get('invert_active_low', True))
-    #active = _door_read_active(invert)  # True = abierta
-    now = time.monotonic()
-    is_open = door_is_open()   # True = abierta
-    last = _door_state.get("active")
-    if last is None:
+    try:
+        door = _door_cfg()
+
+        if not isinstance(door, dict):
+            raise ValueError("Configuración door_sensor inválida")
+
+        # ID exclusivamente desde YAML
+        i_value = int(door['i'])
+
+        regs = door['registers']
+
+        if not isinstance(regs, list):
+            raise ValueError("door_sensor.registers inválido")
+
+        # ---------------------------------------------
+        # Estado de puerta
+        # ---------------------------------------------
+        reg_open = next(
+            (
+                reg
+                for reg in regs
+                if (
+                    reg.get('name') == 'estado_puerta'
+                    or
+                    reg.get('alias') == 'door_open'
+                )
+            ),
+            None
+        )
+
+        if reg_open is None:
+            raise ValueError("Registro estado_puerta no existe en YAML")
+            
+
+        if 'u' not in reg_open:
+            raise ValueError("Registro estado_puerta sin unidad 'u'")
+
+        u_open = str(reg_open['u'])
+
+        # ---------------------------------------------
+        # Duración puerta abierta
+        # ---------------------------------------------
+        reg_dur = next(
+            (
+                reg
+                for reg in regs
+                if (
+                    reg.get('name') == 'duracion_abierta'
+                    or
+                    reg.get('alias') == 'door_open_duration_s'
+                )
+            ),
+            None
+        )
+
+        if reg_dur is None:
+            raise ValueError("Registro duracion_abierta no existe en YAML")
+             
+
+        if 'u' not in reg_dur:
+            raise ValueError("Registro duracion_abierta sin unidad 'u'")
+
+        u_dur = str(reg_dur['u'])
+
+        now = time.monotonic()
+
+        is_open = door_is_open()
+
+        last = _door_state.get("active")
+
+        if last is None:
+
+            _door_state["active"] = is_open
+            _door_state["changed_ts"] = now
+
+            if is_open:
+
+                util.logging.warning("[DOOR] ABIERTA")
+
+                _publish_ivu(i_value, ["0"], [u_open])
+
+            else:
+
+                util.logging.info("[DOOR] CERRADA")
+
+                _publish_ivu(i_value, ["1"], [u_open])
+
+            return
+
+        if is_open == last:
+            return
+
+        prev_ts = _door_state["changed_ts"]
+
         _door_state["active"] = is_open
         _door_state["changed_ts"] = now
-        # opcional: publicar estado inicial solo si está abierta
+
         if is_open:
-            util.logging.warning("[DOOR] ABIERTA")
+
+            util.logging.warning("[DOOR] ABIERTA → " "apagar relés Modbus.")
+
+            restablecer_sistema_post_puerta()
+
             _publish_ivu(i_value, ["0"], [u_open])
+
+            _man_state["last_pressed"] = (_btn_read_active(True))
+
         else:
-            util.logging.info("[DOOR] CERRADA")
-            _publish_ivu(i_value, ["1"], [u_open])
-        return
 
-    if is_open == last:
-        return
+            global _door_restored
 
-    prev_ts = _door_state["changed_ts"]
-    _door_state["active"] = is_open
-    _door_state["changed_ts"] = now
+            _door_restored = False
 
-    if is_open:
-        util.logging.warning("[DOOR] ABIERTA → apagar relés Modbus.")
-        restablecer_sistema_post_puerta()
-        _publish_ivu(i_value, ["0"], [u_open])  # v=1, u=138
-        _man_state["last_pressed"] = _btn_read_active(True)  # activo-bajo
-    else:
-        global _door_restored
-        _door_restored = False
-        dur = round(now - prev_ts, 1)
-        util.logging.info(f"[DOOR] CERRADA. Abierta {dur}s")
-        _publish_ivu(i_value, ["1", str(dur)], [u_open, u_dur])  # cerrada = 1
+            dur = round(now - prev_ts, 1)
+
+            util.logging.info(f"[DOOR] CERRADA. " f"Abierta {dur}s")
+
+            _publish_ivu(i_value, ["1", str(dur)], [u_open, u_dur])
+
+    except Exception as e:
+
+        util.logging.error(
+            f"[DOOR] Error callback: "
+            f"{type(e).__name__}: {e}"
+        )
 
 #-----------------------------------------------------------------------------------------------------------
 # Prepara el payload JSON para IVU puerta esta abierta
@@ -441,7 +620,7 @@ def setup_door_interrupt():
     Si add_event_detect falla (pin ya tomado/permisos), activa fallback por polling.
     """
     door = _door_cfg()
-    debounce_ms = int(door.get('debounce_ms', 80))
+    debounce_ms = int(door['debounce_ms'])
     invert = bool(door.get('invert_active_low', True))
 
     GPIO.setwarnings(False)
@@ -574,46 +753,138 @@ def restablecer_sistema_post_puerta():
 # Callback de interrupción de botón hombre atrapado
 #-----------------------------------------------------------------------------------------------------------
 def _man_button_callback(channel):
-    cfg = _btn_cfg()
-    i_value = int(cfg.get('i', 12))
-    regs = cfg.get('registers', [])
-    u_pressed = _get_unit(regs, {"man_pressed"}, "146")
-    util.logging.info(f"[MAN] Unidad (u) para botón: {u_pressed}")
-    
-    invert = bool(cfg.get('invert_active_low', False))
 
-    # Espera corta y re-lee para asegurarse que sigue en 0 (activo-bajo)
-    #time.sleep(0.02)  # 20 ms
-    #if not _btn_read_active(invert):     # debe seguir en 1
-    #    return
-    
-    # Ya latcheado => no repetir
-    
-    if _man_state["latched"]:
-        util.logging.info("[MAN] Botón presionado pero ya estaba latcheado; sin cambio.")
-        return
-    # 2) APAGAR todos los relés del HAT
     try:
-        all_relay()
-    except Exception as e:
-        util.logging.error(f"[MAN] all_relay() falló: {type(e).__name__}: {e}")
-    # LATCH: enciende sirena & baliza y guarda TS
-    setsirena(True)
-    #setbaliza(True)
-    _man_state["latched"] = True
-    _man_state["pressed_ts"] = time.monotonic()
-    #_man_state["last_pressed"] = True  # estado actual
-    util.logging.warning("[MAN] LATCH ACTIVO → sirena y baliza ON (esperando apertura de puerta).")
+        # ---------------------------------------------------------
+        # CARGAR CONFIGURACIÓN DEL BOTÓN DESDE YAML
+        # ---------------------------------------------------------
+        cfg = _btn_cfg()
 
-    # Publicación: evento PRESSED (v=1, u=310)
-    _publish_ivu(i_value, ["1"], [u_pressed])
+        if not isinstance(cfg, dict):
+            raise ValueError("Configuración man_trapped inválida")
+
+        # ---------------------------------------------------------
+        # ID DEL EVENTO
+        # Debe venir exclusivamente del YAML.
+        # _btn_cfg() hereda door_sensor.i cuando man_trapped
+        # no tiene un i propio.
+        # ---------------------------------------------------------
+        i_value = int(cfg['i'])
+
+        # ---------------------------------------------------------
+        # REGISTROS DEL BOTÓN
+        # ---------------------------------------------------------
+        regs = cfg['registers']
+
+        if not isinstance(regs, list):
+            raise ValueError("man_trapped.registers inválido")
+
+        # ---------------------------------------------------------
+        # BUSCAR UNIDAD DE man_pressed EXCLUSIVAMENTE EN YAML
+        # ---------------------------------------------------------
+        reg_man = next(
+            (
+                reg
+                for reg in regs
+                if (
+                    reg.get('name') == 'man_pressed'
+                    or
+                    reg.get('alias') == 'man_pressed'
+                )
+            ),
+            None
+        )
+
+        if reg_man is None:
+            raise ValueError("Registro man_pressed no existe en YAML")
+
+        if 'u' not in reg_man:
+            raise ValueError("Registro man_pressed sin unidad 'u' en YAML")
+
+        u_pressed = str(reg_man['u'])
+
+        util.logging.info(
+            f"[MAN] Config YAML | "
+            f"i={i_value} | "
+            f"u={u_pressed}"
+        )
+
+        # ---------------------------------------------------------
+        # VALIDAR ESTADO LATCH
+        # ---------------------------------------------------------
+        if _man_state["latched"]:
+
+            util.logging.info(
+                "[MAN] Botón presionado pero ya estaba "
+                "latcheado; sin cambio."
+            )
+
+            return
+
+        # ---------------------------------------------------------
+        # SECUENCIA ATÓMICA DE SEGURIDAD
+        # ---------------------------------------------------------
+        with _safety_actuation_lock:
+
+            # Revalidar después de adquirir lock
+            if _man_state["latched"]:
+
+                util.logging.info(
+                    "[MAN] Botón presionado pero ya estaba "
+                    "latcheado; sin cambio."
+                )
+
+                return
+
+            # LATCH PRIMERO
+            _man_state["latched"] = True
+
+            _man_state["pressed_ts"] = (time.monotonic())
+
+            # -----------------------------------------------------
+            # APAGAR TODOS LOS RELÉS
+            # -----------------------------------------------------
+            try:
+
+                all_relay()
+
+            except Exception as e:
+
+                util.logging.error(
+                    f"[MAN] all_relay() falló: "
+                    f"{type(e).__name__}: {e}"
+                )
+
+        # ---------------------------------------------------------
+        # SIRENA
+        # ---------------------------------------------------------
+        setsirena(True)
+
+        util.logging.warning(
+            "[MAN] LATCH ACTIVO → "
+            "sirena y baliza ON "
+            "(esperando apertura de puerta)."
+        )
+
+        # ---------------------------------------------------------
+        # EVENTO
+        # i y u vienen del YAML
+        # ---------------------------------------------------------
+        _publish_ivu(i_value, ["1"], [u_pressed])
+
+    except Exception as e:
+
+        util.logging.error(
+            f"[MAN] Error en callback: "
+            f"{type(e).__name__}: {e}"
+        )
 #-----------------------------------------------------------------------------------------------------------
 # Configura interrupción GPIO de botón hombre atrapado solo una vez
 #-----------------------------------------------------------------------------------------------------------
 def setup_man_button_interrupt():
     cfg = _btn_cfg()
-    debounce_ms = int(cfg.get('debounce_ms', 80))
-    invert = bool(cfg.get('invert_active_low', True))  # true = activo-bajo
+    debounce_ms = int(cfg['debounce_ms'])
+    invert = bool(cfg['invert_active_low'])  # true = activo-bajo
     
     GPIO.setwarnings(False)
     GPIO.setmode(GPIO.BCM)
@@ -674,46 +945,133 @@ def setup_man_button_interrupt():
 
 def snapshot_puerta():
     """
-    Snapshot instantáneo del estado de la puerta:
-      - v=["1"] si abierta, v=["0"] si cerrada
-      - u = unidad configurada para "door_open"/"estado_puerta" (fallback "138")
-      - i = tomado de door.yml (door_sensor.i)
+    Snapshot instantáneo del estado de la puerta.
+
+    i y u se obtienen exclusivamente de door.yml.
     """
+
     try:
+
         door = _door_cfg()
-        i_value = int(door.get('i', 12))
-        regs    = door.get('registers', [])
 
-        # Usa TU helper existente (no redefinimos nada):
-        u_open = _get_unit(regs, {"door_open", "estado_puerta"}, "138")
-        is_closed = door_is_closed()
+        if not isinstance(door, dict):
+            raise ValueError("Configuración door_sensor inválida")
 
-        v = ["1" if is_closed else "0"]
-        return {"d": [{"t": util.get__time_utc(), "i": i_value, "v": v, "u": [u_open]}]}
+        i_value = int(door['i'])
+
+        regs = door['registers']
+
+        if not isinstance(regs, list):
+            raise ValueError("door_sensor.registers inválido")
+
+        reg_open = next(
+            (
+                reg
+                for reg in regs
+                if (
+                    reg.get('name') == 'estado_puerta'
+                    or
+                    reg.get('alias') == 'door_open'
+                )
+            ),
+            None
+        )
+
+        if reg_open is None:
+            raise ValueError("Registro estado_puerta no existe en YAML")
+
+        if 'u' not in reg_open:
+            raise ValueError("Registro estado_puerta sin unidad 'u'")
+
+        u_open = str(reg_open['u'])
+
+        is_open = door_is_open()
+
+        # Convención actual:
+        # puerta cerrada = 1
+        # puerta abierta = 0
+        v = ["0" if is_open else "1"]
+
+        return {
+            "d": [{
+                "t": util.get__time_utc(),
+                "i": i_value,
+                "v": v,
+                "u": [u_open]
+            }]
+        }
+
     except Exception as e:
-        util.logging.error(f"[SNAP] puerta: {type(e).__name__}: {e}")
+
+        util.logging.error(
+            f"[SNAP] puerta: "
+            f"{type(e).__name__}: {e}"
+        )
+
         return None
 
 
 def snapshot_hombre_atrapado():
     """
-    Snapshot instantáneo del latch de hombre atrapado:
-      - v=["1"] si latcheado, v=["0"] si normal
-      - u = unidad configurada para "man_pressed" (fallback "146")
-      - i = tomado de door.yml (man_trapped.i)
+    Snapshot instantáneo del latch de hombre atrapado.
+
+    i y u se obtienen exclusivamente de door.yml.
     """
+
     try:
+
         cfg_btn = _btn_cfg()
-        i_value = int(cfg_btn.get('i', 12))
-        regs    = cfg_btn.get('registers', [])
 
-        # Usa TU helper:
-        u_btn = _get_unit(regs, {"man_pressed"}, "146")
+        if not isinstance(cfg_btn, dict):
+            raise ValueError("Configuración man_trapped inválida")
 
-        latched = bool(_man_state.get("latched"))
+        i_value = int(cfg_btn['i'])
+
+        regs = cfg_btn['registers']
+
+        if not isinstance(regs, list):
+            raise ValueError("man_trapped.registers inválido")
+
+        reg_man = next(
+            (
+                reg
+                for reg in regs
+                if (
+                    reg.get('name') == 'man_pressed'
+                    or
+                    reg.get('alias') == 'man_pressed'
+                )
+            ),
+            None
+        )
+
+        if reg_man is None:
+            raise ValueError("Registro man_pressed no existe en YAML")
+
+        if 'u' not in reg_man:
+            raise ValueError("Registro man_pressed sin unidad 'u'")
+
+        u_btn = str(reg_man['u'])
+
+        latched = bool( _man_state.get("latched"))
+     
+
         v = ["1" if latched else "0"]
-        return {"d": [{"t": util.get__time_utc(), "i": i_value, "v": v, "u": [u_btn]}]}
-    except Exception as e:
-        util.logging.error(f"[SNAP] man_trapped: {type(e).__name__}: {e}")
-        return None
 
+        return {
+            "d": [{
+                "t": util.get__time_utc(),
+                "i": i_value,
+                "v": v,
+                "u": [u_btn]
+            }]
+        }
+
+    except Exception as e:
+
+        util.logging.error(
+            f"[SNAP] man_trapped: "
+            f"{type(e).__name__}: {e}"
+        )
+
+        return None
