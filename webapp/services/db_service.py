@@ -1156,6 +1156,30 @@ def procesar_ciclo_co2(
                         )
                     )
 
+                    conn.execute(
+                        """
+                        INSERT INTO eventos (
+                            timestamp_utc,
+                            tipo,
+                            estado,
+                            valor,
+                            detalle
+                        )
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
+                        (
+                            timestamp_utc,
+                            "CICLO_ABIERTO",
+                            "ABIERTO",
+                            valor_co2,
+                            (
+                                f"Proceso {proceso_id} | "
+                                f"CO2={valor_co2:.0f} ppm | "
+                                f"LOW={co2_low:.0f} ppm | "
+                                f"HIGH={co2_high:.0f} ppm"
+                            )
+                        )
+                    )
                     conn.commit()
 
                     return {
@@ -1284,6 +1308,31 @@ def procesar_ciclo_co2(
                     )
                 )
 
+                conn.execute(
+                    """
+                    INSERT INTO eventos (
+                        timestamp_utc,
+                        tipo,
+                        estado,
+                        valor,
+                        detalle
+                    )
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (
+                        timestamp_utc,
+                        "PURGA_INICIADA",
+                        "EN_PURGA",
+                        valor_co2,
+                        (
+                            f"Proceso {proceso_id} | "
+                            f"Ciclo {ciclo['id']} | "
+                            f"CO2={valor_co2:.0f} ppm | "
+                            f"LOW-HIGH={low_high_segundos:.0f} s"
+                        )
+                    )
+                )
+                
                 conn.commit()
 
                 return {
@@ -1412,6 +1461,30 @@ def procesar_ciclo_co2(
                         valor_co2,
                         numero_ciclo,
                         ciclo["id"]
+                    )
+                )
+
+                conn.execute(
+                    """
+                    INSERT INTO eventos (
+                        timestamp_utc,
+                        tipo,
+                        estado,
+                        valor,
+                        detalle
+                    )
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (
+                        timestamp_utc,
+                        "CICLO_COMPLETO",
+                        "CERRADO",
+                        valor_co2,
+                        (
+                            f"Proceso {proceso_id} | "
+                            f"Ciclo {numero_ciclo} | "
+                            f"Purga={purga_segundos:.0f} s"
+                        )
                     )
                 )
 
