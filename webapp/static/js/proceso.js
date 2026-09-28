@@ -1,5 +1,5 @@
 let inicioProcesoMs = null;
-let modoCiclos = "historico";
+let modoCiclos = "activo";
 
 
 function elemento(id) {

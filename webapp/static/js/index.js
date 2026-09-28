@@ -222,11 +222,265 @@ async function actualizarValores() {
 
 
 // Primera carga
+//actualizarValores();
+
+let inicioProcesoHomeMs = null;
+
+
+function formatoDuracionHome(segundos) {
+
+    if (
+        segundos === null ||
+        segundos === undefined ||
+        isNaN(Number(segundos))
+    ) {
+        return "--";
+    }
+
+    let total =
+        Math.max(
+            0,
+            Math.floor(
+                Number(segundos)
+            )
+        );
+
+    const dias =
+        Math.floor(
+            total / 86400
+        );
+
+    total %= 86400;
+
+    const horas =
+        Math.floor(
+            total / 3600
+        );
+
+    total %= 3600;
+
+    const minutos =
+        Math.floor(
+            total / 60
+        );
+
+    const segundosRestantes =
+        total % 60;
+
+    if (dias > 0) {
+
+        return (
+            dias +
+            " d " +
+            String(horas).padStart(2, "0") +
+            ":" +
+            String(minutos).padStart(2, "0") +
+            ":" +
+            String(segundosRestantes).padStart(2, "0")
+        );
+    }
+
+    return (
+        String(horas).padStart(2, "0") +
+        ":" +
+        String(minutos).padStart(2, "0") +
+        ":" +
+        String(segundosRestantes).padStart(2, "0")
+    );
+}
+
+
+function actualizarTiempoProcesoHome() {
+
+    const elemento =
+        document.getElementById(
+            "tiempoProceso"
+        );
+
+    if (!elemento) {
+        return;
+    }
+
+    if (inicioProcesoHomeMs === null) {
+
+        elemento.innerText = "--";
+
+        return;
+    }
+
+    const segundos =
+        (
+            Date.now() -
+            inicioProcesoHomeMs
+        ) / 1000;
+
+    elemento.innerText =
+        formatoDuracionHome(
+            segundos
+        );
+}
+
+
+async function actualizarProcesoHome() {
+
+    try {
+
+        const responseProceso =
+            await fetch(
+                "/api/proceso/actual",
+                {
+                    cache: "no-store"
+                }
+            );
+
+        const dataProceso =
+            await responseProceso.json();
+
+        if (!responseProceso.ok) {
+
+            throw new Error(
+                dataProceso.detail ||
+                "Error consultando proceso"
+            );
+        }
+
+
+        const estado =
+            document.getElementById(
+                "estadoProceso"
+            );
+
+        const inicio =
+            document.getElementById(
+                "inicioProceso"
+            );
+
+
+        if (
+            !dataProceso.activo ||
+            !dataProceso.proceso
+        ) {
+
+            if (estado) {
+                estado.innerText =
+                    "SIN PROCESO";
+            }
+
+            if (inicio) {
+                inicio.innerText =
+                    "--";
+            }
+
+            inicioProcesoHomeMs = null;
+
+        } else {
+
+            const proceso =
+                dataProceso.proceso;
+
+            if (estado) {
+                estado.innerText =
+                    "ACTIVO";
+            }
+
+            if (inicio) {
+
+                inicio.innerText =
+                    formatoFecha(
+                        proceso.inicio
+                    );
+            }
+
+            inicioProcesoHomeMs =
+                new Date(
+                    proceso.inicio
+                ).getTime();
+        }
+
+
+        actualizarTiempoProcesoHome();
+
+
+        const responseCiclos =
+            await fetch(
+                "/api/proceso/ciclos?modo=activo",
+                {
+                    cache: "no-store"
+                }
+            );
+
+        const dataCiclos =
+            await responseCiclos.json();
+
+        if (!responseCiclos.ok) {
+
+            throw new Error(
+                dataCiclos.detail ||
+                "Error consultando ciclos"
+            );
+        }
+
+
+        const ciclos =
+            document.getElementById(
+                "ciclosCO2"
+            );
+
+        const ultimo =
+            document.getElementById(
+                "ultimoCicloCO2"
+            );
+
+
+        if (ciclos) {
+
+            ciclos.innerText =
+                dataCiclos.resumen &&
+                dataCiclos.resumen.ciclos !== undefined
+
+                    ? dataCiclos.resumen.ciclos
+
+                    : 0;
+        }
+
+
+        if (ultimo) {
+
+            const valor =
+                dataCiclos.resumen
+                    ? dataCiclos.resumen
+                        .low_high_promedio_s
+                    : null;
+
+            ultimo.innerText =
+                formatoDuracionHome(
+                    valor
+                );
+        }
+
+    } catch (error) {
+
+        console.error(
+            "Error actualizando proceso home:",
+            error
+        );
+    }
+}
+
 actualizarValores();
+actualizarProcesoHome();
 
-
-// Actualizar cada 10 segundos
 setInterval(
     actualizarValores,
     10000
+);
+
+setInterval(
+    actualizarProcesoHome,
+    10000
+);
+
+setInterval(
+    actualizarTiempoProcesoHome,
+    1000
 );

@@ -39,15 +39,16 @@ body {
 .brand {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 18px;
     max-width: 1400px;
     margin: 0 auto;
 }
 
 .logo {
-    width: 90px;
-    max-height: 65px;
+    width: 115px;
+    max-height: 72px;
     object-fit: contain;
+    flex-shrink: 0;
 }
 
 .brand-title {
