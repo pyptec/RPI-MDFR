@@ -659,3 +659,104 @@ async def api_proceso_ciclos(
         },
         "ciclos": ciclos
     }
+# =========================================================
+# EVENTOS
+# =========================================================
+
+@app.get(
+    "/eventos",
+    response_class=HTMLResponse
+)
+async def pagina_eventos(
+    request: Request
+):
+
+    return templates.TemplateResponse(
+        request=request,
+        name="eventos.html",
+        context={}
+    )
+
+
+@app.get(
+    "/api/eventos"
+)
+async def api_eventos(
+    limite: int = Query(
+        200,
+        ge=1,
+        le=1000
+    ),
+    tipo: str | None = Query(
+        None
+    ),
+    desde: str | None = Query(
+        None
+    ),
+    hasta: str | None = Query(
+        None
+    )
+):
+
+    desde_utc = None
+    hasta_utc = None
+
+    if desde:
+
+        desde_utc = local_a_utc_iso(
+            desde
+        )
+
+    if hasta:
+
+        hasta_utc = local_a_utc_iso(
+            hasta
+        )
+
+    eventos = db_service.obtener_eventos(
+        limite=limite,
+        tipo=tipo,
+        desde_utc=desde_utc,
+        hasta_utc=hasta_utc
+    )
+
+    resultado = []
+
+    for evento in eventos:
+
+        item = dict(
+            evento
+        )
+
+        item["timestamp"] = (
+            utc_a_colombia_iso(
+                item["timestamp_utc"]
+            )
+        )
+
+        resultado.append(
+            item
+        )
+
+    return {
+        "cantidad":
+            len(resultado),
+
+        "eventos":
+            resultado
+    }
+
+
+@app.get(
+    "/api/eventos/tipos"
+)
+async def api_eventos_tipos():
+
+    tipos = (
+        db_service.obtener_tipos_evento()
+    )
+
+    return {
+        "tipos":
+            tipos
+    }
