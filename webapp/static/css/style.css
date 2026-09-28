@@ -1,71 +1,510 @@
+/* =========================================================
+   PYP TECNOLOGÍA ELECTRÓNICA S.A.S.
+   Sistema de Control de Maduración de Banano
+   ========================================================= */
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    min-height: 100%;
+}
+
+body {
+    font-family:
+        Arial,
+        Helvetica,
+        sans-serif;
+
+    background: #f3f6f8;
+    color: #24313b;
+    line-height: 1.45;
+}
+
+
+/* =========================================================
+   ENCABEZADO
+   ========================================================= */
+
+.topbar {
+    background: #ffffff;
+    border-bottom: 1px solid #dce4e8;
+    padding: 14px 28px;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.logo {
+    width: 90px;
+    max-height: 65px;
+    object-fit: contain;
+}
+
+.brand-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #263842;
+}
+
+.brand-subtitle {
+    margin-top: 3px;
+    font-size: 0.9rem;
+    color: #687984;
+}
+
+
+/* =========================================================
+   MENÚ
+   ========================================================= */
+
+.menu {
+    background: #263842;
+
+    display: flex;
+    align-items: center;
+    gap: 2px;
+
+    padding-left: max(
+        20px,
+        calc((100% - 1400px) / 2)
+    );
+
+    padding-right: max(
+        20px,
+        calc((100% - 1400px) / 2)
+    );
+}
+
+.menu a {
+    display: block;
+
+    padding: 13px 17px;
+
+    color: #ffffff;
+    text-decoration: none;
+
+    font-size: 0.92rem;
+    font-weight: 600;
+
+    transition:
+        background 0.15s ease,
+        color 0.15s ease;
+}
+
+.menu a:hover {
+    background: #38515e;
+}
+
+
+/* =========================================================
+   CONTENEDOR
+   ========================================================= */
+
+.container {
+    width: calc(100% - 40px);
+    max-width: 1400px;
+
+    margin: 0 auto;
+
+    padding: 28px 0 45px;
+}
+
+h1 {
+    margin:
+        0
+        0
+        4px;
+
+    color: #243640;
+
+    font-size: 1.8rem;
+}
+
+h2 {
+    margin-top: 0;
+    color: #304753;
+    font-size: 1.25rem;
+}
+
+h3 {
+    margin:
+        0
+        0
+        12px;
+
+    color: #40535d;
+    font-size: 0.95rem;
+}
+
+.subtitle {
+    margin:
+        0
+        0
+        24px;
+
+    color: #74838c;
+}
+
+
+/* =========================================================
+   TARJETAS DEL DASHBOARD
+   ========================================================= */
+
+.cards {
+    display: grid;
+
+    grid-template-columns:
+        repeat(
+            auto-fit,
+            minmax(190px, 1fr)
+        );
+
+    gap: 16px;
+
+    margin-bottom: 24px;
+}
+
+.card {
+    background: #ffffff;
+
+    border:
+        1px solid
+        #dfe6ea;
+
+    border-radius: 10px;
+
+    padding: 20px;
+
+    min-height: 140px;
+
+    box-shadow:
+        0
+        2px
+        8px
+        rgba(0, 0, 0, 0.04);
+}
+
+.card .value {
+    font-size: 2rem;
+    font-weight: 700;
+
+    color: #1d3540;
+
+    margin:
+        14px
+        0
+        8px;
+}
+
+.card small {
+    color: #7c8a92;
+}
+
+
+/* =========================================================
+   PANELES
+   ========================================================= */
+
+.panel {
+    background: #ffffff;
+
+    border:
+        1px solid
+        #dfe6ea;
+
+    border-radius: 10px;
+
+    padding: 22px;
+
+    margin-bottom: 20px;
+
+    box-shadow:
+        0
+        2px
+        8px
+        rgba(0, 0, 0, 0.035);
+}
+
+
+/* =========================================================
+   RESUMEN DEL PROCESO
+   ========================================================= */
+
+.process-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(
+            auto-fit,
+            minmax(180px, 1fr)
+        );
+
+    gap: 14px;
+}
+
+.process-grid > div {
+    background: #f7f9fa;
+
+    border:
+        1px solid
+        #e1e7ea;
+
+    border-radius: 7px;
+
+    padding: 14px;
+}
+
+.process-grid span {
+    display: block;
+
+    margin-bottom: 7px;
+
+    color: #71818a;
+
+    font-size: 0.82rem;
+}
+
+.process-grid strong {
+    font-size: 1rem;
+    color: #263842;
+}
+
+
+/* =========================================================
+   FORMULARIOS
+   ========================================================= */
+
+label {
+    display: block;
+
+    margin:
+        12px
+        0
+        6px;
+
+    font-weight: 600;
+    color: #435660;
+}
+
+input,
+select,
+textarea {
+    font-family: inherit;
+
+    border:
+        1px solid
+        #bdcad3;
+
+    border-radius: 6px;
+
+    background: #ffffff;
+
+    padding: 10px 11px;
+
+    color: #263842;
+}
+
+input[type="text"],
+textarea {
+    width: 100%;
+}
+
+textarea {
+    resize: vertical;
+}
+
+
+/* =========================================================
+   BOTONES
+   ========================================================= */
+
+button {
+    border: 0;
+
+    border-radius: 6px;
+
+    padding: 10px 17px;
+
+    margin:
+        6px
+        5px
+        6px
+        0;
+
+    cursor: pointer;
+
+    font-weight: 600;
+
+    background: #315463;
+    color: #ffffff;
+
+    transition:
+        background 0.15s ease,
+        opacity 0.15s ease;
+}
+
+button:hover:not(:disabled) {
+    background: #203e4b;
+}
+
+button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+
+/* =========================================================
+   TABLAS
+   ========================================================= */
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+
+    background: #ffffff;
+}
+
+th,
+td {
+    border-bottom:
+        1px solid
+        #e1e7ea;
+
+    padding:
+        11px
+        10px;
+
+    text-align: left;
+
+    white-space: nowrap;
+}
+
+th {
+    background: #eef3f5;
+
+    color: #3f545e;
+
+    font-size: 0.86rem;
+}
+
+td {
+    font-size: 0.88rem;
+}
+
+tbody tr:hover {
+    background: #f7f9fa;
+}
+
+
+/* =========================================================
+   FILTRO DE GRÁFICAS
+   ========================================================= */
+
 .filter-grid {
     display: grid;
+
     grid-template-columns:
-        repeat(6, minmax(100px, 1fr));
+        repeat(
+            6,
+            minmax(100px, 1fr)
+        );
+
     gap: 15px;
 }
 
 .filter-grid label {
     display: block;
+
     margin-bottom: 7px;
+
     font-weight: 600;
 }
 
 .filter-grid input,
 .filter-grid select {
     width: 100%;
+
     padding: 10px;
-    border: 1px solid #bdcad3;
+
+    border:
+        1px solid
+        #bdcad3;
+
     border-radius: 5px;
+
     background: white;
 }
 
-#graficaCO2 {
-    width: 100%;
-    max-width: 100%;
-    background: white;
-    margin-top: 20px;
-}
 
-@media (max-width: 900px) {
-
-    .filter-grid {
-        grid-template-columns:
-            repeat(3, 1fr);
-    }
-}
-
-@media (max-width: 550px) {
-
-    .filter-grid {
-        grid-template-columns:
-            1fr;
-    }
-}
+/* =========================================================
+   BOTONES DE VARIABLES
+   ========================================================= */
 
 .variable-buttons {
     display: flex;
+
     flex-wrap: wrap;
-    gap: 10px;
+
+    gap: 8px;
+
     margin-top: 18px;
 }
 
 .variable-buttons button {
-    padding: 10px 18px;
-    border: 0;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: 600;
+    margin: 0;
+}
+
+
+/* =========================================================
+   GRÁFICA
+   ========================================================= */
+
+#graficaCO2 {
+    width: 100%;
+    max-width: 100%;
+
+    display: block;
+
+    background: #ffffff;
+
+    margin-top: 20px;
+
+    border:
+        1px solid
+        #e2e8eb;
+
+    border-radius: 6px;
 }
 
 .chart-tooltip {
     display: none;
+
     position: absolute;
+
     z-index: 1000;
 
-    padding: 10px 14px;
+    padding:
+        10px
+        14px;
 
-    background: rgba(0, 0, 0, 0.85);
+    background:
+        rgba(
+            0,
+            0,
+            0,
+            0.85
+        );
+
     color: white;
 
     border-radius: 5px;
@@ -73,4 +512,128 @@
     font-size: 14px;
 
     pointer-events: none;
+}
+
+
+/* =========================================================
+   ESTADOS
+   ========================================================= */
+
+#estadoProceso {
+    font-size: 1.05rem;
+
+    margin-bottom: 15px;
+}
+
+#ultimaActualizacion {
+    color: #4f626c;
+}
+
+#mensajeProceso {
+    margin-top: 12px;
+
+    font-weight: 600;
+}
+
+#resultado {
+    margin:
+        10px
+        0;
+
+    color: #526671;
+}
+
+
+/* =========================================================
+   FOOTER
+   ========================================================= */
+
+footer {
+    border-top:
+        1px solid
+        #dce4e8;
+
+    background: #ffffff;
+
+    padding:
+        18px
+        25px;
+
+    text-align: center;
+
+    color: #72818a;
+
+    font-size: 0.82rem;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 900px) {
+
+    .filter-grid {
+        grid-template-columns:
+            repeat(
+                3,
+                1fr
+            );
+    }
+
+    .menu {
+        overflow-x: auto;
+    }
+
+    .menu a {
+        white-space: nowrap;
+    }
+}
+
+
+@media (max-width: 600px) {
+
+    .topbar {
+        padding: 12px 15px;
+    }
+
+    .brand {
+        align-items: flex-start;
+    }
+
+    .logo {
+        width: 65px;
+    }
+
+    .brand-title {
+        font-size: 1rem;
+    }
+
+    .brand-subtitle {
+        font-size: 0.78rem;
+    }
+
+    .container {
+        width: calc(100% - 24px);
+
+        padding-top: 20px;
+    }
+
+    h1 {
+        font-size: 1.45rem;
+    }
+
+    .filter-grid {
+        grid-template-columns:
+            1fr;
+    }
+
+    .cards {
+        grid-template-columns:
+            1fr;
+    }
+
+    .panel {
+        padding: 16px;
+    }
 }
