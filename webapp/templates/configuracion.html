@@ -59,47 +59,88 @@
 
     <h2>Control HVAC Samsung</h2>
 
+    <p class="subtitle">
+        Ajuste de temperatura de la cámara
+    </p>
+
     <div class="config-grid">
 
         <div class="config-item">
-            <span class="config-label">Temperatura objetivo</span>
-            <span id="tempTarget" class="config-value">--</span>
+
+            <label for="tempTarget">
+                Temperatura objetivo
+            </label>
+
+            <div>
+                <input
+                    id="tempTarget"
+                    type="number"
+                    step="0.1"
+                    min="16"
+                    max="26"
+                >
+                <span>°C</span>
+            </div>
+
         </div>
 
-        <div class="config-item">
-            <span class="config-label">Banda baja</span>
-            <span id="tempLow" class="config-value">--</span>
-        </div>
 
         <div class="config-item">
-            <span class="config-label">Banda alta</span>
-            <span id="tempHigh" class="config-value">--</span>
+
+            <label for="tempLow">
+                Banda baja
+            </label>
+
+            <div>
+                <input
+                    id="tempLow"
+                    type="number"
+                    step="0.1"
+                    min="16"
+                    max="26"
+                >
+                <span>°C</span>
+            </div>
+
         </div>
 
-        <div class="config-item">
-            <span class="config-label">Setpoint mínimo</span>
-            <span id="setpointMin" class="config-value">--</span>
-        </div>
 
         <div class="config-item">
-            <span class="config-label">Setpoint máximo</span>
-            <span id="setpointMax" class="config-value">--</span>
+
+            <label for="tempHigh">
+                Banda alta
+            </label>
+
+            <div>
+                <input
+                    id="tempHigh"
+                    type="number"
+                    step="0.1"
+                    min="16"
+                    max="26"
+                >
+                <span>°C</span>
+            </div>
+
         </div>
 
-        <div class="config-item">
-            <span class="config-label">Paso</span>
-            <span id="setpointStep" class="config-value">--</span>
-        </div>
+    </div>
 
-        <div class="config-item">
-            <span class="config-label">Modo</span>
-            <span id="hvacMode" class="config-value">--</span>
-        </div>
 
-        <div class="config-item">
-            <span class="config-label">Ventilador</span>
-            <span id="hvacFan" class="config-value">--</span>
-        </div>
+    <div style="margin-top:20px;">
+
+        <button
+            type="button"
+            id="btnGuardarTemperatura"
+            onclick="guardarTemperaturaHVAC()"
+        >
+            Guardar temperatura
+        </button>
+
+        <span
+            id="estadoGuardarHVAC"
+            style="margin-left:12px;"
+        ></span>
 
     </div>
 

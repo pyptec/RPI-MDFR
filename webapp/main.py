@@ -1135,3 +1135,422 @@ async def api_configuracion():
                 f"{type(e).__name__}: {e}"
             )
         ) from e
+        
+        
+# =========================================================
+# GUARDAR CONFIGURACIÓN HVAC
+# =========================================================
+
+@app.post(
+    "/api/configuracion/hvac"
+)
+async def api_guardar_configuracion_hvac(
+    request: Request
+):
+
+    try:
+
+        datos = await request.json()
+
+        # -------------------------------------------------
+        # VALORES RECIBIDOS
+        # -------------------------------------------------
+
+        try:
+
+            temp_target = float(
+                datos["temp_target"]
+            )
+
+            temp_low = float(
+                datos["temp_low"]
+            )
+
+            temp_high = float(
+                datos["temp_high"]
+            )
+
+        except (
+            KeyError,
+            TypeError,
+            ValueError
+        ) as e:
+
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Temperaturas inválidas."
+                )
+            ) from e
+
+
+        # -------------------------------------------------
+        # RUTA YAML HVAC
+        # -------------------------------------------------
+
+        project_dir = (
+            BASE_DIR.parent
+        )
+
+        ruta_hvac = Path(
+            os.getenv(
+                "CFG_HVAC",
+                str(
+                    project_dir /
+                    "device" /
+                    "Samsung-HVAC.yml"
+                )
+            )
+        )
+
+
+        if not ruta_hvac.exists():
+
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    f"No existe archivo HVAC: "
+                    f"{ruta_hvac}"
+                )
+            )
+
+
+        # -------------------------------------------------
+        # LEER CONFIGURACIÓN ACTUAL
+        # -------------------------------------------------
+
+        with open(
+            ruta_hvac,
+            "r",
+            encoding="utf-8"
+        ) as archivo:
+
+            cfg = (
+                yaml.safe_load(
+                    archivo
+                )
+                or {}
+            )
+
+
+        hvac = (
+            cfg
+            .get(
+                "medidores",
+                {}
+            )
+            .get(
+                "samsung_mim_b19n",
+                {}
+            )
+        )
+
+        control = (
+            hvac.get(
+                "control",
+                {}
+            )
+        )
+
+
+        setpoint_min = float(
+            control.get(
+                "setpoint_min",
+                16.0
+            )
+        )
+
+        setpoint_max = float(
+            control.get(
+                "setpoint_max",
+                26.0
+            )
+        )
+
+
+        # -------------------------------------------------
+        # VALIDACIONES
+        # -------------------------------------------------
+
+        valores = [
+            temp_target,
+            temp_low,
+            temp_high
+        ]
+
+
+        for valor in valores:
+
+            if (
+                valor < setpoint_min
+                or
+                valor > setpoint_max
+            ):
+
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Temperatura fuera del "
+                        f"rango permitido "
+                        f"{setpoint_min} a "
+                        f"{setpoint_max} °C."
+                    )
+                )
+
+
+        if temp_low >= temp_high:
+
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "La banda baja debe ser "
+                    "menor que la banda alta."
+                )
+            )
+
+
+        if not (
+            temp_low
+            <= temp_target
+            <= temp_high
+        ):
+
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "La temperatura objetivo "
+                    "debe estar entre la banda "
+                    "baja y la banda alta."
+                )
+            )
+
+
+        # -------------------------------------------------
+        # ACTUALIZAR SOLO LAS 3 LÍNEAS
+        # PRESERVANDO EL RESTO DEL YAML
+        # -------------------------------------------------
+
+        with open(
+            ruta_hvac,
+            "r",
+            encoding="utf-8"
+        ) as archivo:
+
+            lineas = (
+                archivo.readlines()
+            )
+
+
+        encontrados = {
+            "temp_target": False,
+            "temp_low": False,
+            "temp_high": False
+        }
+
+
+        nuevas_lineas = []
+
+
+        for linea in lineas:
+
+            stripped = (
+                linea.lstrip()
+            )
+
+            indentacion = (
+                linea[
+                    :len(linea) -
+                    len(stripped)
+                ]
+            )
+
+
+            if stripped.startswith(
+                "temp_target:"
+            ):
+
+                comentario = ""
+
+                if "#" in linea:
+
+                    comentario = (
+                        "  #" +
+                        linea.split(
+                            "#",
+                            1
+                        )[1].rstrip()
+                    )
+
+                nuevas_lineas.append(
+                    f"{indentacion}"
+                    f"temp_target: "
+                    f"{temp_target:g}"
+                    f"{comentario}\n"
+                )
+
+                encontrados[
+                    "temp_target"
+                ] = True
+
+                continue
+
+
+            if stripped.startswith(
+                "temp_low:"
+            ):
+
+                comentario = ""
+
+                if "#" in linea:
+
+                    comentario = (
+                        "  #" +
+                        linea.split(
+                            "#",
+                            1
+                        )[1].rstrip()
+                    )
+
+                nuevas_lineas.append(
+                    f"{indentacion}"
+                    f"temp_low: "
+                    f"{temp_low:g}"
+                    f"{comentario}\n"
+                )
+
+                encontrados[
+                    "temp_low"
+                ] = True
+
+                continue
+
+
+            if stripped.startswith(
+                "temp_high:"
+            ):
+
+                comentario = ""
+
+                if "#" in linea:
+
+                    comentario = (
+                        "  #" +
+                        linea.split(
+                            "#",
+                            1
+                        )[1].rstrip()
+                    )
+
+                nuevas_lineas.append(
+                    f"{indentacion}"
+                    f"temp_high: "
+                    f"{temp_high:g}"
+                    f"{comentario}\n"
+                )
+
+                encontrados[
+                    "temp_high"
+                ] = True
+
+                continue
+
+
+            nuevas_lineas.append(
+                linea
+            )
+
+
+        if not all(
+            encontrados.values()
+        ):
+
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "No se encontraron todos "
+                    "los parámetros HVAC en "
+                    "el YAML."
+                )
+            )
+
+
+        # -------------------------------------------------
+        # ESCRITURA ATÓMICA
+        # -------------------------------------------------
+
+        contenido = "".join(
+            nuevas_lineas
+        )
+
+
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=str(
+                ruta_hvac.parent
+            ),
+            delete=False
+        ) as temporal:
+
+            temporal.write(
+                contenido
+            )
+
+            ruta_temporal = Path(
+                temporal.name
+            )
+
+
+        os.replace(
+            ruta_temporal,
+            ruta_hvac
+        )
+
+
+        # -------------------------------------------------
+        # REGISTRAR EVENTO
+        # -------------------------------------------------
+
+        db_service.guardar_evento(
+            tipo="CONFIG_HVAC",
+            estado="ACTUALIZADA",
+            valor=temp_target,
+            detalle=(
+                f"Objetivo={temp_target:g} °C | "
+                f"LOW={temp_low:g} °C | "
+                f"HIGH={temp_high:g} °C"
+            )
+        )
+
+
+        return {
+            "ok": True,
+            "mensaje":
+                "Configuración HVAC guardada.",
+            "hvac": {
+                "temp_target":
+                    temp_target,
+
+                "temp_low":
+                    temp_low,
+
+                "temp_high":
+                    temp_high
+            }
+        }
+
+
+    except HTTPException:
+
+        raise
+
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Error guardando HVAC: "
+                f"{type(e).__name__}: {e}"
+            )
+        ) from e
