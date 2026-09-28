@@ -980,8 +980,12 @@ function activarTooltip(
         };
 }
 
-
 document.addEventListener(
     "DOMContentLoaded",
-    configurarInicial
+    async function() {
+
+        configurarInicial();
+
+        await consultarHistorico();
+    }
 );
