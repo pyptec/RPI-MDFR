@@ -387,7 +387,155 @@ def guardar_evento(
 
             conn.commit()
 
+# =========================================================
+# CONSULTAR EVENTOS
+# =========================================================
 
+def obtener_eventos(
+    limite=200,
+    tipo=None,
+    desde_utc=None,
+    hasta_utc=None
+):
+    """
+    Consulta eventos registrados en SQLite.
+
+    El intervalo de fechas se maneja como:
+        [desde_utc, hasta_utc)
+
+    Devuelve los eventos más recientes primero.
+    """
+
+    init_db()
+
+    try:
+        limite = int(limite)
+    except (TypeError, ValueError):
+        limite = 200
+
+    limite = max(
+        1,
+        min(
+            limite,
+            1000
+        )
+    )
+
+    condiciones = []
+    parametros = []
+
+    if tipo not in [None, "", "TODOS"]:
+
+        condiciones.append(
+            "tipo = ?"
+        )
+
+        parametros.append(
+            str(tipo)
+        )
+
+    if desde_utc:
+
+        condiciones.append(
+            "timestamp_utc >= ?"
+        )
+
+        parametros.append(
+            str(desde_utc)
+        )
+
+    if hasta_utc:
+
+        condiciones.append(
+            "timestamp_utc < ?"
+        )
+
+        parametros.append(
+            str(hasta_utc)
+        )
+
+    where_sql = ""
+
+    if condiciones:
+
+        where_sql = (
+            " WHERE " +
+            " AND ".join(
+                condiciones
+            )
+        )
+
+    consulta = f"""
+        SELECT
+            id,
+            timestamp_utc,
+            tipo,
+            estado,
+            valor,
+            detalle
+        FROM eventos
+        {where_sql}
+        ORDER BY timestamp_utc DESC
+        LIMIT ?
+    """
+
+    parametros.append(
+        limite
+    )
+
+    with _DB_LOCK:
+
+        with sqlite3.connect(
+            DB_PATH
+        ) as conn:
+
+            conn.row_factory = (
+                sqlite3.Row
+            )
+
+            filas = conn.execute(
+                consulta,
+                parametros
+            ).fetchall()
+
+    return [
+        dict(fila)
+        for fila in filas
+    ]
+
+
+# =========================================================
+# TIPOS DE EVENTO
+# =========================================================
+
+def obtener_tipos_evento():
+    """
+    Devuelve los tipos de evento existentes
+    en la base de datos.
+    """
+
+    init_db()
+
+    with _DB_LOCK:
+
+        with sqlite3.connect(
+            DB_PATH
+        ) as conn:
+
+            filas = conn.execute(
+                """
+                SELECT DISTINCT tipo
+                FROM eventos
+                WHERE tipo IS NOT NULL
+                  AND TRIM(tipo) <> ''
+                ORDER BY tipo ASC
+                """
+            ).fetchall()
+
+    return [
+        fila[0]
+        for fila in filas
+    ]
 # =========================================================
 # EXTRAER PAYLOAD
 # =========================================================
