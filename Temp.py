@@ -536,6 +536,8 @@ def _door_callback(channel):
             restablecer_sistema_post_puerta()
 
             _publish_ivu(i_value, ["0"], [u_open])
+            
+            db_service.guardar_evento(tipo="PUERTA", estado="ABIERTA", valor=1, detalle=("Puerta de cámara abierta. " "Sistema llevado a condición segura." ))
 
             _man_state["last_pressed"] = (_btn_read_active(True))
 
@@ -550,6 +552,8 @@ def _door_callback(channel):
             util.logging.info(f"[DOOR] CERRADA. " f"Abierta {dur}s")
 
             _publish_ivu(i_value, ["1", str(dur)], [u_open, u_dur])
+            
+            db_service.guardar_evento(tipo="PUERTA", estado="CERRADA", valor=dur, detalle=(f"Puerta cerrada. " f"Duración abierta: {dur} s" ))
 
     except Exception as e:
 
@@ -871,7 +875,8 @@ def _man_button_callback(channel):
         # i y u vienen del YAML
         # ---------------------------------------------------------
         _publish_ivu(i_value, ["1"], [u_pressed])
-
+        db_service.guardar_evento(tipo="HOMBRE_ATRAPADO", estado="ACTIVO", valor=1, detalle=("Botón de hombre atrapado activado. "
+        "Relés apagados y sirena/baliza activadas." ))
     except Exception as e:
 
         util.logging.error(
