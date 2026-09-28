@@ -13,7 +13,7 @@ from fastapi import FastAPI, Request, Query, HTTPException, Form
 
 import os
 import yaml
-
+import tempfile
 # =========================================================
 # RUTAS
 # =========================================================
@@ -765,6 +765,268 @@ async def api_eventos_tipos():
     }
     
 # =========================================================
+# GUARDAR CONFIGURACIÓN HUMEDAD
+# =========================================================
+
+@app.post(
+    "/api/configuracion/humedad"
+)
+async def api_guardar_configuracion_humedad(
+    request: Request
+):
+
+    try:
+
+        datos = await request.json()
+
+        try:
+
+            low = float(
+                datos["low"]
+            )
+
+            high = float(
+                datos["high"]
+            )
+
+        except (
+            KeyError,
+            TypeError,
+            ValueError
+        ) as e:
+
+            raise HTTPException(
+                status_code=400,
+                detail="Valores de humedad inválidos."
+            ) from e
+
+
+        # -------------------------------------------------
+        # VALIDACIONES
+        # -------------------------------------------------
+
+        if (
+            low < 0
+            or
+            high > 100
+        ):
+
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "La humedad debe estar "
+                    "entre 0 y 100 %."
+                )
+            )
+
+
+        if low >= high:
+
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Humedad LOW debe ser "
+                    "menor que HIGH."
+                )
+            )
+
+
+        # -------------------------------------------------
+        # YAML
+        # -------------------------------------------------
+
+        ruta = (
+            BASE_DIR.parent /
+            "device" /
+            "tht03r.yml"
+        )
+
+
+        if not ruta.exists():
+
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    f"No existe archivo THT03R: "
+                    f"{ruta}"
+                )
+            )
+
+
+        with open(
+            ruta,
+            "r",
+            encoding="utf-8"
+        ) as archivo:
+
+            lineas = archivo.readlines()
+
+
+        nuevas_lineas = []
+
+        encontrado_low = False
+        encontrado_high = False
+
+
+        for linea in lineas:
+
+            stripped = linea.lstrip()
+
+            indentacion = (
+                linea[
+                    :len(linea) -
+                    len(stripped)
+                ]
+            )
+
+
+            if stripped.startswith(
+                "hu_ppm_low:"
+            ):
+
+                comentario = ""
+
+                if "#" in linea:
+
+                    comentario = (
+                        "  #" +
+                        linea.split(
+                            "#",
+                            1
+                        )[1].rstrip()
+                    )
+
+                nuevas_lineas.append(
+                    f"{indentacion}"
+                    f"hu_ppm_low: {low:g}"
+                    f"{comentario}\n"
+                )
+
+                encontrado_low = True
+
+                continue
+
+
+            if stripped.startswith(
+                "hu_ppm_high:"
+            ):
+
+                comentario = ""
+
+                if "#" in linea:
+
+                    comentario = (
+                        "  #" +
+                        linea.split(
+                            "#",
+                            1
+                        )[1].rstrip()
+                    )
+
+                nuevas_lineas.append(
+                    f"{indentacion}"
+                    f"hu_ppm_high: {high:g}"
+                    f"{comentario}\n"
+                )
+
+                encontrado_high = True
+
+                continue
+
+
+            nuevas_lineas.append(
+                linea
+            )
+
+
+        if not (
+            encontrado_low
+            and
+            encontrado_high
+        ):
+
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "No se encontraron "
+                    "hu_ppm_low y hu_ppm_high "
+                    "en tht03r.yml."
+                )
+            )
+
+
+        # -------------------------------------------------
+        # ESCRITURA ATÓMICA
+        # -------------------------------------------------
+
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=str(
+                ruta.parent
+            ),
+            delete=False
+        ) as temporal:
+
+            temporal.write(
+                "".join(
+                    nuevas_lineas
+                )
+            )
+
+            ruta_temporal = Path(
+                temporal.name
+            )
+
+
+        os.replace(
+            ruta_temporal,
+            ruta
+        )
+
+
+        # -------------------------------------------------
+        # EVENTO
+        # -------------------------------------------------
+
+        db_service.guardar_evento(
+            tipo="CONFIG_HUMEDAD",
+            estado="ACTUALIZADA",
+            valor=high,
+            detalle=(
+                f"LOW={low:g} % | "
+                f"HIGH={high:g} %"
+            )
+        )
+
+
+        return {
+            "ok": True,
+            "mensaje":
+                "Configuración de humedad guardada.",
+            "humedad": {
+                "low": low,
+                "high": high
+            }
+        }
+
+
+    except HTTPException:
+
+        raise
+
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Error guardando humedad: "
+                f"{type(e).__name__}: {e}"
+            )
+        ) from e
+    
+# =========================================================
 # CONFIGURACIÓN
 # =========================================================
 
@@ -1192,15 +1454,10 @@ async def api_guardar_configuracion_hvac(
             BASE_DIR.parent
         )
 
-        ruta_hvac = Path(
-            os.getenv(
-                "CFG_HVAC",
-                str(
-                    project_dir /
-                    "device" /
-                    "Samsung-HVAC.yml"
-                )
-            )
+        ruta_hvac = (
+            BASE_DIR.parent /
+            "device" /
+            "Samsung-HVAC.yml"
         )
 
 
