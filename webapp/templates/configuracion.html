@@ -12,22 +12,78 @@
 
     <h2>Control CO₂</h2>
 
+    <p class="subtitle">
+        Ajuste de umbrales de control de CO₂
+    </p>
+
     <div class="config-grid">
 
         <div class="config-item">
-            <span class="config-label">LOW</span>
-            <span id="co2Low" class="config-value">--</span>
+            <label for="co2Low">
+                CO₂ LOW
+            </label>
+
+            <div>
+                <input
+                    id="co2Low"
+                    type="number"
+                    step="1"
+                    min="0"
+                >
+                <span>ppm</span>
+            </div>
         </div>
 
-        <div class="config-item">
-            <span class="config-label">HIGH</span>
-            <span id="co2High" class="config-value">--</span>
-        </div>
 
         <div class="config-item">
-            <span class="config-label">Aire fresco</span>
-            <span id="aireFresco" class="config-value">--</span>
+            <label for="co2High">
+                CO₂ HIGH
+            </label>
+
+            <div>
+                <input
+                    id="co2High"
+                    type="number"
+                    step="1"
+                    min="0"
+                >
+                <span>ppm</span>
+            </div>
         </div>
+
+
+        <div class="config-item">
+            <label for="aireFresco">
+                Aire fresco
+            </label>
+
+            <div>
+                <input
+                    id="aireFresco"
+                    type="number"
+                    step="1"
+                    min="1"
+                >
+                <span>min</span>
+            </div>
+        </div>
+
+    </div>
+
+    <div style="margin-top:20px;">
+
+        <button
+            type="button"
+            id="btnGuardarCO2"
+            onclick="guardarConfiguracionCO2()"
+        >
+            Guardar CO₂
+        </button>
+
+        <span
+            id="estadoGuardarCO2"
+            style="margin-left:12px;"
+        ></span>
 
     </div>
 
@@ -38,22 +94,71 @@
 
     <h2>Control de humedad</h2>
 
+    <p class="subtitle">
+        Ajuste de umbrales del humidificador
+    </p>
+
     <div class="config-grid">
 
         <div class="config-item">
-            <span class="config-label">Humedad LOW</span>
-            <span id="humedadLow" class="config-value">--</span>
+
+            <label for="humedadLow">
+                Humedad LOW
+            </label>
+
+            <div>
+                <input
+                    id="humedadLow"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                >
+                <span>%</span>
+            </div>
+
         </div>
 
+
         <div class="config-item">
-            <span class="config-label">Humedad HIGH</span>
-            <span id="humedadHigh" class="config-value">--</span>
+
+            <label for="humedadHigh">
+                Humedad HIGH
+            </label>
+
+            <div>
+                <input
+                    id="humedadHigh"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                >
+                <span>%</span>
+            </div>
+
         </div>
 
     </div>
 
-</section>
+    <div style="margin-top:20px;">
 
+        <button
+            type="button"
+            id="btnGuardarHumedad"
+            onclick="guardarConfiguracionHumedad()"
+        >
+            Guardar humedad
+        </button>
+
+        <span
+            id="estadoGuardarHumedad"
+            style="margin-left:12px;"
+        ></span>
+
+    </div>
+
+</section>
 
 <section class="panel">
 

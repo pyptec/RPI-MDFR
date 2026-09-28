@@ -1554,3 +1554,172 @@ async def api_guardar_configuracion_hvac(
                 f"{type(e).__name__}: {e}"
             )
         ) from e
+        
+ # =========================================================
+# GUARDAR CONFIGURACIÓN CO2
+# =========================================================
+
+@app.post(
+    "/api/configuracion/co2"
+)
+async def api_guardar_configuracion_co2(
+    request: Request
+):
+
+    try:
+
+        datos = await request.json()
+
+        low = int(
+            datos["low"]
+        )
+
+        high = int(
+            datos["high"]
+        )
+
+        aire_fresco = int(
+            datos["aire_fresco_minutos"]
+        )
+
+
+        if low < 0:
+
+            raise HTTPException(
+                status_code=400,
+                detail="CO2 LOW inválido."
+            )
+
+
+        if high <= low:
+
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "CO2 HIGH debe ser "
+                    "mayor que LOW."
+                )
+            )
+
+
+        if aire_fresco <= 0:
+
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "El tiempo de aire fresco "
+                    "debe ser mayor que cero."
+                )
+            )
+
+
+        ruta = (
+            BASE_DIR.parent /
+            "device" /
+            "ct01co2.yml"
+        )
+
+
+        with open(
+            ruta,
+            "r",
+            encoding="utf-8"
+        ) as archivo:
+
+            lineas = archivo.readlines()
+
+
+        nuevas = []
+
+
+        for linea in lineas:
+
+            stripped = linea.lstrip()
+
+            indentacion = (
+                linea[
+                    :len(linea) -
+                    len(stripped)
+                ]
+            )
+
+
+            if stripped.startswith(
+                "co2_ppm_low:"
+            ):
+
+                nuevas.append(
+                    f"{indentacion}"
+                    f"co2_ppm_low: {low}\n"
+                )
+
+                continue
+
+
+            if stripped.startswith(
+                "co2_ppm_high:"
+            ):
+
+                nuevas.append(
+                    f"{indentacion}"
+                    f"co2_ppm_high: {high}\n"
+                )
+
+                continue
+
+
+            if stripped.startswith(
+                "aire_fresco_minutos:"
+            ):
+
+                nuevas.append(
+                    f"{indentacion}"
+                    f"aire_fresco_minutos: "
+                    f"{aire_fresco}\n"
+                )
+
+                continue
+
+
+            nuevas.append(
+                linea
+            )
+
+
+        ruta.write_text(
+            "".join(nuevas),
+            encoding="utf-8"
+        )
+
+
+        db_service.guardar_evento(
+            tipo="CONFIG_CO2",
+            estado="ACTUALIZADA",
+            valor=high,
+            detalle=(
+                f"LOW={low} ppm | "
+                f"HIGH={high} ppm | "
+                f"Aire fresco={aire_fresco} min"
+            )
+        )
+
+
+        return {
+            "ok": True
+        }
+
+
+    except HTTPException:
+
+        raise
+
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Error guardando CO2: "
+                f"{type(e).__name__}: {e}"
+            )
+        ) from e   

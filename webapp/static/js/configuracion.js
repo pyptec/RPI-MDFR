@@ -50,20 +50,20 @@ async function cargarConfiguracion() {
 
         document.getElementById(
             "co2Low"
-        ).innerText =
-            `${data.co2.low ?? "--"} ppm`;
+        ).value =
+            data.co2.low ?? "";
 
 
         document.getElementById(
             "co2High"
-        ).innerText =
-            `${data.co2.high ?? "--"} ppm`;
+        ).value =
+            data.co2.high ?? "";
 
 
         document.getElementById(
             "aireFresco"
-        ).innerText =
-            `${data.co2.aire_fresco_minutos ?? "--"} min`;
+        ).value =
+            data.co2.aire_fresco_minutos ?? "";
 
 
         // =============================================
@@ -72,15 +72,15 @@ async function cargarConfiguracion() {
 
         document.getElementById(
             "humedadLow"
-        ).innerText =
-            `${data.humedad.low ?? "--"} %`;
+        ).value =
+            data.humedad.low ?? "";
 
 
         document.getElementById(
             "humedadHigh"
-        ).innerText =
-            `${data.humedad.high ?? "--"} %`;
-
+        ).value =
+            data.humedad.high ?? "";
+        
 
         // =============================================
         // HVAC
@@ -255,3 +255,246 @@ document.addEventListener(
     "DOMContentLoaded",
     cargarConfiguracion
 );
+
+async function guardarConfiguracionCO2() {
+
+    const boton =
+        document.getElementById(
+            "btnGuardarCO2"
+        );
+
+    const estado =
+        document.getElementById(
+            "estadoGuardarCO2"
+        );
+
+    const low =
+        Number(
+            document.getElementById(
+                "co2Low"
+            ).value
+        );
+
+    const high =
+        Number(
+            document.getElementById(
+                "co2High"
+            ).value
+        );
+
+    const aireFresco =
+        Number(
+            document.getElementById(
+                "aireFresco"
+            ).value
+        );
+
+
+    if (
+        !Number.isFinite(low) ||
+        !Number.isFinite(high) ||
+        !Number.isFinite(aireFresco)
+    ) {
+
+        estado.innerText =
+            "Valores inválidos.";
+
+        return;
+    }
+
+
+    if (low >= high) {
+
+        estado.innerText =
+            "LOW debe ser menor que HIGH.";
+
+        return;
+    }
+
+
+    try {
+
+        boton.disabled =
+            true;
+
+        estado.innerText =
+            "Guardando...";
+
+
+        const response =
+            await fetch(
+                "/api/configuracion/co2",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body: JSON.stringify(
+                        {
+                            low: low,
+                            high: high,
+                            aire_fresco_minutos:
+                                aireFresco
+                        }
+                    )
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.detail ||
+                "No se pudo guardar CO₂"
+            );
+        }
+
+
+        estado.innerText =
+            "Configuración guardada.";
+
+        await cargarConfiguracion();
+
+
+    } catch (error) {
+
+        estado.innerText =
+            error.message;
+
+
+    } finally {
+
+        boton.disabled =
+            false;
+    }
+}
+
+
+async function guardarConfiguracionHumedad() {
+
+    const boton =
+        document.getElementById(
+            "btnGuardarHumedad"
+        );
+
+    const estado =
+        document.getElementById(
+            "estadoGuardarHumedad"
+        );
+
+    const low =
+        Number(
+            document.getElementById(
+                "humedadLow"
+            ).value
+        );
+
+    const high =
+        Number(
+            document.getElementById(
+                "humedadHigh"
+            ).value
+        );
+
+
+    if (
+        !Number.isFinite(low) ||
+        !Number.isFinite(high)
+    ) {
+
+        estado.innerText =
+            "Valores inválidos.";
+
+        return;
+    }
+
+
+    if (
+        low < 0 ||
+        high > 100
+    ) {
+
+        estado.innerText =
+            "La humedad debe estar entre 0 y 100 %.";
+
+        return;
+    }
+
+
+    if (low >= high) {
+
+        estado.innerText =
+            "LOW debe ser menor que HIGH.";
+
+        return;
+    }
+
+
+    try {
+
+        boton.disabled =
+            true;
+
+        estado.innerText =
+            "Guardando...";
+
+
+        const response =
+            await fetch(
+                "/api/configuracion/humedad",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body: JSON.stringify(
+                        {
+                            low: low,
+                            high: high
+                        }
+                    )
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.detail ||
+                "No se pudo guardar humedad"
+            );
+        }
+
+
+        estado.innerText =
+            "Configuración guardada.";
+
+        await cargarConfiguracion();
+
+
+    } catch (error) {
+
+        estado.innerText =
+            error.message;
+
+
+    } finally {
+
+        boton.disabled =
+            false;
+    }
+}
