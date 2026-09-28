@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1>Configuración</h1>
+
+<p class="subtitle">
+    Parámetros actuales de control de la cámara de maduración
+</p>
+
+<section class="panel">
+
+    <h2>Control CO₂</h2>
+
+    <div class="config-grid">
+
+        <div class="config-item">
+            <span class="config-label">LOW</span>
+            <span id="co2Low" class="config-value">--</span>
+        </div>
+
+        <div class="config-item">
+            <span class="config-label">HIGH</span>
+            <span id="co2High" class="config-value">--</span>
+        </div>
+
+        <div class="config-item">
+            <span class="config-label">Aire fresco</span>
+            <span id="aireFresco" class="config-value">--</span>
+        </div>
+
+    </div>
+
+</section>
+
+
+<section class="panel">
+
+    <h2>Control de humedad</h2>
+
+    <div class="config-grid">
+
+        <div class="config-item">
+            <span class="config-label">Humedad LOW</span>
+            <span id="humedadLow" class="config-value">--</span>
+        </div>
+
+        <div class="config-item">
+            <span class="config-label">Humedad HIGH</span>
+            <span id="humedadHigh" class="config-value">--</span>
+        </div>
+
+    </div>
+
+</section>
+
+
+<section class="panel">
+
+    <h2>Control HVAC Samsung</h2>
+
+    <div class="config-grid">
+
+        <div class="config-item">
+            <span class="config-label">Temperatura objetivo</span>
+            <span id="tempTarget" class="config-value">--</span>
+        </div>
+
+        <div class="config-item">
+            <span class="config-label">Banda baja</span>
+            <span id="tempLow" class="config-value">--</span>
+        </div>
+
+        <div class="config-item">
+            <span class="config-label">Banda alta</span>
+            <span id="tempHigh" class="config-value">--</span>
+        </div>
+
+        <div class="config-item">
+            <span class="config-label">Setpoint mínimo</span>
+            <span id="setpointMin" class="config-value">--</span>
+        </div>
+
+        <div class="config-item">
+            <span class="config-label">Setpoint máximo</span>
+            <span id="setpointMax" class="config-value">--</span>
+        </div>
+
+        <div class="config-item">
+            <span class="config-label">Paso</span>
+            <span id="setpointStep" class="config-value">--</span>
+        </div>
+
+        <div class="config-item">
+            <span class="config-label">Modo</span>
+            <span id="hvacMode" class="config-value">--</span>
+        </div>
+
+        <div class="config-item">
+            <span class="config-label">Ventilador</span>
+            <span id="hvacFan" class="config-value">--</span>
+        </div>
+
+    </div>
+
+</section>
+
+
+<script src="/static/js/configuracion.js?v=20260928-1"></script>
+
+{% endblock %}

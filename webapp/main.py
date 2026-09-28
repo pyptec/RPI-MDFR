@@ -11,6 +11,9 @@ from fastapi.templating import Jinja2Templates
 from webapp.services import db_service
 from fastapi import FastAPI, Request, Query, HTTPException, Form
 
+import os
+import yaml
+
 # =========================================================
 # RUTAS
 # =========================================================
@@ -760,3 +763,375 @@ async def api_eventos_tipos():
         "tipos":
             tipos
     }
+    
+# =========================================================
+# CONFIGURACIÓN
+# =========================================================
+
+@app.get(
+    "/configuracion",
+    response_class=HTMLResponse
+)
+async def pagina_configuracion(
+    request: Request
+):
+
+    return templates.TemplateResponse(
+        request=request,
+        name="configuracion.html",
+        context={}
+    )
+
+
+@app.get(
+    "/api/configuracion"
+)
+async def api_configuracion():
+
+    try:
+
+        # =====================================================
+        # RUTAS DE CONFIGURACIÓN
+        # =====================================================
+
+        project_dir = BASE_DIR.parent
+
+        ruta_co2 = Path(
+            os.getenv(
+                "CFG_CT01CO2",
+                str(
+                    project_dir /
+                    "device" /
+                    "ct01co2.yml"
+                )
+            )
+        )
+
+        ruta_humedad = Path(
+            os.getenv(
+                "CFG_THT03R",
+                str(
+                    project_dir /
+                    "device" /
+                    "tht03r.yml"
+                )
+            )
+        )
+
+        ruta_hvac = Path(
+            os.getenv(
+                "CFG_HVAC",
+                str(
+                    project_dir /
+                    "device" /
+                    "Samsung-HVAC.yml"
+                )
+            )
+        )
+
+
+        # =====================================================
+        # CARGAR YAML
+        # =====================================================
+
+        def cargar_yaml(
+            ruta
+        ):
+
+            if not ruta.exists():
+
+                raise FileNotFoundError(
+                    f"No existe archivo: {ruta}"
+                )
+
+            with open(
+                ruta,
+                "r",
+                encoding="utf-8"
+            ) as archivo:
+
+                return (
+                    yaml.safe_load(
+                        archivo
+                    )
+                    or {}
+                )
+
+
+        cfg_co2 = cargar_yaml(
+            ruta_co2
+        )
+
+        cfg_humedad = cargar_yaml(
+            ruta_humedad
+        )
+
+        cfg_hvac = cargar_yaml(
+            ruta_hvac
+        )
+
+
+        # =====================================================
+        # CONFIGURACIÓN CO2
+        # =====================================================
+
+        co2 = (
+            cfg_co2
+            .get(
+                "medidores",
+                {}
+            )
+            .get(
+                "ct01co2_sensor",
+                {}
+            )
+        )
+
+        control_co2 = (
+            co2.get(
+                "control",
+                {}
+            )
+        )
+
+
+        # =====================================================
+        # CONFIGURACIÓN HUMEDAD / THT03R
+        # =====================================================
+
+        humedad = (
+            cfg_humedad
+            .get(
+                "medidores",
+                {}
+            )
+            .get(
+                "tht03r_sensor",
+                {}
+            )
+        )
+
+        control_humedad = (
+            humedad.get(
+                "control",
+                {}
+            )
+        )
+
+
+        # =====================================================
+        # CONFIGURACIÓN HVAC SAMSUNG
+        # =====================================================
+
+        hvac = (
+            cfg_hvac
+            .get(
+                "medidores",
+                {}
+            )
+            .get(
+                "samsung_mim_b19n",
+                {}
+            )
+        )
+
+        control_hvac = (
+            hvac.get(
+                "control",
+                {}
+            )
+        )
+
+
+        # =====================================================
+        # MODO HVAC
+        # =====================================================
+
+        modos_hvac = {
+            0: "Auto",
+            1: "Cool",
+            2: "Dry",
+            3: "Fan",
+            4: "Heat"
+        }
+
+        velocidad_hvac = {
+            0: "Auto",
+            1: "Low",
+            2: "Medium",
+            3: "High"
+        }
+
+        mode = control_hvac.get(
+            "mode"
+        )
+
+        fan_speed = control_hvac.get(
+            "fan_speed"
+        )
+
+
+        # =====================================================
+        # RESPUESTA
+        # =====================================================
+
+        return {
+
+            "co2": {
+
+                "device":
+                    co2.get(
+                        "device_name"
+                    ),
+
+                "slave_id":
+                    co2.get(
+                        "slave_id"
+                    ),
+
+                "baudrate":
+                    co2.get(
+                        "baudrate"
+                    ),
+
+                "low":
+                    control_co2.get(
+                        "co2_ppm_low"
+                    ),
+
+                "high":
+                    control_co2.get(
+                        "co2_ppm_high"
+                    ),
+
+                "aire_fresco_minutos":
+                    control_co2.get(
+                        "aire_fresco_minutos"
+                    )
+            },
+
+
+            "humedad": {
+
+                "device":
+                    humedad.get(
+                        "device_name"
+                    ),
+
+                "slave_id":
+                    humedad.get(
+                        "slave_id"
+                    ),
+
+                "baudrate":
+                    humedad.get(
+                        "baudrate"
+                    ),
+
+                "low":
+                    control_humedad.get(
+                        "hu_ppm_low"
+                    ),
+
+                "high":
+                    control_humedad.get(
+                        "hu_ppm_high"
+                    )
+            },
+
+
+            "hvac": {
+
+                "enabled":
+                    control_hvac.get(
+                        "enabled"
+                    ),
+
+                "reference_sensor":
+                    control_hvac.get(
+                        "reference_sensor"
+                    ),
+
+                "temp_target":
+                    control_hvac.get(
+                        "temp_target"
+                    ),
+
+                "temp_low":
+                    control_hvac.get(
+                        "temp_low"
+                    ),
+
+                "temp_high":
+                    control_hvac.get(
+                        "temp_high"
+                    ),
+
+                "setpoint_min":
+                    control_hvac.get(
+                        "setpoint_min"
+                    ),
+
+                "setpoint_max":
+                    control_hvac.get(
+                        "setpoint_max"
+                    ),
+
+                "setpoint_step":
+                    control_hvac.get(
+                        "setpoint_step"
+                    ),
+
+                "mode":
+                    mode,
+
+                "mode_text":
+                    modos_hvac.get(
+                        mode,
+                        str(mode)
+                    ),
+
+                "fan_speed":
+                    fan_speed,
+
+                "fan_speed_text":
+                    velocidad_hvac.get(
+                        fan_speed,
+                        str(fan_speed)
+                    ),
+
+                "slave_id":
+                    hvac.get(
+                        "slave_id"
+                    ),
+
+                "baudrate":
+                    hvac.get(
+                        "baudrate"
+                    ),
+
+                "port":
+                    hvac.get(
+                        "port"
+                    )
+            }
+        }
+
+
+    except FileNotFoundError as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        ) from e
+
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Error cargando configuración: "
+                f"{type(e).__name__}: {e}"
+            )
+        ) from e
