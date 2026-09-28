@@ -2,93 +2,243 @@
 
 {% block content %}
 
-<h1>Proceso de maduración</h1>
-<p class="subtitle">Registro, seguimiento y ciclos de CO₂</p>
+<h1>
+    Proceso de maduración
+</h1>
 
-<div class="panel">
-    <h2>Estado actual</h2>
-    <div id="estadoProceso">Consultando...</div>
+<p class="subtitle">
+    Registro, seguimiento y ciclos de CO₂
+</p>
 
-    <div id="datosProceso">
-        <p><strong>Lote:</strong> <span id="loteActual">--</span></p>
-        <p><strong>Inicio:</strong> <span id="inicioActual">--</span></p>
-        <p><strong>Tiempo transcurrido:</strong> <span id="tiempoActual">--</span></p>
-        <p><strong>Observaciones:</strong> <span id="observacionesActuales">--</span></p>
-    </div>
-</div>
 
-<div class="panel">
-    <h2>Indicadores de ciclos CO₂</h2>
+<section class="panel">
 
-    <div style="margin-bottom:16px;">
-        <button id="btnModoActivo" onclick="cargarCiclos('activo')">Proceso activo</button>
-        <button id="btnModoHistorico" onclick="cargarCiclos('historico')">Histórico de prueba</button>
+    <h2>
+        Estado actual
+    </h2>
+
+    <div id="estadoProceso">
+        Consultando...
     </div>
 
-    <p id="procesoCiclosInfo">Consultando ciclos...</p>
 
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:16px 0;">
-        <div class="panel">
-            <strong>Ciclos completados</strong>
-            <div id="kpiCiclos" style="font-size:1.6rem;">--</div>
+    <div class="process-grid">
+
+        <div>
+            <span>Lote</span>
+            <strong id="loteActual">
+                --
+            </strong>
         </div>
-        <div class="panel">
-            <strong>LOW → HIGH promedio</strong>
-            <div id="kpiLowHigh" style="font-size:1.6rem;">--</div>
+
+        <div>
+            <span>Inicio</span>
+            <strong id="inicioActual">
+                --
+            </strong>
         </div>
-        <div class="panel">
-            <strong>Purga promedio</strong>
-            <div id="kpiPurga" style="font-size:1.6rem;">--</div>
+
+        <div>
+            <span>Tiempo transcurrido</span>
+            <strong id="tiempoActual">
+                --
+            </strong>
         </div>
-        <div class="panel">
-            <strong>Entre purgas promedio</strong>
-            <div id="kpiIntervalo" style="font-size:1.6rem;">--</div>
+
+        <div>
+            <span>Observaciones</span>
+            <strong id="observacionesActuales">
+                --
+            </strong>
         </div>
-        <div class="panel">
-            <strong>Último intervalo</strong>
-            <div id="kpiUltimoIntervalo" style="font-size:1.6rem;">--</div>
-        </div>
+
     </div>
+
+</section>
+
+
+<section class="panel">
+
+    <h2>
+        Indicadores de ciclos CO₂
+    </h2>
+
+
+    <div class="variable-buttons">
+
+        <button
+            id="btnCiclosActivo"
+            onclick="cambiarModoCiclos('activo')"
+        >
+            Proceso activo
+        </button>
+
+        <button
+            id="btnCiclosHistorico"
+            onclick="cambiarModoCiclos('historico')"
+        >
+            Histórico de prueba
+        </button>
+
+    </div>
+
+
+    <p id="origenCiclos">
+        Consultando ciclos...
+    </p>
+
+
+    <div class="process-grid">
+
+        <div>
+            <span>
+                Ciclos completados
+            </span>
+
+            <strong id="kpiCiclos">
+                --
+            </strong>
+        </div>
+
+
+        <div>
+            <span>
+                LOW → HIGH promedio
+            </span>
+
+            <strong id="kpiLowHigh">
+                --
+            </strong>
+        </div>
+
+
+        <div>
+            <span>
+                Purga promedio
+            </span>
+
+            <strong id="kpiPurga">
+                --
+            </strong>
+        </div>
+
+
+        <div>
+            <span>
+                Entre purgas promedio
+            </span>
+
+            <strong id="kpiIntervalo">
+                --
+            </strong>
+        </div>
+
+
+        <div>
+            <span>
+                Último intervalo
+            </span>
+
+            <strong id="kpiUltimoIntervalo">
+                --
+            </strong>
+        </div>
+
+    </div>
+
 
     <div style="overflow-x:auto;">
-        <table style="width:100%;border-collapse:collapse;">
+
+        <table>
+
             <thead>
+
                 <tr>
                     <th>Ciclo</th>
                     <th>Inicio</th>
                     <th>Inicio purga</th>
                     <th>Fin purga</th>
-                    <th>LOW→HIGH</th>
+                    <th>LOW → HIGH</th>
                     <th>Purga</th>
                     <th>Entre purgas</th>
                     <th>CO₂ inicio</th>
                     <th>CO₂ fin</th>
                     <th>Estado</th>
                 </tr>
+
             </thead>
+
+
             <tbody id="tablaCiclos">
-                <tr><td colspan="10">Consultando...</td></tr>
+
+                <tr>
+                    <td colspan="10">
+                        Consultando...
+                    </td>
+                </tr>
+
             </tbody>
+
         </table>
+
     </div>
-</div>
 
-<div class="panel">
-    <h2>Nuevo proceso</h2>
+</section>
 
-    <label>Número o identificación del lote</label>
-    <input type="text" id="lote" placeholder="Ejemplo: LOTE-2026-09-24">
 
-    <label>Observaciones</label>
-    <textarea id="observaciones" rows="4" placeholder="Información inicial del lote"></textarea>
+<section class="panel">
+
+    <h2>
+        Nuevo proceso
+    </h2>
+
+
+    <label for="lote">
+        Número o identificación del lote
+    </label>
+
+    <input
+        type="text"
+        id="lote"
+        placeholder="Ejemplo: LOTE-2026-09-28"
+    >
+
+
+    <label for="observaciones">
+        Observaciones
+    </label>
+
+    <textarea
+        id="observaciones"
+        rows="4"
+        placeholder="Información inicial del lote"
+    ></textarea>
+
 
     <div>
-        <button id="btnIniciar" onclick="iniciarProceso()">Iniciar proceso</button>
-        <button id="btnFinalizar" onclick="finalizarProceso()">Finalizar proceso</button>
+
+        <button
+            id="btnIniciar"
+            onclick="iniciarProceso()"
+        >
+            Iniciar proceso
+        </button>
+
+        <button
+            id="btnFinalizar"
+            onclick="finalizarProceso()"
+        >
+            Finalizar proceso
+        </button>
+
     </div>
 
-    <div id="mensajeProceso"></div>
-</div>
+
+    <div id="mensajeProceso">
+    </div>
+
+</section>
+
 
 <script src="/static/js/proceso.js"></script>
 
