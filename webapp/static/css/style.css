@@ -638,3 +638,27 @@ footer {
         padding: 16px;
     }
 }
+/* =========================================================
+   ESTADOS DEL PROCESO
+   ========================================================= */
+
+.estado-activo {
+    color: #137333;
+    font-weight: 700;
+}
+
+.estado-inactivo {
+    color: #7b8790;
+    font-weight: 700;
+}
+
+.estado-alerta {
+    color: #b3261e;
+    font-weight: 700;
+}
+
+.kpi-destacado {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #263842;
+}

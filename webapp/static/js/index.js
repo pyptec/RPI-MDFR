@@ -350,6 +350,32 @@ async function actualizarProcesoHome() {
                 "estadoProceso"
             );
 
+        if (
+            !dataProceso.activo ||
+            !dataProceso.proceso
+        ) {
+
+            if (estado) {
+
+                estado.innerText =
+                    "SIN PROCESO";
+
+                estado.className =
+                    "estado-inactivo";
+            }
+
+        } else {
+
+            if (estado) {
+
+                estado.innerText =
+                    "ACTIVO";
+
+                estado.className =
+                    "estado-activo";
+            }
+        }
+
         const inicio =
             document.getElementById(
                 "inicioProceso"
