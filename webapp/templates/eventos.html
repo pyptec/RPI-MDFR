@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1>
+    Eventos del sistema
+</h1>
+
+<p class="subtitle">
+    Registro histórico de eventos de operación y seguridad
+</p>
+
+<section class="panel">
+
+    <h2>
+        Filtros
+    </h2>
+
+    <div class="filter-grid">
+
+        <div>
+            <label for="tipoEvento">
+                Tipo de evento
+            </label>
+
+            <select id="tipoEvento">
+                <option value="TODOS">
+                    Todos
+                </option>
+            </select>
+        </div>
+
+        <div>
+            <label for="fechaDesdeEvento">
+                Desde
+            </label>
+
+            <input
+                type="datetime-local"
+                id="fechaDesdeEvento"
+            >
+        </div>
+
+        <div>
+            <label for="fechaHastaEvento">
+                Hasta
+            </label>
+
+            <input
+                type="datetime-local"
+                id="fechaHastaEvento"
+            >
+        </div>
+
+        <div>
+            <label for="limiteEventos">
+                Máximo de registros
+            </label>
+
+            <select id="limiteEventos">
+                <option value="50">
+                    50
+                </option>
+
+                <option
+                    value="100"
+                    selected
+                >
+                    100
+                </option>
+
+                <option value="200">
+                    200
+                </option>
+
+                <option value="500">
+                    500
+                </option>
+
+                <option value="1000">
+                    1000
+                </option>
+            </select>
+        </div>
+
+    </div>
+
+    <div style="margin-top: 18px;">
+
+        <button
+            type="button"
+            onclick="consultarEventos()"
+        >
+            Consultar
+        </button>
+
+        <button
+            type="button"
+            onclick="limpiarFiltrosEventos()"
+        >
+            Limpiar filtros
+        </button>
+
+    </div>
+
+</section>
+
+<section class="panel">
+
+    <h2>
+        Registro de eventos
+    </h2>
+
+    <p id="resumenEventos">
+        Consultando...
+    </p>
+
+    <div style="overflow-x:auto;">
+
+        <table>
+
+            <thead>
+                <tr>
+                    <th>Fecha / hora</th>
+                    <th>Tipo</th>
+                    <th>Estado</th>
+                    <th>Valor</th>
+                    <th>Detalle</th>
+                </tr>
+            </thead>
+
+            <tbody id="tablaEventos">
+
+                <tr>
+                    <td colspan="5">
+                        Consultando eventos...
+                    </td>
+                </tr>
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</section>
+
+<script src="/static/js/eventos.js?v=20260928-1"></script>
+
+{% endblock %}
