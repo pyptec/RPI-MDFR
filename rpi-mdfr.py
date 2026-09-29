@@ -2282,6 +2282,10 @@ def main_loop():
     contador_envio = 0
     man_log_activo = False
     door_log_activo = False
+    # Estado anterior del proceso.
+    # Se usa para ejecutar ALL OFF una sola vez
+    # cuando el proceso pasa de ACTIVO a SIN PROCESO.
+    proceso_control_activo = False
     while True:
         # GUARD 0: Hombre atrapado
         if getattr(Temp, "_man_state", {}).get("latched"):
@@ -2338,10 +2342,121 @@ def main_loop():
             tempRaspberry, TIMERCHEQUEOTEMPERATURA, contador_envio
         )
 
-        # Caso “mdfr”
-        tempMdfr = DISPATCH["mdfr"](
-            tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor
-        )
+        # =========================================================
+        # CONTROL DEL PROCESO DE MADURACIÓN
+        # =========================================================
+        #
+        # El control MDFR SOLO trabaja si existe un proceso
+        # ACTIVO en SQLite.
+        #
+        # El proceso se inicia y finaliza desde la web.
+        #
+        # =========================================================
+
+        try:
+
+            proceso_activo = (db_service.obtener_proceso_activo())
+
+
+            # =====================================================
+            # PROCESO ACTIVO
+            # =====================================================
+
+            if proceso_activo is not None:
+
+                # -------------------------------------------------
+                # TRANSICIÓN:
+                # SIN PROCESO -> PROCESO ACTIVO
+                # -------------------------------------------------
+
+                if not proceso_control_activo:
+
+                    util.logging.info(
+                        "[PROCESO] "
+                        "Inicio detectado desde la web | "
+                        f"id={proceso_activo.get('id')} | "
+                        f"inicio={proceso_activo.get('inicio_utc')}"
+                    )
+
+
+                    # Fuerza ejecución inmediata del MDFR
+                    # al comenzar el proceso.
+
+                    tempMdfr = 0
+
+
+                    proceso_control_activo = True
+
+
+                # -------------------------------------------------
+                # EJECUTAR CONTROL MDFR
+                # -------------------------------------------------
+
+                tempMdfr = DISPATCH["mdfr"](tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor)
+
+
+            # =====================================================
+            # SIN PROCESO ACTIVO
+            # =====================================================
+
+            else:
+
+                # -------------------------------------------------
+                # TRANSICIÓN:
+                # PROCESO ACTIVO -> SIN PROCESO
+                # -------------------------------------------------
+
+                if proceso_control_activo:
+
+                    util.logging.info(
+                        "[PROCESO] "
+                        "Finalización detectada desde la web | "
+                        "deteniendo control MDFR."
+                    )
+
+
+                    try:
+
+                        Temp.all_relay()
+
+
+                        util.logging.info(
+                            "[PROCESO] "
+                            "Actuadores llevados a estado seguro OFF."
+                        )
+
+
+                    except Exception as e:
+
+                        util.logging.error(
+                            "[PROCESO] "
+                            "Error apagando actuadores: "
+                            f"{type(e).__name__}: {e}"
+                        )
+
+
+                    proceso_control_activo = False
+
+
+                # -------------------------------------------------
+                # SIN PROCESO:
+                # NO ejecutar MDFR.
+                #
+                # Mantener el temporizador preparado para que,
+                # cuando el operador pulse INICIAR,
+                # el control arranque inmediatamente.
+                # -------------------------------------------------
+
+                tempMdfr = 0
+
+
+        except Exception as e:
+
+            util.logging.error(
+                "[PROCESO] "
+                "Error consultando estado del proceso: "
+                f"{type(e).__name__}: {e}"
+            )
 
         
 
