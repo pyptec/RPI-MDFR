@@ -2,6 +2,7 @@ medidores:
   relayDioustou_4r:
     device_name: "DIOUSTOU-4R"
     debug: False          # <— para ver tramas de minimalmodbus
+    enabled: true
     id_device: 46   #20
     port: "/dev/ttyS0"   # AJUSTA si es distinto
     slave_id: 2            # Recomendado (no uses 255)

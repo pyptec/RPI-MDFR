@@ -12,7 +12,9 @@ medidores:
     timeout: 1
 
     simular: false
+    enabled: true
 
+    
     registers:
       - name: Temperature
         address: 0

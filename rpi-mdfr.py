@@ -1019,24 +1019,120 @@ def publicar_mediciones_aws():
             for reg in cfg_rel.get('registers', [])
             if int(reg.get('fc_read', 0)) == 1 and int(reg.get('fc_write', 0)) == 5
         ]
-        p_relays = modbusdevices.payload_relays_many_packed(cfg_rel, relay_names)
+        p_relays = modbusdevices.payload_relays_many_packed(cfg_rel, relay_names )
+
         p_hvac = samsung_hvac.payload_hvac_status()
+
+
+        # =========================================================
+        # AGREGAR AIRE FRESCO AL MISMO PAYLOAD DE RELÉS
+        # =========================================================
+
+        aire_fresco_agregado = False
+        reg_aire = None
+
         try:
-            regs_by_name = {str(r.get('name')): r for r in cfg_rel.get('registers', [])}
 
-            reg_aire = next(reg for reg in cfg_rel.get('registers', []) if reg.get('type') == 'gpio')
-            estado_aire = Temp.getairefresco()
-
-            p_relays["d"][0]["v"].append("1" if estado_aire else "0")
-            p_relays["d"][0]["u"].append(str(reg_aire["unit"]))
-
-            util.logging.info(
-                f"[RELAYS] {reg_aire['name']} GPIO{reg_aire['gpio']} "
-                f"estado={'ON' if estado_aire else 'OFF'}"
+            reg_aire = next(
+                (
+                    reg
+                    for reg in cfg_rel.get(
+                        "registers",
+                        []
+                    )
+                    if reg.get("type") == "gpio"), None
             )
 
+
+            if reg_aire is not None:
+
+                estado_aire = (Temp.getairefresco())
+
+
+                p_relays["d"][0]["v"].append("1" 
+                    if estado_aire
+                    else "0"
+                )
+
+
+                p_relays["d"][0]["u"].append(str(reg_aire["unit"] ))
+
+
+                aire_fresco_agregado = True
+
+
+                util.logging.info(
+                    "[RELAYS] "
+                    f"{reg_aire['name']} "
+                    f"GPIO{reg_aire['gpio']} "
+                    f"estado="
+                    f"{'ON' if estado_aire else 'OFF'}"
+                )
+
+
         except Exception as e:
-            util.logging.error(f"[RELAYS] Error agregando aire_fresco al payload: {e}")
+
+            util.logging.error(
+                "[RELAYS] "
+                "Error agregando aire fresco "
+                "al payload: "
+                f"{type(e).__name__}: {e}"
+            )
+
+
+        # =========================================================
+        # GUARDAR EL MISMO SNAPSHOT DE RELÉS EN SQLITE
+        # =========================================================
+        #
+        # IMPORTANTE:
+        #
+        # Aquí NO se vuelve a leer el DIOUSTOU.
+        # Se reutiliza exactamente el mismo payload
+        # que ya fue obtenido para AWS.
+        #
+        # =========================================================
+
+        try:
+
+            nombres_actuadores = list(relay_names)
+
+
+            if (aire_fresco_agregado and reg_aire is not None):
+
+                nombres_actuadores.append(str(reg_aire["name"]))
+
+
+            cantidad_actuadores = (
+                db_service.guardar_actuadores(
+                    payload=p_relays,
+                    nombres=nombres_actuadores,
+                    sensor=str(
+                        cfg_rel[
+                            "device_name"
+                        ]
+                    )
+                )
+            )
+
+
+            util.logging.info(
+                "[DB][RELAYS] "
+                f"Estados guardados="
+                f"{cantidad_actuadores} | "
+                f"actuadores="
+                f"{nombres_actuadores}"
+            )
+
+
+        except Exception as e:
+
+            # La BD jamás debe detener el control.
+
+            util.logging.error(
+                "[DB][RELAYS] "
+                "Error guardando snapshot: "
+                f"{type(e).__name__}: {e}"
+            )
 
         eventos = [
             datos['sensor_CT01CO2'],
@@ -1064,16 +1160,12 @@ def publicar_mediciones_aws():
         # Nunca se publica directamente desde aquí.
         # =========================================================
 
-        topic = os.getenv(
-            "TOPIC"
-        )
+        topic = os.getenv("TOPIC")
 
 
         if not topic:
 
-            raise RuntimeError(
-                "TOPIC no configurado en .env"
-            )
+            raise RuntimeError("TOPIC no configurado en .env" )
 
 
         encolados = 0

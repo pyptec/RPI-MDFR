@@ -1985,3 +1985,85 @@ def aws_queue_contar_enviados():
     return int(
         fila[0]
     )
+    
+# =========================================================
+# GUARDAR SNAPSHOT DE ACTUADORES
+# =========================================================
+
+def guardar_actuadores(
+    payload,
+    nombres,
+    sensor
+):
+    """
+    Guarda en SQLite el mismo snapshot de actuadores
+    que el proceso principal genera para AWS.
+
+    No realiza lecturas Modbus.
+    Solo persiste el payload ya obtenido.
+    """
+
+    init_db()
+
+    registro = _extraer_payload(
+        payload
+    )
+
+    if registro is None:
+        return 0
+
+
+    valores = registro.get(
+        "v",
+        []
+    )
+
+    unidades = registro.get(
+        "u",
+        []
+    )
+
+    timestamp = registro.get(
+        "t"
+    )
+
+
+    insertadas = 0
+
+
+    for indice, nombre in enumerate(
+        nombres
+    ):
+
+        if indice >= len(
+            valores
+        ):
+            continue
+
+
+        valor = valores[
+            indice
+        ]
+
+
+        unidad = (
+            unidades[indice]
+            if indice < len(
+                unidades
+            )
+            else None
+        )
+
+
+        if guardar_medicion(
+            sensor=sensor,
+            variable=str(nombre),
+            valor=valor,
+            unidad=unidad,
+            timestamp_utc=timestamp
+        ):
+
+            insertadas += 1
+
+
+    return insertadas

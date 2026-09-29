@@ -922,7 +922,12 @@ async function actualizarSaludSistema() {
 actualizarValores();
 actualizarProcesoHome();
 actualizarEstadoOperacion();
+actualizarSaludSistema();
 
+setInterval(
+    actualizarSaludSistema,
+    30000
+);
 
 setInterval(
     actualizarEstadoOperacion,

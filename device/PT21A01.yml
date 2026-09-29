@@ -5,6 +5,7 @@ medidores:
     port: "/dev/ttyS0"
     debug: False
     simular: False
+    enabled: false   
 
     slave_id: 3
     baudrate: 9600
