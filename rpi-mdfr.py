@@ -1881,6 +1881,210 @@ def _dns_guard_loop(period=540):  # 9 minutos = 540 s
         time.sleep(period)
 # Lanza el guardia DNS cada 9 minutos (daemon)
 threading.Thread(target=_dns_guard_loop, args=(540,), daemon=True).start()
+
+# =========================================================
+# ACTUALIZAR SNAPSHOT DE ACTUADORES EN SQLITE
+# =========================================================
+#
+# Se usa únicamente:
+#
+#   - al INICIAR un proceso
+#   - al FINALIZAR un proceso
+#
+# No publica a AWS.
+#
+# =========================================================
+
+def actualizar_snapshot_actuadores():
+
+    try:
+
+        cfg_rel = (
+            util.cargar_configuracion(
+                os.getenv(
+                    "CFG_RELAY"
+                ),
+                os.getenv(
+                    "CFG_RELAY_SECTION"
+                )
+            )
+        )
+
+
+        if not cfg_rel:
+
+            util.logging.warning(
+                "[RELAYS-SNAPSHOT] "
+                "Configuración de relés no disponible."
+            )
+
+            return 0
+
+
+        # =================================================
+        # RELÉS MODBUS
+        # =================================================
+
+        relay_names = [
+
+            str(
+                reg["name"]
+            )
+
+            for reg
+            in cfg_rel.get(
+                "registers",
+                []
+            )
+
+            if
+            int(
+                reg.get(
+                    "fc_read",
+                    0
+                )
+                or 0
+            ) == 1
+
+            and
+
+            int(
+                reg.get(
+                    "fc_write",
+                    0
+                )
+                or 0
+            ) == 5
+        ]
+
+
+        # Una sola lectura FC01
+        p_relays = (
+            modbusdevices
+            .payload_relays_many_packed(
+                cfg_rel,
+                relay_names
+            )
+        )
+
+
+        if not p_relays:
+
+            util.logging.warning(
+                "[RELAYS-SNAPSHOT] "
+                "No fue posible obtener estados."
+            )
+
+            return 0
+
+
+        nombres_actuadores = (
+            list(
+                relay_names
+            )
+        )
+
+
+        # =================================================
+        # AIRE FRESCO GPIO
+        # =================================================
+
+        reg_aire = next(
+            (
+                reg
+
+                for reg
+                in cfg_rel.get(
+                    "registers",
+                    []
+                )
+
+                if reg.get(
+                    "type"
+                ) == "gpio"
+            ),
+            None
+        )
+
+
+        if reg_aire is not None:
+
+            estado_aire = (
+                Temp.getairefresco()
+            )
+
+
+            p_relays[
+                "d"
+            ][0][
+                "v"
+            ].append(
+                "1"
+                if estado_aire
+                else "0"
+            )
+
+
+            p_relays[
+                "d"
+            ][0][
+                "u"
+            ].append(
+                str(
+                    reg_aire[
+                        "unit"
+                    ]
+                )
+            )
+
+
+            nombres_actuadores.append(
+                str(
+                    reg_aire[
+                        "name"
+                    ]
+                )
+            )
+
+
+        # =================================================
+        # SQLITE
+        # =================================================
+
+        cantidad = (
+            db_service
+            .guardar_actuadores(
+                payload=p_relays,
+                nombres=nombres_actuadores,
+                sensor=str(
+                    cfg_rel[
+                        "device_name"
+                    ]
+                )
+            )
+        )
+
+
+        util.logging.info(
+            "[RELAYS-SNAPSHOT] "
+            f"Actualizado | "
+            f"actuadores={cantidad}"
+        )
+
+
+        return cantidad
+
+
+    except Exception as e:
+
+        util.logging.error(
+            "[RELAYS-SNAPSHOT] "
+            "Error: "
+            f"{type(e).__name__}: {e}"
+        )
+
+        return 0
+
 def aws_publish_loop():
     util.logging.info(
         f"[AWS_LOOP] Thread iniciado. Primera publicación en {TIMERMEDICION} s"
@@ -2282,10 +2486,11 @@ def main_loop():
     contador_envio = 0
     man_log_activo = False
     door_log_activo = False
-    # Estado anterior del proceso.
-    # Se usa para ejecutar ALL OFF una sola vez
-    # cuando el proceso pasa de ACTIVO a SIN PROCESO.
     proceso_control_activo = False
+    # Permite actualizar la web inmediatamente
+    # después de la primera actuación del MDFR.
+    snapshot_inicio_pendiente = False
+    
     while True:
         # GUARD 0: Hombre atrapado
         if getattr(Temp, "_man_state", {}).get("latched"):
@@ -2384,6 +2589,9 @@ def main_loop():
 
                     tempMdfr = 0
 
+                    # Después de esa primera ejecución,
+                    # leer los estados físicos y actualizar SQLite.
+                    snapshot_inicio_pendiente = True
 
                     proceso_control_activo = True
 
@@ -2394,7 +2602,15 @@ def main_loop():
 
                 tempMdfr = DISPATCH["mdfr"](tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor)
 
+                # =========================================================
+                # SNAPSHOT INMEDIATO AL INICIAR PROCESO
+                # =========================================================
 
+                if snapshot_inicio_pendiente:
+
+                    actualizar_snapshot_actuadores()
+
+                    snapshot_inicio_pendiente = False
             # =====================================================
             # SIN PROCESO ACTIVO
             # =====================================================
@@ -2447,8 +2663,22 @@ def main_loop():
                                 "Error apagando aire fresco: "
                                 f"{type(e).__name__}: {e}"
                             )
+                        # =====================================================
+                        # ACTUALIZAR WEB INMEDIATAMENTE
+                        # =====================================================
+
+                        actualizar_snapshot_actuadores()
+
+                        # =====================================================
+                        # MARCAR CONTROL DETENIDO
+                        # =====================================================
+
+                        proceso_control_activo = False
+
+                        snapshot_inicio_pendiente = False
 
 
+                        tempMdfr = 0
                         # =================================================
                         # 3. ACTUALIZAR SQLITE INMEDIATAMENTE
                         # =================================================
