@@ -858,7 +858,7 @@ async function finalizarProceso() {
 
 
         await cargarProceso();
-
+        await cargarHistorialProcesos();
 
         if (
             modoCiclos ===
@@ -892,6 +892,7 @@ cargarProceso();
 
 cargarCiclos();
 
+cargarHistorialProcesos();
 
 setInterval(
     actualizarCronometro,
@@ -903,3 +904,289 @@ setInterval(
     cargarCiclos,
     30000
 );
+
+function escaparHtml(valor) {
+
+    if (
+        valor === null ||
+        valor === undefined
+    ) {
+        return "";
+    }
+
+    return String(valor)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
+
+
+async function cargarHistorialProcesos() {
+
+    const tbody =
+        elemento(
+            "tablaProcesos"
+        );
+
+    if (!tbody) {
+        return;
+    }
+
+
+    try {
+
+        tbody.innerHTML =
+            `
+            <tr>
+                <td colspan="8">
+                    Consultando procesos...
+                </td>
+            </tr>
+            `;
+
+
+        const response =
+            await fetch(
+                "/api/procesos",
+                {
+                    cache:
+                        "no-store"
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.detail ||
+                "Error consultando procesos"
+            );
+        }
+
+
+        const procesos =
+            Array.isArray(
+                data.procesos
+            )
+                ? data.procesos
+                : [];
+
+
+        if (
+            procesos.length === 0
+        ) {
+
+            tbody.innerHTML =
+                `
+                <tr>
+                    <td colspan="8">
+                        No hay procesos registrados.
+                    </td>
+                </tr>
+                `;
+
+            return;
+        }
+
+
+        let html = "";
+
+
+        for (
+            const proceso
+            of procesos
+        ) {
+
+            html +=
+                `
+                <tr>
+
+                    <td>
+                        ${proceso.id}
+                    </td>
+
+                    <td>
+                        ${escaparHtml(
+                            proceso.lote ||
+                            "--"
+                        )}
+                    </td>
+
+                    <td>
+                        ${formatoFecha(
+                            proceso.inicio
+                        )}
+                    </td>
+
+                    <td>
+                        ${formatoFecha(
+                            proceso.fin
+                        )}
+                    </td>
+
+                    <td>
+                        ${formatoDuracion(
+                            proceso.duracion_segundos
+                        )}
+                    </td>
+
+                    <td>
+                        ${escaparHtml(
+                            proceso.estado ||
+                            "--"
+                        )}
+                    </td>
+
+                    <td>
+                        ${proceso.ciclos_cerrados}
+                    </td>
+
+                    <td>
+
+                        <button
+                            type="button"
+                            onclick="verProcesoHistorico(
+                                ${proceso.id}
+                            )"
+                        >
+                            Ver
+                        </button>
+
+                    </td>
+
+                </tr>
+                `;
+        }
+
+
+        tbody.innerHTML =
+            html;
+
+
+    } catch (error) {
+
+        console.error(
+            "Error cargarHistorialProcesos:",
+            error
+        );
+
+
+        tbody.innerHTML =
+            `
+            <tr>
+                <td colspan="8">
+                    Error consultando procesos.
+                </td>
+            </tr>
+            `;
+    }
+}
+
+
+async function verProcesoHistorico(
+    procesoId
+) {
+
+    try {
+
+        ponerTexto(
+            "origenCiclos",
+            "Consultando proceso..."
+        );
+
+
+        const response =
+            await fetch(
+                `/api/procesos/${procesoId}/ciclos`,
+                {
+                    cache:
+                        "no-store"
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.detail ||
+                "Error consultando proceso"
+            );
+        }
+
+
+        pintarResumen(
+            data.resumen
+        );
+
+
+        ponerTexto(
+            "origenCiclos",
+            (
+                "Proceso histórico" +
+                " | ID " +
+                data.proceso.id +
+                " | Lote " +
+                (
+                    data.proceso.lote ||
+                    "--"
+                ) +
+                " | Estado " +
+                (
+                    data.proceso.estado ||
+                    "--"
+                )
+            )
+        );
+
+
+        pintarTabla(
+            data.ciclos
+        );
+
+
+        const indicadores =
+            document.getElementById(
+                "origenCiclos"
+            );
+
+
+        if (indicadores) {
+
+            indicadores.scrollIntoView(
+                {
+                    behavior:
+                        "smooth",
+
+                    block:
+                        "start"
+                }
+            );
+        }
+
+
+    } catch (error) {
+
+        console.error(
+            "Error verProcesoHistorico:",
+            error
+        );
+
+        ponerTexto(
+            "origenCiclos",
+            (
+                "Error consultando proceso: " +
+                error.message
+            )
+        );
+    }
+}

@@ -73,12 +73,7 @@
             Proceso activo
         </button>
 
-        <button
-            id="btnCiclosHistorico"
-            onclick="cambiarModoCiclos('historico')"
-        >
-            Histórico de prueba
-        </button>
+        
 
     </div>
 
@@ -184,7 +179,59 @@
     </div>
 
 </section>
+<div class="panel">
 
+    <h2>Historial de procesos</h2>
+
+    <p class="subtitle">
+        Procesos de maduración registrados en la base de datos
+    </p>
+
+    <div style="overflow-x:auto;">
+
+        <table style="width:100%;">
+
+            <thead>
+
+                <tr>
+
+                    <th>ID</th>
+
+                    <th>Lote</th>
+
+                    <th>Inicio</th>
+
+                    <th>Fin</th>
+
+                    <th>Duración</th>
+
+                    <th>Estado</th>
+
+                    <th>Ciclos</th>
+
+                    <th></th>
+
+                </tr>
+
+            </thead>
+
+            <tbody id="tablaProcesos">
+
+                <tr>
+
+                    <td colspan="8">
+                        Consultando procesos...
+                    </td>
+
+                </tr>
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
 
 <section class="panel">
 
