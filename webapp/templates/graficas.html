@@ -2,53 +2,147 @@
 
 {% block content %}
 
+
+<style>
+
+.metric-grid {
+    display: grid;
+    grid-template-columns:
+        repeat(
+            auto-fit,
+            minmax(180px, 1fr)
+        );
+    gap: 12px;
+    margin-top: 14px;
+}
+
+
+.metric-card {
+    background: #f8fafc;
+    border: 1px solid #dbe3ea;
+    border-radius: 9px;
+    padding: 14px;
+}
+
+
+.metric-label {
+    display: block;
+    font-size: 12px;
+    color: #64748b;
+    margin-bottom: 6px;
+}
+
+
+.metric-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+
+.process-chart-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-top: 18px;
+}
+
+
+.chart-box {
+    background: #ffffff;
+    border: 1px solid #dbe3ea;
+    border-radius: 9px;
+    padding: 14px;
+}
+
+
+.chart-box h3 {
+    margin-top: 0;
+    margin-bottom: 8px;
+}
+
+
+.chart-description {
+    font-size: 12px;
+    color: #64748b;
+    margin-bottom: 10px;
+}
+
+
+.process-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 16px;
+}
+
+
+.process-table th,
+.process-table td {
+    border-bottom: 1px solid #e2e8f0;
+    padding: 9px;
+    text-align: left;
+    font-size: 12px;
+}
+
+
+.process-table th {
+    background: #eef3f6;
+    color: #334155;
+}
+
+
+.section-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+}
+
+
+.process-badge {
+    display: inline-block;
+    padding: 6px 11px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    color: #475569;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+
+.process-badge.active {
+    background: #dcfce7;
+    color: #166534;
+}
+
+
+@media (max-width: 700px) {
+
+    .section-title-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+</style>
+
+
+
 <h1>
     Gráficas históricas
 </h1>
 
 <p class="subtitle">
-    Consulta de variables de la cámara de maduración
+    Análisis de variables ambientales y del proceso de maduración
 </p>
 
 
-<section class="panel">
 
-    <h2>
-        Variable
-    </h2>
+<!-- =====================================================
+     FILTRO DE TIEMPO
+     ===================================================== -->
 
-    <div class="variable-buttons">
-
-        <button onclick="consultarCO2()">
-            CO₂
-        </button>
-
-        <button onclick="consultarTemperatura()">
-            Temperatura
-        </button>
-
-        <button onclick="consultarHumedad()">
-            Humedad
-        </button>
-
-        <button onclick="consultarC2H4()">
-            Etileno C₂H₄
-        </button>
-
-        <button onclick="consultarPT100()">
-            PT100
-        </button>
-
-        <button onclick="consultarPT1000()">
-            PT1000
-        </button>
-
-    </div>
-
-</section>
-
-
-<section class="panel">
+<div class="panel">
 
     <h2>
         Filtro de tiempo
@@ -57,9 +151,10 @@
 
     <div class="filter-grid">
 
+
         <div>
 
-            <label for="fechaDesde">
+            <label>
                 Desde
             </label>
 
@@ -73,7 +168,7 @@
 
         <div>
 
-            <label for="horaDesde">
+            <label>
                 Hora
             </label>
 
@@ -86,11 +181,13 @@
 
         <div>
 
-            <label for="minDesde">
+            <label>
                 Minuto
             </label>
 
-            <select id="minDesde">
+            <select
+                id="minDesde"
+            >
 
                 <option>00</option>
                 <option>10</option>
@@ -106,7 +203,7 @@
 
         <div>
 
-            <label for="fechaHasta">
+            <label>
                 Hasta
             </label>
 
@@ -120,7 +217,7 @@
 
         <div>
 
-            <label for="horaHasta">
+            <label>
                 Hora
             </label>
 
@@ -133,11 +230,13 @@
 
         <div>
 
-            <label for="minHasta">
+            <label>
                 Minuto
             </label>
 
-            <select id="minHasta">
+            <select
+                id="minHasta"
+            >
 
                 <option>00</option>
                 <option>10</option>
@@ -150,62 +249,334 @@
 
         </div>
 
+
     </div>
 
 
-    <div
-        style="
-            margin-top: 18px;
-        "
-    >
+    <div style="margin-top: 14px;">
 
         <button
-            onclick="consultarHistorico()"
+            onclick="consultarCO2()"
         >
-            Consultar período
+            CO₂
+        </button>
+
+
+        <button
+            onclick="consultarTemperatura()"
+        >
+            Temperatura
+        </button>
+
+
+        <button
+            onclick="consultarHumedad()"
+        >
+            Humedad
+        </button>
+
+
+        <button
+            onclick="consultarC2H4()"
+        >
+            C₂H₄
+        </button>
+
+
+        <button
+            onclick="consultarPT100()"
+        >
+            PT100
+        </button>
+
+
+        <button
+            onclick="consultarPT1000()"
+        >
+            PT1000
         </button>
 
     </div>
 
-</section>
+</div>
 
 
-<section class="panel">
 
-    <h2 id="tituloGrafica">
+<!-- =====================================================
+     GRÁFICA VARIABLES AMBIENTALES
+     ===================================================== -->
+
+<div class="panel">
+
+    <h2
+        id="tituloGrafica"
+    >
         CO₂
     </h2>
 
-    <div id="resultado">
-        Seleccione una variable y un período.
-    </div>
-
 
     <div
-        style="
-            position: relative;
-            width: 100%;
-            overflow-x: auto;
-        "
+        id="resultado"
     >
+        Seleccione un período.
+    </div>
 
-        <canvas
-            id="graficaCO2"
-            width="1200"
-            height="420"
-        ></canvas>
+
+    <canvas
+        id="graficaCO2"
+        width="1200"
+        height="420"
+    ></canvas>
+
+</div>
+
+
+
+<!-- =====================================================
+     MDFR PROCESS
+     ===================================================== -->
+
+<div class="panel">
+
+
+    <div class="section-title-row">
+
+
+        <div>
+
+            <h2>
+                MDFR-PROCESS
+            </h2>
+
+            <p class="subtitle">
+                Indicadores de los ciclos de CO₂ del proceso de maduración
+            </p>
+
+        </div>
+
+
+        <div
+            id="mdfrProcessEstado"
+            class="process-badge"
+        >
+            SIN PROCESO
+        </div>
+
 
     </div>
 
-</section>
 
 
-<div
-    id="tooltipGrafica"
-    class="chart-tooltip"
-></div>
+    <!-- =============================================
+         TARJETAS RESUMEN
+         ============================================= -->
+
+    <div class="metric-grid">
 
 
-<script src="/static/js/graficas.js"></script>
+        <div class="metric-card">
+
+            <span class="metric-label">
+                Ciclos completados
+            </span>
+
+            <div
+                id="mdfrCiclos"
+                class="metric-value"
+            >
+                --
+            </div>
+
+        </div>
+
+
+        <div class="metric-card">
+
+            <span class="metric-label">
+                LOW → HIGH promedio
+            </span>
+
+            <div
+                id="mdfrLowHigh"
+                class="metric-value"
+            >
+                --
+            </div>
+
+        </div>
+
+
+        <div class="metric-card">
+
+            <span class="metric-label">
+                Purga promedio
+            </span>
+
+            <div
+                id="mdfrPurga"
+                class="metric-value"
+            >
+                --
+            </div>
+
+        </div>
+
+
+        <div class="metric-card">
+
+            <span class="metric-label">
+                Intervalo promedio
+            </span>
+
+            <div
+                id="mdfrIntervalo"
+                class="metric-value"
+            >
+                --
+            </div>
+
+        </div>
+
+
+    </div>
+
+
+
+    <!-- =============================================
+         GRÁFICAS MDFR
+         ============================================= -->
+
+    <div class="process-chart-grid">
+
+
+        <div class="chart-box">
+
+            <h3>
+                Duración por ciclo
+            </h3>
+
+            <p class="chart-description">
+                LOW → HIGH y duración de purga
+            </p>
+
+            <canvas
+                id="graficaMdfrDuraciones"
+                width="1200"
+                height="360"
+            ></canvas>
+
+        </div>
+
+
+
+        <div class="chart-box">
+
+            <h3>
+                Intervalo entre purgas
+            </h3>
+
+            <p class="chart-description">
+                Tiempo transcurrido entre inicios consecutivos de purga
+            </p>
+
+            <canvas
+                id="graficaMdfrIntervalos"
+                width="1200"
+                height="320"
+            ></canvas>
+
+        </div>
+
+
+
+        <div class="chart-box">
+
+            <h3>
+                CO₂ de inicio y fin de purga
+            </h3>
+
+            <p class="chart-description">
+                Concentración de CO₂ al iniciar y finalizar cada purga
+            </p>
+
+            <canvas
+                id="graficaMdfrCO2"
+                width="1200"
+                height="360"
+            ></canvas>
+
+        </div>
+
+
+    </div>
+
+
+
+    <!-- =============================================
+         TABLA DETALLE
+         ============================================= -->
+
+    <table
+        class="process-table"
+    >
+
+        <thead>
+
+            <tr>
+
+                <th>
+                    Ciclo
+                </th>
+
+                <th>
+                    LOW → HIGH
+                </th>
+
+                <th>
+                    Purga
+                </th>
+
+                <th>
+                    Intervalo
+                </th>
+
+                <th>
+                    CO₂ inicio
+                </th>
+
+                <th>
+                    CO₂ fin
+                </th>
+
+            </tr>
+
+        </thead>
+
+
+        <tbody
+            id="tablaMdfrProcess"
+        >
+
+            <tr>
+
+                <td colspan="6">
+                    Consultando proceso...
+                </td>
+
+            </tr>
+
+        </tbody>
+
+    </table>
+
+
+</div>
+
+
+
+<script
+    src="/static/js/graficas.js"
+></script>
+
 
 {% endblock %}
