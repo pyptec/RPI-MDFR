@@ -2582,6 +2582,477 @@ async def api_sistema():
                 f"{type(e).__name__}: {e}"
             )
         ) from e
+        
+# =========================================================
+# ESTADO DE ACTUADORES
+# =========================================================
+#
+# IMPORTANTE:
+#
+# - Este endpoint NO consulta Modbus.
+# - NO importa Temp.py.
+# - NO accede a GPIO.
+# - Lee únicamente el último estado guardado en SQLite.
+# - Los nombres de actuadores se toman del YAML.
+#
+# =========================================================
+
+@app.get(
+    "/api/actuadores"
+)
+async def api_actuadores():
+
+    try:
+
+        # =================================================
+        # CONFIGURACIÓN DEL DIOUSTOU
+        # =================================================
+
+        ruta_relay = (
+            BASE_DIR.parent
+            / "device"
+            / "relayDioustou-4.yml"
+        )
+
+
+        if not ruta_relay.exists():
+
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "No existe configuración de relés: "
+                    f"{ruta_relay}"
+                )
+            )
+
+
+        with open(
+            ruta_relay,
+            "r",
+            encoding="utf-8"
+        ) as archivo:
+
+            cfg_yaml = (
+                yaml.safe_load(
+                    archivo
+                )
+                or {}
+            )
+
+
+        cfg_rel = (
+            cfg_yaml
+            .get(
+                "medidores",
+                {}
+            )
+            .get(
+                "relayDioustou_4r",
+                {}
+            )
+        )
+
+
+        if not cfg_rel:
+
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "No existe la sección "
+                    "relayDioustou_4r en el YAML."
+                )
+            )
+
+
+        device_name = (
+            cfg_rel.get(
+                "device_name"
+            )
+        )
+
+
+        if not device_name:
+
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "DIOUSTOU sin device_name "
+                    "en YAML."
+                )
+            )
+
+
+        # =================================================
+        # ACTUADORES CONFIGURADOS
+        # =================================================
+        #
+        # Incluye:
+        #
+        # - relés FC05
+        # - salida GPIO aire fresco
+        #
+        # Excluye:
+        #
+        # - all_off FC15
+        #
+        # =================================================
+
+        registros_actuadores = []
+
+        for reg in cfg_rel.get(
+            "registers",
+            []
+        ):
+
+            nombre = (
+                reg.get(
+                    "name"
+                )
+            )
+
+
+            if not nombre:
+
+                continue
+
+
+            es_relay = (
+                int(
+                    reg.get(
+                        "fc_write",
+                        0
+                    )
+                    or 0
+                )
+                == 5
+            )
+
+
+            es_gpio = (
+                reg.get(
+                    "type"
+                )
+                == "gpio"
+            )
+
+
+            if (
+                es_relay
+                or
+                es_gpio
+            ):
+
+                registros_actuadores.append(
+                    reg
+                )
+
+
+        nombres = [
+
+            str(
+                reg["name"]
+            )
+
+            for reg
+            in registros_actuadores
+        ]
+
+
+        if not nombres:
+
+            return {
+                "ok": True,
+                "device": device_name,
+                "timestamp_utc": None,
+                "timestamp": None,
+                "actuadores": {}
+            }
+
+
+        # =================================================
+        # CONSULTAR ÚLTIMO ESTADO DE CADA ACTUADOR
+        # =================================================
+
+        placeholders = ",".join(
+            "?"
+            for _ in nombres
+        )
+
+
+        db_service.init_db()
+
+
+        with sqlite3.connect(
+            db_service.DB_PATH
+        ) as conn:
+
+            conn.row_factory = (
+                sqlite3.Row
+            )
+
+
+            consulta = f"""
+                SELECT
+                    id,
+                    timestamp_utc,
+                    sensor,
+                    variable,
+                    valor,
+                    unidad
+
+                FROM mediciones
+
+                WHERE id IN (
+
+                    SELECT
+                        MAX(id)
+
+                    FROM mediciones
+
+                    WHERE
+                        sensor = ?
+                        AND variable IN (
+                            {placeholders}
+                        )
+
+                    GROUP BY variable
+                )
+
+                ORDER BY id ASC
+            """
+
+
+            filas = conn.execute(
+                consulta,
+                [
+                    device_name,
+                    *nombres
+                ]
+            ).fetchall()
+
+
+        # =================================================
+        # INDEXAR RESULTADOS
+        # =================================================
+
+        por_variable = {
+
+            str(
+                fila["variable"]
+            ):
+                fila
+
+            for fila in filas
+        }
+
+
+        # =================================================
+        # ARMAR RESPUESTA RESPETANDO ORDEN DEL YAML
+        # =================================================
+
+        actuadores = {}
+
+        ultimo_id = None
+        ultimo_timestamp_utc = None
+
+
+        for reg in registros_actuadores:
+
+            nombre = str(
+                reg["name"]
+            )
+
+
+            fila = (
+                por_variable.get(
+                    nombre
+                )
+            )
+
+
+            # ---------------------------------------------
+            # TODAVÍA NO EXISTE MEDICIÓN
+            # ---------------------------------------------
+
+            if fila is None:
+
+                actuadores[
+                    nombre
+                ] = {
+
+                    "valor":
+                        None,
+
+                    "estado":
+                        "SIN_DATOS",
+
+                    "unidad":
+                        (
+                            str(
+                                reg.get(
+                                    "unit"
+                                )
+                            )
+                            if reg.get(
+                                "unit"
+                            ) is not None
+                            else None
+                        ),
+
+                    "timestamp_utc":
+                        None,
+
+                    "timestamp":
+                        None
+                }
+
+                continue
+
+
+            # ---------------------------------------------
+            # CONVERTIR VALOR
+            # ---------------------------------------------
+
+            valor_raw = (
+                fila["valor"]
+            )
+
+
+            try:
+
+                valor_float = float(
+                    valor_raw
+                )
+
+
+                if valor_float == 1:
+
+                    valor = 1
+                    estado = "ON"
+
+
+                elif valor_float == 0:
+
+                    valor = 0
+                    estado = "OFF"
+
+
+                else:
+
+                    valor = valor_float
+                    estado = "DESCONOCIDO"
+
+
+            except (
+                TypeError,
+                ValueError
+            ):
+
+                valor = None
+                estado = "DESCONOCIDO"
+
+
+            timestamp_utc = (
+                fila[
+                    "timestamp_utc"
+                ]
+            )
+
+
+            actuadores[
+                nombre
+            ] = {
+
+                "valor":
+                    valor,
+
+                "estado":
+                    estado,
+
+                "unidad":
+                    fila[
+                        "unidad"
+                    ],
+
+                "timestamp_utc":
+                    timestamp_utc,
+
+                "timestamp":
+                    (
+                        utc_a_colombia_iso(
+                            timestamp_utc
+                        )
+                        if timestamp_utc
+                        else None
+                    )
+            }
+
+
+            # ---------------------------------------------
+            # ÚLTIMO SNAPSHOT
+            # ---------------------------------------------
+
+            if (
+                ultimo_id is None
+                or
+                int(
+                    fila["id"]
+                )
+                > ultimo_id
+            ):
+
+                ultimo_id = int(
+                    fila["id"]
+                )
+
+                ultimo_timestamp_utc = (
+                    timestamp_utc
+                )
+
+
+        # =================================================
+        # RESPUESTA
+        # =================================================
+
+        return {
+
+            "ok":
+                True,
+
+            "device":
+                device_name,
+
+            "timestamp_utc":
+                ultimo_timestamp_utc,
+
+            "timestamp":
+                (
+                    utc_a_colombia_iso(
+                        ultimo_timestamp_utc
+                    )
+                    if ultimo_timestamp_utc
+                    else None
+                ),
+
+            "actuadores":
+                actuadores
+        }
+
+
+    except HTTPException:
+
+        raise
+
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Error obteniendo actuadores: "
+                f"{type(e).__name__}: {e}"
+            )
+        ) from e
 # =========================================================
 # HISTORIAL DE PROCESOS
 # =========================================================
