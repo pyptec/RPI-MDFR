@@ -744,7 +744,181 @@ async function actualizarEstadoOperacion() {
         );
     }
 }
+async function actualizarSaludSistema() {
 
+    try {
+
+        const response =
+            await fetch(
+                "/api/sistema",
+                {
+                    cache: "no-store"
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.detail ||
+                "Error consultando sistema"
+            );
+        }
+
+
+        // =============================================
+        // INTERNET
+        // =============================================
+
+        const internet =
+            document.getElementById(
+                "saludInternet"
+            );
+
+
+        if (internet) {
+
+            if (
+                data.red?.internet
+            ) {
+
+                internet.innerText =
+                    "CONECTADO";
+
+                internet.className =
+                    "config-value estado-activo";
+
+            } else {
+
+                internet.innerText =
+                    "SIN INTERNET";
+
+                internet.className =
+                    "config-value estado-alerta";
+            }
+        }
+
+
+        // =============================================
+        // AWS
+        // =============================================
+
+        const aws =
+            document.getElementById(
+                "saludAWS"
+            );
+
+
+        if (aws) {
+
+            const pendientes =
+                Number(
+                    data.aws?.pendientes ?? 0
+                );
+
+
+            aws.innerText =
+                pendientes;
+
+
+            aws.className =
+                (
+                    pendientes === 0
+                )
+                    ?
+                    "config-value estado-activo"
+                    :
+                    "config-value estado-alerta";
+        }
+
+
+        // =============================================
+        // SQLITE
+        // =============================================
+
+        const db =
+            document.getElementById(
+                "saludDB"
+            );
+
+
+        if (db) {
+
+            const estado =
+                data.database?.estado ||
+                "--";
+
+
+            db.innerText =
+                estado;
+
+
+            db.className =
+                (
+                    estado === "OK"
+                )
+                    ?
+                    "config-value estado-activo"
+                    :
+                    "config-value estado-alerta";
+        }
+
+
+        // =============================================
+        // CPU
+        // =============================================
+
+        const cpu =
+            document.getElementById(
+                "saludCPU"
+            );
+
+
+        if (cpu) {
+
+            const temp =
+                data.raspberry
+                    ?.temperatura_cpu;
+
+
+            if (
+                temp === null ||
+                temp === undefined
+            ) {
+
+                cpu.innerText =
+                    "--";
+
+            } else {
+
+                cpu.innerText =
+                    `${temp} °C`;
+
+
+                cpu.className =
+                    (
+                        temp < 70
+                    )
+                        ?
+                        "config-value estado-activo"
+                        :
+                        "config-value estado-alerta";
+            }
+        }
+
+
+    } catch (error) {
+
+        console.error(
+            "Error actualizarSaludSistema:",
+            error
+        );
+    }
+}
 actualizarValores();
 actualizarProcesoHome();
 actualizarEstadoOperacion();
