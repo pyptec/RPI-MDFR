@@ -1,11 +1,51 @@
 let inicioProcesoMs = null;
+
 let modoCiclos = "activo";
 
+let procesoHistoricoSeleccionado = null;
+
+
+// =========================================================
+// UTILIDADES
+// =========================================================
 
 function elemento(id) {
+
     return document.getElementById(id);
 }
 
+
+function ponerTexto(id, valor) {
+
+    const campo = elemento(id);
+
+    if (campo) {
+        campo.innerText = valor;
+    }
+}
+
+
+function escaparHtml(valor) {
+
+    if (
+        valor === null ||
+        valor === undefined
+    ) {
+        return "";
+    }
+
+    return String(valor)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
+
+
+// =========================================================
+// FORMATO FECHA
+// =========================================================
 
 function formatoFecha(timestamp) {
 
@@ -41,6 +81,10 @@ function formatoFecha(timestamp) {
 }
 
 
+// =========================================================
+// FORMATO DURACIÓN
+// =========================================================
+
 function formatoDuracion(segundos) {
 
     if (
@@ -73,30 +117,33 @@ function formatoDuracion(segundos) {
     const segundosRestantes =
         total % 60;
 
+    const reloj =
+        String(horas).padStart(2, "0")
+        +
+        ":"
+        +
+        String(minutos).padStart(2, "0")
+        +
+        ":"
+        +
+        String(segundosRestantes).padStart(2, "0");
 
     if (dias > 0) {
 
         return (
             dias +
             " d " +
-            String(horas).padStart(2, "0") +
-            ":" +
-            String(minutos).padStart(2, "0") +
-            ":" +
-            String(segundosRestantes).padStart(2, "0")
+            reloj
         );
     }
 
-
-    return (
-        String(horas).padStart(2, "0") +
-        ":" +
-        String(minutos).padStart(2, "0") +
-        ":" +
-        String(segundosRestantes).padStart(2, "0")
-    );
+    return reloj;
 }
 
+
+// =========================================================
+// FORMATO PPM
+// =========================================================
 
 function formatoPpm(valor) {
 
@@ -109,11 +156,16 @@ function formatoPpm(valor) {
     }
 
     return (
-        Math.round(Number(valor)) +
+        Math.round(Number(valor))
+        +
         " ppm"
     );
 }
 
+
+// =========================================================
+// CRONÓMETRO PROCESO ACTIVO
+// =========================================================
 
 function actualizarCronometro() {
 
@@ -127,12 +179,9 @@ function actualizarCronometro() {
         return;
     }
 
-    const ahora =
-        Date.now();
-
     const segundos =
         (
-            ahora -
+            Date.now() -
             inicioProcesoMs
         ) / 1000;
 
@@ -140,6 +189,10 @@ function actualizarCronometro() {
         formatoDuracion(segundos);
 }
 
+
+// =========================================================
+// CARGAR PROCESO ACTUAL
+// =========================================================
 
 async function cargarProceso() {
 
@@ -176,6 +229,10 @@ async function cargarProceso() {
             elemento("btnFinalizar");
 
 
+        // =================================================
+        // SIN PROCESO
+        // =================================================
+
         if (!data.activo) {
 
             if (estado) {
@@ -184,33 +241,25 @@ async function cargarProceso() {
                     "<strong>Sin proceso activo</strong>";
             }
 
+            ponerTexto(
+                "loteActual",
+                "--"
+            );
 
-            if (elemento("loteActual")) {
-                elemento("loteActual").innerText =
-                    "--";
-            }
+            ponerTexto(
+                "inicioActual",
+                "--"
+            );
 
+            ponerTexto(
+                "tiempoActual",
+                "--"
+            );
 
-            if (elemento("inicioActual")) {
-                elemento("inicioActual").innerText =
-                    "--";
-            }
-
-
-            if (elemento("tiempoActual")) {
-                elemento("tiempoActual").innerText =
-                    "--";
-            }
-
-
-            if (elemento("observacionesActuales")) {
-
-                elemento(
-                    "observacionesActuales"
-                ).innerText =
-                    "--";
-            }
-
+            ponerTexto(
+                "observacionesActuales",
+                "--"
+            );
 
             inicioProcesoMs = null;
 
@@ -219,15 +268,17 @@ async function cargarProceso() {
                 btnIniciar.disabled = false;
             }
 
-
             if (btnFinalizar) {
                 btnFinalizar.disabled = true;
             }
 
-
             return;
         }
 
+
+        // =================================================
+        // PROCESO ACTIVO
+        // =================================================
 
         const proceso =
             data.proceso;
@@ -240,38 +291,25 @@ async function cargarProceso() {
         }
 
 
-        if (elemento("loteActual")) {
-
-            elemento(
-                "loteActual"
-            ).innerText =
-                proceso.lote || "--";
-        }
+        ponerTexto(
+            "loteActual",
+            proceso.lote || "--"
+        );
 
 
-        if (elemento("inicioActual")) {
-
-            elemento(
-                "inicioActual"
-            ).innerText =
-                formatoFecha(
-                    proceso.inicio
-                );
-        }
-
-
-        if (
-            elemento(
-                "observacionesActuales"
+        ponerTexto(
+            "inicioActual",
+            formatoFecha(
+                proceso.inicio
             )
-        ) {
+        );
 
-            elemento(
-                "observacionesActuales"
-            ).innerText =
-                proceso.observaciones ||
-                "--";
-        }
+
+        ponerTexto(
+            "observacionesActuales",
+            proceso.observaciones ||
+            "--"
+        );
 
 
         inicioProcesoMs =
@@ -287,7 +325,6 @@ async function cargarProceso() {
             btnIniciar.disabled = true;
         }
 
-
         if (btnFinalizar) {
             btnFinalizar.disabled = false;
         }
@@ -301,89 +338,85 @@ async function cargarProceso() {
         );
 
 
-        if (
-            elemento(
-                "estadoProceso"
-            )
-        ) {
-
-            elemento(
-                "estadoProceso"
-            ).innerText =
-                "Error consultando proceso";
-        }
-    }
-}
-
-
-function actualizarBotonesModo() {
-
-    const activo =
-        elemento(
-            "btnCiclosActivo"
+        ponerTexto(
+            "estadoProceso",
+            "Error consultando proceso"
         );
-
-    const historico =
-        elemento(
-            "btnCiclosHistorico"
-        );
-
-
-    if (activo) {
-
-        activo.disabled =
-            modoCiclos === "activo";
-    }
-
-
-    if (historico) {
-
-        historico.disabled =
-            modoCiclos === "historico";
     }
 }
 
 
-function ponerTexto(
-    id,
-    valor
-) {
-
-    const campo =
-        elemento(id);
-
-    if (campo) {
-
-        campo.innerText =
-            valor;
-    }
-}
-
+// =========================================================
+// RESUMEN DE CICLOS
+// =========================================================
 
 function pintarResumen(
-    resumen
+    resumen,
+    ciclos
 ) {
 
     resumen =
         resumen || {};
 
 
-    /*
-     * IMPORTANTE:
-     *
-     * La API actual devuelve:
-     *
-     * resumen.ciclos
-     *
-     * NO:
-     * resumen.ciclos_completos
-     */
+    const lista =
+        Array.isArray(ciclos)
+            ? ciclos
+            : [];
+
+
+    const cerrados =
+        lista.filter(
+            ciclo =>
+                ciclo.estado === "CERRADO"
+        );
+
+
+    // -----------------------------------------------------
+    // El endpoint histórico puede no traer
+    // ultimo_intervalo_s.
+    // Lo calculamos desde los ciclos.
+    // -----------------------------------------------------
+
+    let ultimoIntervalo =
+        resumen.ultimo_intervalo_s;
+
+
+    if (
+        ultimoIntervalo === null ||
+        ultimoIntervalo === undefined
+    ) {
+
+        const intervalos =
+            cerrados
+                .map(
+                    ciclo =>
+                        ciclo
+                            .intervalo_purgas_segundos
+                )
+                .filter(
+                    valor =>
+                        valor !== null &&
+                        valor !== undefined &&
+                        !isNaN(Number(valor))
+                );
+
+
+        if (intervalos.length > 0) {
+
+            ultimoIntervalo =
+                intervalos[
+                    intervalos.length - 1
+                ];
+        }
+    }
+
 
     ponerTexto(
         "kpiCiclos",
         resumen.ciclos !== undefined
             ? resumen.ciclos
-            : 0
+            : cerrados.length
     );
 
 
@@ -414,41 +447,39 @@ function pintarResumen(
     ponerTexto(
         "kpiUltimoIntervalo",
         formatoDuracion(
-            resumen.ultimo_intervalo_s
+            ultimoIntervalo
         )
     );
 }
 
 
-function pintarOrigen(
-    data
-) {
+// =========================================================
+// ORIGEN DEL ANÁLISIS
+// =========================================================
 
-    const campo =
-        elemento(
-            "origenCiclos"
-        );
+function pintarOrigen(data) {
 
-
-    if (!campo) {
-        return;
-    }
+    const proceso =
+        data.proceso;
 
 
-    if (!data.proceso) {
+    if (!proceso) {
 
         if (
-            modoCiclos ===
-            "activo"
+            modoCiclos === "activo"
         ) {
 
-            campo.innerText =
-                "No existe un proceso activo.";
+            ponerTexto(
+                "origenCiclos",
+                "No existe un proceso activo."
+            );
 
         } else {
 
-            campo.innerText =
-                "No existe histórico de prueba.";
+            ponerTexto(
+                "origenCiclos",
+                "No existe el proceso histórico seleccionado."
+            );
         }
 
         return;
@@ -456,51 +487,68 @@ function pintarOrigen(
 
 
     if (
-        modoCiclos ===
-        "historico"
+        modoCiclos === "historico"
     ) {
 
-        campo.innerText =
-            "Histórico reconstruido de prueba" +
-            " | Proceso ID " +
-            data.proceso.id +
-            " | Lote " +
+        ponerTexto(
+            "origenCiclos",
             (
-                data.proceso.lote ||
-                "--"
-            );
+                "Proceso histórico"
+                +
+                " | Proceso ID "
+                +
+                proceso.id
+                +
+                " | Lote "
+                +
+                (
+                    proceso.lote ||
+                    "--"
+                )
+                +
+                " | Estado "
+                +
+                (
+                    proceso.estado ||
+                    "--"
+                )
+            )
+        );
 
     } else {
 
-        campo.innerText =
-            "Proceso activo" +
-            " | Proceso ID " +
-            data.proceso.id +
-            " | Lote " +
+        ponerTexto(
+            "origenCiclos",
             (
-                data.proceso.lote ||
-                "--"
-            );
+                "Proceso activo"
+                +
+                " | Proceso ID "
+                +
+                proceso.id
+                +
+                " | Lote "
+                +
+                (
+                    proceso.lote ||
+                    "--"
+                )
+            )
+        );
     }
 }
 
 
-function pintarTabla(
-    ciclos
-) {
+// =========================================================
+// TABLA CICLOS
+// =========================================================
+
+function pintarTabla(ciclos) {
 
     const tbody =
-        elemento(
-            "tablaCiclos"
-        );
+        elemento("tablaCiclos");
 
 
     if (!tbody) {
-
-        console.error(
-            "No existe tablaCiclos en proceso.html"
-        );
-
         return;
     }
 
@@ -536,7 +584,6 @@ function pintarTabla(
             ciclo.numero_ciclo !== undefined
 
                 ? ciclo.numero_ciclo
-
                 : ciclo.id;
 
 
@@ -597,7 +644,9 @@ function pintarTabla(
                 </td>
 
                 <td>
-                    ${ciclo.estado || "--"}
+                    ${escaparHtml(
+                        ciclo.estado || "--"
+                    )}
                 </td>
 
             </tr>
@@ -605,17 +654,23 @@ function pintarTabla(
     }
 
 
-    tbody.innerHTML =
-        html;
+    tbody.innerHTML = html;
 }
 
+
+// =========================================================
+// CARGAR CICLOS
+//
+// ACTIVO:
+// /api/proceso/ciclos?modo=activo
+//
+// HISTÓRICO:
+// /api/procesos/{id}/ciclos
+// =========================================================
 
 async function cargarCiclos() {
 
     try {
-
-        actualizarBotonesModo();
-
 
         ponerTexto(
             "origenCiclos",
@@ -623,17 +678,28 @@ async function cargarCiclos() {
         );
 
 
-        const url =
-            "/api/proceso/ciclos?modo=" +
-            encodeURIComponent(
-                modoCiclos
-            );
+        let url;
 
 
-        console.log(
-            "Consultando:",
-            url
-        );
+        if (
+            modoCiclos === "historico" &&
+            procesoHistoricoSeleccionado !== null
+        ) {
+
+            url =
+                `/api/procesos/${procesoHistoricoSeleccionado}/ciclos`;
+
+        } else {
+
+            modoCiclos =
+                "activo";
+
+            procesoHistoricoSeleccionado =
+                null;
+
+            url =
+                "/api/proceso/ciclos?modo=activo";
+        }
 
 
         const response =
@@ -649,12 +715,6 @@ async function cargarCiclos() {
             await response.json();
 
 
-        console.log(
-            "Respuesta ciclos:",
-            data
-        );
-
-
         if (!response.ok) {
 
             throw new Error(
@@ -665,18 +725,30 @@ async function cargarCiclos() {
 
 
         pintarResumen(
-            data.resumen
+            data.resumen,
+            data.ciclos
         );
 
 
-        pintarOrigen(
-            data
-        );
+        pintarOrigen(data);
 
 
         pintarTabla(
             data.ciclos
         );
+
+
+        const btnActivo =
+            elemento(
+                "btnCiclosActivo"
+            );
+
+
+        if (btnActivo) {
+
+            btnActivo.disabled =
+                modoCiclos === "activo";
+        }
 
 
     } catch (error) {
@@ -689,8 +761,11 @@ async function cargarCiclos() {
 
         ponerTexto(
             "origenCiclos",
-            "Error consultando ciclos: " +
-            error.message
+            (
+                "Error consultando ciclos: "
+                +
+                error.message
+            )
         );
 
 
@@ -715,213 +790,35 @@ async function cargarCiclos() {
 }
 
 
-async function cambiarModoCiclos(
-    modo
-) {
+// =========================================================
+// VOLVER A PROCESO ACTIVO
+// =========================================================
 
-    modoCiclos =
-        modo;
+async function cambiarModoCiclos(modo) {
 
-    await cargarCiclos();
-}
-
-
-async function iniciarProceso() {
-
-    try {
-
-        const lote =
-            elemento(
-                "lote"
-            ).value;
-
-        const observaciones =
-            elemento(
-                "observaciones"
-            ).value;
-
-
-        const form =
-            new FormData();
-
-
-        form.append(
-            "lote",
-            lote
-        );
-
-
-        form.append(
-            "observaciones",
-            observaciones
-        );
-
-
-        const response =
-            await fetch(
-                "/api/proceso/iniciar",
-                {
-                    method: "POST",
-                    body: form
-                }
-            );
-
-
-        const data =
-            await response.json();
-
-
-        if (!response.ok) {
-
-            ponerTexto(
-                "mensajeProceso",
-                data.detail ||
-                "Error"
-            );
-
-            return;
-        }
-
-
-        ponerTexto(
-            "mensajeProceso",
-            "Proceso iniciado correctamente."
-        );
-
-
-        await cargarProceso();
-
-
-        if (
-            modoCiclos ===
-            "activo"
-        ) {
-
-            await cargarCiclos();
-        }
-
-
-    } catch (error) {
-
-        console.error(
-            "Error iniciarProceso:",
-            error
-        );
-    }
-}
-
-
-async function finalizarProceso() {
-
-    const confirmar =
-        window.confirm(
-            "¿Desea finalizar el proceso de maduración actual?"
-        );
-
-
-    if (!confirmar) {
+    if (modo !== "activo") {
         return;
     }
 
 
-    try {
-
-        const response =
-            await fetch(
-                "/api/proceso/finalizar",
-                {
-                    method: "POST"
-                }
-            );
+    modoCiclos =
+        "activo";
 
 
-        const data =
-            await response.json();
+    procesoHistoricoSeleccionado =
+        null;
 
 
-        if (!response.ok) {
-
-            ponerTexto(
-                "mensajeProceso",
-                data.detail ||
-                "Error"
-            );
-
-            return;
-        }
+    await cargarCiclos();
 
 
-        ponerTexto(
-            "mensajeProceso",
-            "Proceso finalizado."
-        );
-
-
-        await cargarProceso();
-        await cargarHistorialProcesos();
-
-        if (
-            modoCiclos ===
-            "activo"
-        ) {
-
-            await cargarCiclos();
-        }
-
-
-    } catch (error) {
-
-        console.error(
-            "Error finalizarProceso:",
-            error
-        );
-    }
+    await cargarHistorialProcesos();
 }
 
 
 // =========================================================
-// INICIO DE LA PÁGINA
+// HISTORIAL DE PROCESOS
 // =========================================================
-
-console.log(
-    "proceso.js MDFR cargado"
-);
-
-
-cargarProceso();
-
-cargarCiclos();
-
-cargarHistorialProcesos();
-
-setInterval(
-    actualizarCronometro,
-    1000
-);
-
-
-setInterval(
-    cargarCiclos,
-    30000
-);
-
-function escaparHtml(valor) {
-
-    if (
-        valor === null ||
-        valor === undefined
-    ) {
-        return "";
-    }
-
-    return String(valor)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-}
-
 
 async function cargarHistorialProcesos() {
 
@@ -929,6 +826,7 @@ async function cargarHistorialProcesos() {
         elemento(
             "tablaProcesos"
         );
+
 
     if (!tbody) {
         return;
@@ -949,10 +847,9 @@ async function cargarHistorialProcesos() {
 
         const response =
             await fetch(
-                "/api/procesos",
+                "/api/procesos?limite=100",
                 {
-                    cache:
-                        "no-store"
+                    cache: "no-store"
                 }
             );
 
@@ -1003,9 +900,26 @@ async function cargarHistorialProcesos() {
             of procesos
         ) {
 
+            const seleccionado =
+                (
+                    modoCiclos === "historico"
+                    &&
+                    procesoHistoricoSeleccionado ===
+                    Number(proceso.id)
+                );
+
+
             html +=
                 `
-                <tr>
+                <tr
+                    ${
+                        seleccionado
+                            ?
+                            'style="background:#eef6ff;"'
+                            :
+                            ""
+                    }
+                >
 
                     <td>
                         ${proceso.id}
@@ -1044,7 +958,12 @@ async function cargarHistorialProcesos() {
                     </td>
 
                     <td>
-                        ${proceso.ciclos_cerrados}
+                        ${
+                            Number(
+                                proceso.ciclos_cerrados ||
+                                0
+                            )
+                        }
                     </td>
 
                     <td>
@@ -1065,8 +984,7 @@ async function cargarHistorialProcesos() {
         }
 
 
-        tbody.innerHTML =
-            html;
+        tbody.innerHTML = html;
 
 
     } catch (error) {
@@ -1089,24 +1007,97 @@ async function cargarHistorialProcesos() {
 }
 
 
+// =========================================================
+// VER PROCESO HISTÓRICO
+// =========================================================
+
 async function verProcesoHistorico(
     procesoId
 ) {
 
+    modoCiclos =
+        "historico";
+
+
+    procesoHistoricoSeleccionado =
+        Number(
+            procesoId
+        );
+
+
+    // Cargar el histórico seleccionado.
+
+    await cargarCiclos();
+
+
+    // Volver a pintar tabla para marcar
+    // visualmente el proceso seleccionado.
+
+    await cargarHistorialProcesos();
+
+
+    // Llevar al usuario a los indicadores.
+
+    const panel =
+        elemento(
+            "panelIndicadoresCiclos"
+        );
+
+
+    if (panel) {
+
+        panel.scrollIntoView(
+            {
+                behavior: "smooth",
+                block: "start"
+            }
+        );
+    }
+}
+
+
+// =========================================================
+// INICIAR PROCESO
+// =========================================================
+
+async function iniciarProceso() {
+
     try {
 
-        ponerTexto(
-            "origenCiclos",
-            "Consultando proceso..."
+        const lote =
+            elemento(
+                "lote"
+            ).value;
+
+
+        const observaciones =
+            elemento(
+                "observaciones"
+            ).value;
+
+
+        const form =
+            new FormData();
+
+
+        form.append(
+            "lote",
+            lote
+        );
+
+
+        form.append(
+            "observaciones",
+            observaciones
         );
 
 
         const response =
             await fetch(
-                `/api/procesos/${procesoId}/ciclos`,
+                "/api/proceso/iniciar",
                 {
-                    cache:
-                        "no-store"
+                    method: "POST",
+                    body: form
                 }
             );
 
@@ -1117,76 +1108,185 @@ async function verProcesoHistorico(
 
         if (!response.ok) {
 
-            throw new Error(
+            ponerTexto(
+                "mensajeProceso",
                 data.detail ||
-                "Error consultando proceso"
+                "Error iniciando proceso."
             );
+
+            return;
         }
 
 
-        pintarResumen(
-            data.resumen
+        ponerTexto(
+            "mensajeProceso",
+            "Proceso iniciado correctamente."
+        );
+
+
+        // Al iniciar un proceso nuevo
+        // volvemos a mostrar el proceso activo.
+
+        modoCiclos =
+            "activo";
+
+
+        procesoHistoricoSeleccionado =
+            null;
+
+
+        await cargarProceso();
+
+        await cargarCiclos();
+
+        await cargarHistorialProcesos();
+
+
+    } catch (error) {
+
+        console.error(
+            "Error iniciarProceso:",
+            error
         );
 
 
         ponerTexto(
-            "origenCiclos",
-            (
-                "Proceso histórico" +
-                " | ID " +
-                data.proceso.id +
-                " | Lote " +
-                (
-                    data.proceso.lote ||
-                    "--"
-                ) +
-                " | Estado " +
-                (
-                    data.proceso.estado ||
-                    "--"
-                )
-            )
+            "mensajeProceso",
+            "Error iniciando proceso."
+        );
+    }
+}
+
+
+// =========================================================
+// FINALIZAR PROCESO
+// =========================================================
+
+async function finalizarProceso() {
+
+    const confirmar =
+        window.confirm(
+            "¿Desea finalizar el proceso de maduración actual?"
         );
 
 
-        pintarTabla(
-            data.ciclos
-        );
+    if (!confirmar) {
+        return;
+    }
 
 
-        const indicadores =
-            document.getElementById(
-                "origenCiclos"
-            );
+    try {
 
-
-        if (indicadores) {
-
-            indicadores.scrollIntoView(
+        const response =
+            await fetch(
+                "/api/proceso/finalizar",
                 {
-                    behavior:
-                        "smooth",
-
-                    block:
-                        "start"
+                    method: "POST"
                 }
             );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            ponerTexto(
+                "mensajeProceso",
+                data.detail ||
+                "Error finalizando proceso."
+            );
+
+            return;
+        }
+
+
+        ponerTexto(
+            "mensajeProceso",
+            "Proceso finalizado."
+        );
+
+
+        await cargarProceso();
+
+        await cargarHistorialProcesos();
+
+
+        if (
+            modoCiclos === "activo"
+        ) {
+
+            await cargarCiclos();
         }
 
 
     } catch (error) {
 
         console.error(
-            "Error verProcesoHistorico:",
+            "Error finalizarProceso:",
             error
         );
 
+
         ponerTexto(
-            "origenCiclos",
-            (
-                "Error consultando proceso: " +
-                error.message
-            )
+            "mensajeProceso",
+            "Error finalizando proceso."
         );
     }
 }
+
+
+// =========================================================
+// INICIO PÁGINA
+// =========================================================
+
+document.addEventListener(
+    "DOMContentLoaded",
+    async function() {
+
+        console.log(
+            "proceso.js MDFR historial cargado"
+        );
+
+
+        await cargarProceso();
+
+        await cargarCiclos();
+
+        await cargarHistorialProcesos();
+    }
+);
+
+
+// =========================================================
+// ACTUALIZACIONES AUTOMÁTICAS
+// =========================================================
+
+// Cronómetro proceso activo.
+
+setInterval(
+    actualizarCronometro,
+    1000
+);
+
+
+// Ciclos.
+//
+// IMPORTANTE:
+// Si estamos viendo histórico,
+// vuelve a consultar EL MISMO proceso histórico.
+// Ya no regresa automáticamente al activo.
+
+setInterval(
+    cargarCiclos,
+    30000
+);
+
+
+// Lista de procesos.
+
+setInterval(
+    cargarHistorialProcesos,
+    60000
+);

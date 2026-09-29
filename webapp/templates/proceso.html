@@ -2,54 +2,45 @@
 
 {% block content %}
 
-<h1>
-    Proceso de maduración
-</h1>
+<h1>Proceso de maduración</h1>
 
 <p class="subtitle">
-    Registro, seguimiento y ciclos de CO₂
+    Registro, seguimiento y análisis histórico de ciclos de CO₂
 </p>
 
 
+<!-- =====================================================
+     ESTADO ACTUAL
+     ===================================================== -->
+
 <section class="panel">
 
-    <h2>
-        Estado actual
-    </h2>
+    <h2>Estado actual</h2>
 
     <div id="estadoProceso">
         Consultando...
     </div>
 
-
     <div class="process-grid">
 
         <div>
             <span>Lote</span>
-            <strong id="loteActual">
-                --
-            </strong>
+            <strong id="loteActual">--</strong>
         </div>
 
         <div>
             <span>Inicio</span>
-            <strong id="inicioActual">
-                --
-            </strong>
+            <strong id="inicioActual">--</strong>
         </div>
 
         <div>
             <span>Tiempo transcurrido</span>
-            <strong id="tiempoActual">
-                --
-            </strong>
+            <strong id="tiempoActual">--</strong>
         </div>
 
         <div>
             <span>Observaciones</span>
-            <strong id="observacionesActuales">
-                --
-            </strong>
+            <strong id="observacionesActuales">--</strong>
         </div>
 
     </div>
@@ -57,23 +48,26 @@
 </section>
 
 
-<section class="panel">
+<!-- =====================================================
+     INDICADORES DE CICLOS
+     ===================================================== -->
 
-    <h2>
-        Indicadores de ciclos CO₂
-    </h2>
+<section
+    class="panel"
+    id="panelIndicadoresCiclos"
+>
 
+    <h2>Indicadores de ciclos CO₂</h2>
 
     <div class="variable-buttons">
 
         <button
             id="btnCiclosActivo"
+            type="button"
             onclick="cambiarModoCiclos('activo')"
         >
             Proceso activo
         </button>
-
-        
 
     </div>
 
@@ -86,57 +80,28 @@
     <div class="process-grid">
 
         <div>
-            <span>
-                Ciclos completados
-            </span>
-
-            <strong id="kpiCiclos">
-                --
-            </strong>
+            <span>Ciclos completados</span>
+            <strong id="kpiCiclos">--</strong>
         </div>
 
-
         <div>
-            <span>
-                LOW → HIGH promedio
-            </span>
-
-            <strong id="kpiLowHigh">
-                --
-            </strong>
+            <span>LOW → HIGH promedio</span>
+            <strong id="kpiLowHigh">--</strong>
         </div>
 
-
         <div>
-            <span>
-                Purga promedio
-            </span>
-
-            <strong id="kpiPurga">
-                --
-            </strong>
+            <span>Purga promedio</span>
+            <strong id="kpiPurga">--</strong>
         </div>
 
-
         <div>
-            <span>
-                Entre purgas promedio
-            </span>
-
-            <strong id="kpiIntervalo">
-                --
-            </strong>
+            <span>Entre purgas promedio</span>
+            <strong id="kpiIntervalo">--</strong>
         </div>
 
-
         <div>
-            <span>
-                Último intervalo
-            </span>
-
-            <strong id="kpiUltimoIntervalo">
-                --
-            </strong>
+            <span>Último intervalo</span>
+            <strong id="kpiUltimoIntervalo">--</strong>
         </div>
 
     </div>
@@ -179,13 +144,20 @@
     </div>
 
 </section>
-<div class="panel">
+
+
+<!-- =====================================================
+     HISTORIAL DE PROCESOS
+     ===================================================== -->
+
+<section class="panel">
 
     <h2>Historial de procesos</h2>
 
     <p class="subtitle">
-        Procesos de maduración registrados en la base de datos
+        Seleccione cualquier proceso para analizar sus indicadores y ciclos.
     </p>
+
 
     <div style="overflow-x:auto;">
 
@@ -194,35 +166,25 @@
             <thead>
 
                 <tr>
-
                     <th>ID</th>
-
                     <th>Lote</th>
-
                     <th>Inicio</th>
-
                     <th>Fin</th>
-
                     <th>Duración</th>
-
                     <th>Estado</th>
-
                     <th>Ciclos</th>
-
-                    <th></th>
-
+                    <th>Análisis</th>
                 </tr>
 
             </thead>
 
+
             <tbody id="tablaProcesos">
 
                 <tr>
-
                     <td colspan="8">
                         Consultando procesos...
                     </td>
-
                 </tr>
 
             </tbody>
@@ -231,13 +193,16 @@
 
     </div>
 
-</div>
+</section>
+
+
+<!-- =====================================================
+     NUEVO PROCESO
+     ===================================================== -->
 
 <section class="panel">
 
-    <h2>
-        Nuevo proceso
-    </h2>
+    <h2>Nuevo proceso</h2>
 
 
     <label for="lote">
@@ -266,13 +231,16 @@
 
         <button
             id="btnIniciar"
+            type="button"
             onclick="iniciarProceso()"
         >
             Iniciar proceso
         </button>
 
+
         <button
             id="btnFinalizar"
+            type="button"
             onclick="finalizarProceso()"
         >
             Finalizar proceso
@@ -281,8 +249,7 @@
     </div>
 
 
-    <div id="mensajeProceso">
-    </div>
+    <div id="mensajeProceso"></div>
 
 </section>
 
