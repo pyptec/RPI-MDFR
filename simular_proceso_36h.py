@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import math
 import sqlite3
-
+import subprocess
 from webapp.services import db_service
 
 
@@ -623,13 +623,56 @@ def mostrar_resultados(
             "-" * 72
         )
 
+# =========================================================
+# SEGURIDAD - NO SIMULAR CON MDFR REAL EJECUTÁNDOSE
+# =========================================================
 
+def verificar_mdfr_detenido():
+
+    resultado = subprocess.run(
+        [
+            "pgrep",
+            "-af",
+            "rpi-mdfr.py"
+        ],
+        capture_output=True,
+        text=True
+    )
+
+
+    lineas = [
+        linea.strip()
+        for linea
+        in resultado.stdout.splitlines()
+        if linea.strip()
+    ]
+
+
+    # Ignorar cualquier coincidencia del propio comando pgrep
+    procesos = [
+        linea
+        for linea
+        in lineas
+        if "pgrep" not in linea
+    ]
+
+
+    if procesos:
+
+        raise RuntimeError(
+            "rpi-mdfr.py está ejecutándose. "
+            "Deténgalo antes de iniciar la simulación.\n"
+            +
+            "\n".join(
+                procesos
+            )
+        )
 # =========================================================
 # SIMULACIÓN PRINCIPAL
 # =========================================================
 
 def main():
-
+    verificar_mdfr_detenido()
     print()
     print(
         "=" * 72
