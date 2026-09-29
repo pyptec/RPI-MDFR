@@ -919,10 +919,252 @@ async function actualizarSaludSistema() {
         );
     }
 }
+
+// =========================================================
+// ACTUADORES
+// =========================================================
+
+async function actualizarActuadores() {
+
+    try {
+
+        const response =
+            await fetch(
+                "/api/actuadores",
+                {
+                    cache: "no-store"
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.detail ||
+                "Error consultando actuadores"
+            );
+        }
+
+
+        const actuadores =
+            data.actuadores || {};
+
+
+        // -------------------------------------------------
+        // MAPA API -> ELEMENTO HTML
+        // -------------------------------------------------
+
+        const mapa = {
+
+            recircular:
+                "estadoRecircular",
+
+            extractor:
+                "estadoExtractor",
+
+            humidificador:
+                "estadoHumidificador",
+
+            etileno:
+                "estadoEtileno",
+
+            aire_fresco:
+                "estadoAireFresco"
+        };
+
+
+        // -------------------------------------------------
+        // ACTUALIZAR ESTADOS
+        // -------------------------------------------------
+
+        for (
+            const [
+                nombre,
+                idElemento
+            ]
+            of Object.entries(
+                mapa
+            )
+        ) {
+
+            const elemento =
+                document.getElementById(
+                    idElemento
+                );
+
+
+            if (!elemento) {
+
+                continue;
+            }
+
+
+            const actuador =
+                actuadores[
+                    nombre
+                ];
+
+
+            if (!actuador) {
+
+                elemento.innerText =
+                    "--";
+
+                continue;
+            }
+
+
+            if (
+                actuador.estado ===
+                "ON"
+            ) {
+
+                elemento.innerText =
+                    "ON";
+
+            }
+
+            else if (
+                actuador.estado ===
+                "OFF"
+            ) {
+
+                elemento.innerText =
+                    "OFF";
+
+            }
+
+            else if (
+                actuador.estado ===
+                "SIN_DATOS"
+            ) {
+
+                elemento.innerText =
+                    "SIN DATOS";
+
+            }
+
+            else {
+
+                elemento.innerText =
+                    "--";
+            }
+        }
+
+
+        // -------------------------------------------------
+        // TIMESTAMP
+        // -------------------------------------------------
+
+        const actualizacion =
+            document.getElementById(
+                "actualizacionActuadores"
+            );
+
+
+        if (actualizacion) {
+
+            if (data.timestamp) {
+
+                const fecha =
+                    new Date(
+                        data.timestamp
+                    );
+
+
+                actualizacion.innerText =
+                    "Última lectura: " +
+                    fecha.toLocaleString(
+                        "es-CO",
+                        {
+                            dateStyle:
+                                "short",
+
+                            timeStyle:
+                                "medium"
+                        }
+                    );
+
+            }
+
+            else {
+
+                actualizacion.innerText =
+                    "Última lectura: --";
+            }
+        }
+
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "Error actualizando actuadores:",
+            error
+        );
+
+
+        const ids = [
+
+            "estadoRecircular",
+            "estadoExtractor",
+            "estadoHumidificador",
+            "estadoEtileno",
+            "estadoAireFresco"
+
+        ];
+
+
+        for (
+            const id
+            of ids
+        ) {
+
+            const elemento =
+                document.getElementById(
+                    id
+                );
+
+
+            if (elemento) {
+
+                elemento.innerText =
+                    "SIN DATOS";
+            }
+        }
+
+
+        const actualizacion =
+            document.getElementById(
+                "actualizacionActuadores"
+            );
+
+
+        if (actualizacion) {
+
+            actualizacion.innerText =
+                "No se pudo consultar " +
+                "el estado de actuadores.";
+        }
+    }
+}
+
+
 actualizarValores();
 actualizarProcesoHome();
 actualizarEstadoOperacion();
 actualizarSaludSistema();
+actualizarActuadores();
+
+setInterval(
+    actualizarActuadores,
+    10000
+);
 
 setInterval(
     actualizarSaludSistema,
