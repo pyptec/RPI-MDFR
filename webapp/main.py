@@ -2582,3 +2582,403 @@ async def api_sistema():
                 f"{type(e).__name__}: {e}"
             )
         ) from e
+# =========================================================
+# HISTORIAL DE PROCESOS
+# =========================================================
+
+@app.get(
+    "/api/procesos"
+)
+async def api_procesos(
+    limite: int = Query(
+        100,
+        ge=1,
+        le=500
+    )
+):
+
+    db_service.init_db()
+
+    with sqlite3.connect(
+        db_service.DB_PATH
+    ) as conn:
+
+        conn.row_factory = sqlite3.Row
+
+        filas = conn.execute(
+            """
+            SELECT
+                p.id,
+                p.inicio_utc,
+                p.fin_utc,
+                p.lote,
+                p.observaciones,
+                p.estado,
+
+                COUNT(c.id) AS ciclos_total,
+
+                SUM(
+                    CASE
+                        WHEN c.estado = 'CERRADO'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS ciclos_cerrados
+
+            FROM procesos p
+
+            LEFT JOIN ciclos_co2 c
+                ON c.proceso_id = p.id
+
+            GROUP BY
+                p.id,
+                p.inicio_utc,
+                p.fin_utc,
+                p.lote,
+                p.observaciones,
+                p.estado
+
+            ORDER BY p.id DESC
+
+            LIMIT ?
+            """,
+            (
+                limite,
+            )
+        ).fetchall()
+
+
+    procesos = []
+
+
+    for fila in filas:
+
+        item = dict(
+            fila
+        )
+
+        item["inicio"] = (
+            utc_a_colombia_iso(
+                item["inicio_utc"]
+            )
+            if item.get(
+                "inicio_utc"
+            )
+            else None
+        )
+
+        item["fin"] = (
+            utc_a_colombia_iso(
+                item["fin_utc"]
+            )
+            if item.get(
+                "fin_utc"
+            )
+            else None
+        )
+
+
+        duracion_segundos = None
+
+
+        if (
+            item.get(
+                "inicio_utc"
+            )
+            and
+            item.get(
+                "fin_utc"
+            )
+        ):
+
+            inicio_dt = datetime.fromisoformat(
+                str(
+                    item[
+                        "inicio_utc"
+                    ]
+                ).replace(
+                    "Z",
+                    "+00:00"
+                )
+            )
+
+            fin_dt = datetime.fromisoformat(
+                str(
+                    item[
+                        "fin_utc"
+                    ]
+                ).replace(
+                    "Z",
+                    "+00:00"
+                )
+            )
+
+            duracion_segundos = (
+                fin_dt -
+                inicio_dt
+            ).total_seconds()
+
+
+        item[
+            "duracion_segundos"
+        ] = (
+            duracion_segundos
+        )
+
+        item[
+            "ciclos_total"
+        ] = int(
+            item.get(
+                "ciclos_total"
+            )
+            or 0
+        )
+
+        item[
+            "ciclos_cerrados"
+        ] = int(
+            item.get(
+                "ciclos_cerrados"
+            )
+            or 0
+        )
+
+
+        procesos.append(
+            item
+        )
+
+
+    return {
+        "cantidad":
+            len(
+                procesos
+            ),
+
+        "procesos":
+            procesos
+    }
+
+
+# =========================================================
+# DETALLE DE UN PROCESO
+# =========================================================
+
+@app.get(
+    "/api/procesos/{proceso_id}/ciclos"
+)
+async def api_proceso_historico_ciclos(
+    proceso_id: int
+):
+
+    db_service.init_db()
+
+    with sqlite3.connect(
+        db_service.DB_PATH
+    ) as conn:
+
+        conn.row_factory = sqlite3.Row
+
+
+        proceso = conn.execute(
+            """
+            SELECT
+                id,
+                inicio_utc,
+                fin_utc,
+                lote,
+                observaciones,
+                estado
+            FROM procesos
+            WHERE id = ?
+            LIMIT 1
+            """,
+            (
+                proceso_id,
+            )
+        ).fetchone()
+
+
+        if proceso is None:
+
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "Proceso no encontrado."
+                )
+            )
+
+
+        filas = conn.execute(
+            """
+            SELECT
+                id,
+                proceso_id,
+                numero_ciclo,
+                inicio_utc,
+                fin_utc,
+                purga_inicio_utc,
+                purga_fin_utc,
+                duracion_segundos,
+                purga_duracion_segundos,
+                intervalo_purgas_segundos,
+                co2_purge_start_ppm,
+                co2_purge_end_ppm,
+                temperatura_media,
+                humedad_media,
+                c2h4_medio,
+                estado
+
+            FROM ciclos_co2
+
+            WHERE proceso_id = ?
+
+            ORDER BY
+                COALESCE(
+                    numero_ciclo,
+                    id
+                ) ASC
+            """,
+            (
+                proceso_id,
+            )
+        ).fetchall()
+
+
+    proceso_dict = dict(
+        proceso
+    )
+
+    proceso_dict["inicio"] = (
+        utc_a_colombia_iso(
+            proceso_dict[
+                "inicio_utc"
+            ]
+        )
+        if proceso_dict.get(
+            "inicio_utc"
+        )
+        else None
+    )
+
+    proceso_dict["fin"] = (
+        utc_a_colombia_iso(
+            proceso_dict[
+                "fin_utc"
+            ]
+        )
+        if proceso_dict.get(
+            "fin_utc"
+        )
+        else None
+    )
+
+
+    ciclos = []
+
+
+    for fila in filas:
+
+        item = dict(
+            fila
+        )
+
+        for campo in (
+            "inicio_utc",
+            "fin_utc",
+            "purga_inicio_utc",
+            "purga_fin_utc"
+        ):
+
+            valor = item.get(
+                campo
+            )
+
+            item[
+                campo.replace(
+                    "_utc",
+                    ""
+                )
+            ] = (
+                utc_a_colombia_iso(
+                    valor
+                )
+                if valor
+                else None
+            )
+
+        ciclos.append(
+            item
+        )
+
+
+    cerrados = [
+        ciclo
+        for ciclo in ciclos
+        if ciclo.get(
+            "estado"
+        ) == "CERRADO"
+    ]
+
+
+    def promedio(
+        campo
+    ):
+
+        valores = [
+            float(
+                ciclo[
+                    campo
+                ]
+            )
+            for ciclo in cerrados
+            if ciclo.get(
+                campo
+            ) is not None
+        ]
+
+        return (
+            sum(
+                valores
+            ) /
+            len(
+                valores
+            )
+            if valores
+            else None
+        )
+
+
+    return {
+
+        "ok": True,
+
+        "proceso":
+            proceso_dict,
+
+        "resumen": {
+
+            "ciclos":
+                len(
+                    cerrados
+                ),
+
+            "low_high_promedio_s":
+                promedio(
+                    "duracion_segundos"
+                ),
+
+            "purga_promedio_s":
+                promedio(
+                    "purga_duracion_segundos"
+                ),
+
+            "intervalo_promedio_s":
+                promedio(
+                    "intervalo_purgas_segundos"
+                )
+        },
+
+        "ciclos":
+            ciclos
+    }
