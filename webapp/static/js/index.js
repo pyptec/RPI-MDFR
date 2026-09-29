@@ -493,8 +493,267 @@ async function actualizarProcesoHome() {
     }
 }
 
+function formatoEdadDato(
+    segundos
+) {
+
+    if (
+        segundos === null ||
+        segundos === undefined
+    ) {
+        return "--";
+    }
+
+
+    segundos =
+        Number(
+            segundos
+        );
+
+
+    if (segundos < 60) {
+
+        return (
+            `${Math.round(segundos)} s`
+        );
+    }
+
+
+    const minutos =
+        segundos / 60;
+
+
+    if (minutos < 60) {
+
+        return (
+            `${Math.round(minutos)} min`
+        );
+    }
+
+
+    const horas =
+        minutos / 60;
+
+
+    return (
+        `${horas.toFixed(1)} h`
+    );
+}
+
+
+function pintarCalidadDato(
+    id,
+    dato
+) {
+
+    const elemento =
+        document.getElementById(
+            id
+        );
+
+
+    if (!elemento) {
+        return;
+    }
+
+
+    if (!dato) {
+
+        elemento.innerText =
+            "SIN DATOS";
+
+        elemento.className =
+            "config-value estado-alerta";
+
+        return;
+    }
+
+
+    const edad =
+        formatoEdadDato(
+            dato.edad_segundos
+        );
+
+
+    if (
+        dato.estado === "OK"
+    ) {
+
+        elemento.innerText =
+            `OK · hace ${edad}`;
+
+        elemento.className =
+            "config-value estado-activo";
+
+    } else if (
+        dato.estado === "ATRASADO"
+    ) {
+
+        elemento.innerText =
+            `ATRASADO · hace ${edad}`;
+
+        elemento.className =
+            "config-value estado-alerta";
+
+    } else {
+
+        elemento.innerText =
+            `SIN DATOS · hace ${edad}`;
+
+        elemento.className =
+            "config-value estado-alerta";
+    }
+}
+
+
+async function actualizarEstadoOperacion() {
+
+    try {
+
+        const response =
+            await fetch(
+                "/api/estado-operacion",
+                {
+                    cache:
+                        "no-store"
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.detail ||
+                "Error consultando estado operativo"
+            );
+        }
+
+
+        // =============================================
+        // PUERTA
+        // =============================================
+
+        const puerta =
+            document.getElementById(
+                "estadoPuerta"
+            );
+
+
+        if (puerta) {
+
+            const estado =
+                data.seguridad
+                    ?.puerta
+                    ?.estado ||
+                "SIN DATOS";
+
+
+            puerta.innerText =
+                estado;
+
+
+            puerta.className =
+                (
+                    estado === "CERRADA"
+                )
+                    ?
+                    "config-value estado-activo"
+                    :
+                    "config-value estado-alerta";
+        }
+
+
+        // =============================================
+        // HOMBRE ATRAPADO
+        // =============================================
+
+        const man =
+            document.getElementById(
+                "estadoMan"
+            );
+
+
+        if (man) {
+
+            const activo =
+                data.seguridad
+                    ?.hombre_atrapado
+                    ?.activo === true;
+
+
+            man.innerText =
+                activo
+                    ?
+                    "ACTIVO"
+                    :
+                    "NORMAL";
+
+
+            man.className =
+                activo
+                    ?
+                    "config-value estado-alerta"
+                    :
+                    "config-value estado-activo";
+        }
+
+
+        // =============================================
+        // CALIDAD DE DATOS
+        // =============================================
+
+        pintarCalidadDato(
+            "calidadCO2",
+            data.datos?.co2
+        );
+
+
+        pintarCalidadDato(
+            "calidadTemperatura",
+            data.datos?.temperatura
+        );
+
+
+        pintarCalidadDato(
+            "calidadHumedad",
+            data.datos?.humedad
+        );
+
+
+        pintarCalidadDato(
+            "calidadC2H4",
+            data.datos?.c2h4
+        );
+
+
+        pintarCalidadDato(
+            "calidadPT1000",
+            data.datos?.pt1000
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "Error actualizarEstadoOperacion:",
+            error
+        );
+    }
+}
+
 actualizarValores();
 actualizarProcesoHome();
+actualizarEstadoOperacion();
+
+
+setInterval(
+    actualizarEstadoOperacion,
+    10000
+);
 
 setInterval(
     actualizarValores,
