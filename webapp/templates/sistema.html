@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1>Estado del sistema</h1>
+
+<p class="subtitle">
+    Diagnóstico operativo del gateway RPI-MDFR
+</p>
+
+
+<section class="panel">
+
+    <h2>Raspberry Pi</h2>
+
+    <div class="config-grid">
+
+        <div class="config-item">
+            <span class="config-label">
+                Temperatura CPU
+            </span>
+
+            <span
+                id="cpuTemp"
+                class="config-value"
+            >
+                --
+            </span>
+        </div>
+
+
+        <div class="config-item">
+            <span class="config-label">
+                Uso CPU
+            </span>
+
+            <span
+                id="cpuUso"
+                class="config-value"
+            >
+                --
+            </span>
+        </div>
+
+
+        <div class="config-item">
+            <span class="config-label">
+                Memoria RAM
+            </span>
+
+            <span
+                id="ramUso"
+                class="config-value"
+            >
+                --
+            </span>
+        </div>
+
+
+        <div class="config-item">
+            <span class="config-label">
+                Disco
+            </span>
+
+            <span
+                id="discoUso"
+                class="config-value"
+            >
+                --
+            </span>
+        </div>
+
+
+        <div class="config-item">
+            <span class="config-label">
+                Tiempo encendido
+            </span>
+
+            <span
+                id="uptime"
+                class="config-value"
+            >
+                --
+            </span>
+        </div>
+
+    </div>
+
+</section>
+
+
+<section class="panel">
+
+    <h2>Red</h2>
+
+    <div class="config-grid">
+
+        <div class="config-item">
+            <span class="config-label">
+                Dirección IP
+            </span>
+
+            <span
+                id="ipLocal"
+                class="config-value"
+            >
+                --
+            </span>
+        </div>
+
+
+        <div class="config-item">
+            <span class="config-label">
+                Hostname
+            </span>
+
+            <span
+                id="hostname"
+                class="config-value"
+            >
+                --
+            </span>
+        </div>
+
+
+        <div class="config-item">
+            <span class="config-label">
+                Internet
+            </span>
+
+            <span
+                id="internetEstado"
+                class="config-value"
+            >
+                --
+            </span>
+        </div>
+
+    </div>
+
+</section>
+
+
+<section class="panel">
+
+    <h2>Base de datos</h2>
+
+    <div class="config-grid">
+
+        <div class="config-item">
+            <span class="config-label">
+                SQLite
+            </span>
+
+            <span
+                id="dbEstado"
+                class="config-value"
+            >
+                --
+            </span>
+        </div>
+
+
+        <div class="config-item">
+            <span class="config-label">
+                Mediciones
+            </span>
+
+            <span
+                id="dbMediciones"
+                class="config-value"
+            >
+                --
+            </span>
+        </div>
+
+
+        <div class="config-item">
+            <span class="config-label">
+                Eventos
+            </span>
+
+            <span
+                id="dbEventos"
+                class="config-value"
+            >
+                --
+            </span>
+        </div>
+
+
+        <div class="config-item">
+            <span class="config-label">
+                Ciclos CO₂
+            </span>
+
+            <span
+                id="dbCiclos"
+                class="config-value"
+            >
+                --
+            </span>
+        </div>
+
+    </div>
+
+</section>
+
+
+<section class="panel">
+
+    <h2>Cola AWS / IoT</h2>
+
+    <div class="config-grid">
+
+        <div class="config-item">
+            <span class="config-label">
+                Pendientes
+            </span>
+
+            <span
+                id="awsPendientes"
+                class="config-value"
+            >
+                --
+            </span>
+        </div>
+
+
+        <div class="config-item">
+            <span class="config-label">
+                Enviados
+            </span>
+
+            <span
+                id="awsEnviados"
+                class="config-value"
+            >
+                --
+            </span>
+        </div>
+
+    </div>
+
+</section>
+
+
+<section class="panel">
+
+    <h2>Estado general</h2>
+
+    <div class="config-grid">
+
+        <div class="config-item">
+            <span class="config-label">
+                Proceso de maduración
+            </span>
+
+            <span
+                id="procesoEstado"
+                class="config-value"
+            >
+                --
+            </span>
+        </div>
+
+
+        <div class="config-item">
+            <span class="config-label">
+                Última actualización
+            </span>
+
+            <span
+                id="sistemaActualizacion"
+                class="config-value"
+            >
+                --
+            </span>
+        </div>
+
+    </div>
+
+</section>
+
+
+<script src="/static/js/sistema.js?v=20260928-1"></script>
+
+{% endblock %}

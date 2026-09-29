@@ -14,6 +14,9 @@ from fastapi import FastAPI, Request, Query, HTTPException, Form
 import os
 import yaml
 import tempfile
+import socket
+import shutil
+import time
 # =========================================================
 # RUTAS
 # =========================================================
@@ -1980,3 +1983,602 @@ async def api_guardar_configuracion_co2(
                 f"{type(e).__name__}: {e}"
             )
         ) from e   
+        
+# =========================================================
+# SISTEMA
+# =========================================================
+
+@app.get(
+    "/sistema",
+    response_class=HTMLResponse
+)
+async def pagina_sistema(
+    request: Request
+):
+
+    return templates.TemplateResponse(
+        request=request,
+        name="sistema.html",
+        context={}
+    )
+
+
+# =========================================================
+# UTILIDADES SISTEMA
+# =========================================================
+
+def _leer_temperatura_cpu():
+
+    try:
+
+        ruta = Path(
+            "/sys/class/thermal/"
+            "thermal_zone0/temp"
+        )
+
+        if not ruta.exists():
+            return None
+
+        valor = float(
+            ruta.read_text(
+                encoding="utf-8"
+            ).strip()
+        )
+
+        return round(
+            valor / 1000.0,
+            1
+        )
+
+    except Exception:
+        return None
+
+
+def _leer_cpu_stat():
+
+    try:
+
+        with open(
+            "/proc/stat",
+            "r",
+            encoding="utf-8"
+        ) as archivo:
+
+            linea = archivo.readline()
+
+        partes = linea.split()
+
+        if not partes:
+            return None
+
+        valores = [
+            int(valor)
+            for valor in partes[1:]
+        ]
+
+        idle = (
+            valores[3] +
+            (
+                valores[4]
+                if len(valores) > 4
+                else 0
+            )
+        )
+
+        total = sum(
+            valores
+        )
+
+        return {
+            "idle": idle,
+            "total": total
+        }
+
+    except Exception:
+        return None
+
+
+def _leer_uso_cpu():
+
+    primero = _leer_cpu_stat()
+
+    if primero is None:
+        return None
+
+    time.sleep(
+        0.15
+    )
+
+    segundo = _leer_cpu_stat()
+
+    if segundo is None:
+        return None
+
+    delta_total = (
+        segundo["total"] -
+        primero["total"]
+    )
+
+    delta_idle = (
+        segundo["idle"] -
+        primero["idle"]
+    )
+
+    if delta_total <= 0:
+        return None
+
+    uso = (
+        100.0 *
+        (
+            1.0 -
+            (
+                delta_idle /
+                delta_total
+            )
+        )
+    )
+
+    return round(
+        uso,
+        1
+    )
+
+
+def _leer_ram():
+
+    try:
+
+        datos = {}
+
+        with open(
+            "/proc/meminfo",
+            "r",
+            encoding="utf-8"
+        ) as archivo:
+
+            for linea in archivo:
+
+                if ":" not in linea:
+                    continue
+
+                clave, valor = (
+                    linea.split(
+                        ":",
+                        1
+                    )
+                )
+
+                numero = (
+                    valor
+                    .strip()
+                    .split()[0]
+                )
+
+                datos[
+                    clave
+                ] = int(
+                    numero
+                )
+
+        total_kb = datos.get(
+            "MemTotal"
+        )
+
+        disponible_kb = datos.get(
+            "MemAvailable"
+        )
+
+        if (
+            total_kb is None
+            or
+            disponible_kb is None
+        ):
+            return None
+
+        usado_kb = (
+            total_kb -
+            disponible_kb
+        )
+
+        porcentaje = (
+            usado_kb /
+            total_kb *
+            100.0
+        )
+
+        return {
+            "total_mb":
+                round(
+                    total_kb / 1024.0,
+                    1
+                ),
+
+            "usado_mb":
+                round(
+                    usado_kb / 1024.0,
+                    1
+                ),
+
+            "porcentaje":
+                round(
+                    porcentaje,
+                    1
+                )
+        }
+
+    except Exception:
+        return None
+
+
+def _leer_disco():
+
+    try:
+
+        uso = shutil.disk_usage(
+            "/"
+        )
+
+        porcentaje = (
+            uso.used /
+            uso.total *
+            100.0
+        )
+
+        return {
+            "total_gb":
+                round(
+                    uso.total /
+                    (1024 ** 3),
+                    1
+                ),
+
+            "usado_gb":
+                round(
+                    uso.used /
+                    (1024 ** 3),
+                    1
+                ),
+
+            "libre_gb":
+                round(
+                    uso.free /
+                    (1024 ** 3),
+                    1
+                ),
+
+            "porcentaje":
+                round(
+                    porcentaje,
+                    1
+                )
+        }
+
+    except Exception:
+        return None
+
+
+def _leer_uptime():
+
+    try:
+
+        with open(
+            "/proc/uptime",
+            "r",
+            encoding="utf-8"
+        ) as archivo:
+
+            segundos = float(
+                archivo
+                .read()
+                .split()[0]
+            )
+
+        dias = int(
+            segundos // 86400
+        )
+
+        segundos = (
+            segundos % 86400
+        )
+
+        horas = int(
+            segundos // 3600
+        )
+
+        segundos = (
+            segundos % 3600
+        )
+
+        minutos = int(
+            segundos // 60
+        )
+
+        return {
+            "dias": dias,
+            "horas": horas,
+            "minutos": minutos
+        }
+
+    except Exception:
+        return None
+
+
+def _obtener_ip_local():
+
+    socket_udp = None
+
+    try:
+
+        socket_udp = socket.socket(
+            socket.AF_INET,
+            socket.SOCK_DGRAM
+        )
+
+        socket_udp.connect(
+            (
+                "8.8.8.8",
+                80
+            )
+        )
+
+        return (
+            socket_udp
+            .getsockname()[0]
+        )
+
+    except Exception:
+
+        try:
+
+            return socket.gethostbyname(
+                socket.gethostname()
+            )
+
+        except Exception:
+
+            return None
+
+    finally:
+
+        if socket_udp is not None:
+
+            socket_udp.close()
+
+
+def _hay_internet():
+
+    try:
+
+        conexion = (
+            socket.create_connection(
+                (
+                    "1.1.1.1",
+                    53
+                ),
+                timeout=1.0
+            )
+        )
+
+        conexion.close()
+
+        return True
+
+    except Exception:
+
+        return False
+
+
+@app.get(
+    "/api/sistema"
+)
+async def api_sistema():
+
+    try:
+
+        # =================================================
+        # RASPBERRY
+        # =================================================
+
+        temperatura_cpu = (
+            _leer_temperatura_cpu()
+        )
+
+        uso_cpu = (
+            _leer_uso_cpu()
+        )
+
+        ram = (
+            _leer_ram()
+        )
+
+        disco = (
+            _leer_disco()
+        )
+
+        uptime = (
+            _leer_uptime()
+        )
+
+
+        # =================================================
+        # RED
+        # =================================================
+
+        hostname = (
+            socket.gethostname()
+        )
+
+        ip_local = (
+            _obtener_ip_local()
+        )
+
+        internet = (
+            _hay_internet()
+        )
+
+
+        # =================================================
+        # BASE DE DATOS
+        # =================================================
+
+        db_service.init_db()
+
+        with sqlite3.connect(
+            db_service.DB_PATH
+        ) as conn:
+
+            mediciones = (
+                conn.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM mediciones
+                    """
+                )
+                .fetchone()[0]
+            )
+
+            eventos = (
+                conn.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM eventos
+                    """
+                )
+                .fetchone()[0]
+            )
+
+            ciclos = (
+                conn.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM ciclos_co2
+                    """
+                )
+                .fetchone()[0]
+            )
+
+
+        # =================================================
+        # AWS QUEUE
+        # =================================================
+
+        pendientes = (
+            db_service
+            .aws_queue_contar_pendientes()
+        )
+
+        enviados = (
+            db_service
+            .aws_queue_contar_enviados()
+        )
+
+
+        # =================================================
+        # PROCESO
+        # =================================================
+
+        proceso = (
+            db_service
+            .obtener_proceso_activo()
+        )
+
+
+        return {
+
+            "raspberry": {
+
+                "temperatura_cpu":
+                    temperatura_cpu,
+
+                "uso_cpu":
+                    uso_cpu,
+
+                "ram":
+                    ram,
+
+                "disco":
+                    disco,
+
+                "uptime":
+                    uptime
+            },
+
+
+            "red": {
+
+                "hostname":
+                    hostname,
+
+                "ip":
+                    ip_local,
+
+                "internet":
+                    internet
+            },
+
+
+            "database": {
+
+                "estado":
+                    "OK",
+
+                "mediciones":
+                    int(
+                        mediciones
+                    ),
+
+                "eventos":
+                    int(
+                        eventos
+                    ),
+
+                "ciclos":
+                    int(
+                        ciclos
+                    )
+            },
+
+
+            "aws": {
+
+                "pendientes":
+                    pendientes,
+
+                "enviados":
+                    enviados
+            },
+
+
+            "proceso": {
+
+                "activo":
+                    proceso is not None,
+
+                "id":
+                    (
+                        proceso.get(
+                            "id"
+                        )
+                        if proceso
+                        else None
+                    )
+            },
+
+
+            "actualizacion":
+                datetime.now(
+                    TZ_LOCAL
+                ).isoformat()
+        }
+
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Error obteniendo estado "
+                "del sistema: "
+                f"{type(e).__name__}: {e}"
+            )
+        ) from e
