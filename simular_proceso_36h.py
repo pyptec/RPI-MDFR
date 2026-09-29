@@ -2,43 +2,55 @@ from datetime import datetime, timedelta, timezone
 import math
 import sqlite3
 import subprocess
+
 from webapp.services import db_service
 
 
 # =========================================================
-# CONFIGURACIÓN DE LA SIMULACIÓN
+# CONFIGURACIÓN
 # =========================================================
 
 DURACION_HORAS = 36
-INTERVALO_MINUTOS = 10
+
+# Para representar bien una purga de máximo 12 minutos
+INTERVALO_MINUTOS = 1
 
 CO2_LOW = 3000.0
 CO2_HIGH = 9000.0
+
+PURGA_MAX_MINUTOS = 12
 
 LOTE_SIMULACION = "SIM-36H-CICLOS"
 
 OBSERVACIONES = (
     "Simulación ficticia de 36 horas "
-    "para validación de ciclos CO2."
+    "para validación de ciclos CO2, "
+    "extractor y aire fresco."
 )
 
 
 # =========================================================
-# PERFIL DE CO2
+# PERFIL DE LOS 4 CICLOS
 # =========================================================
 #
-# Cada ciclo tiene:
+# Funcionamiento simulado:
 #
-# inicio_low_h
-# high_h
-# fin_purga_h
+# LOW
+#   ↓
+# acumulación CO2
+#   ↓
+# HIGH >= 9000 ppm
+#   ↓
+# PURGA
+#   extractor ON
+#   aire_fresco ON
+#   ↓
+# CO2 <= 3000 ppm
+#   ↓
+# extractor OFF
+# aire_fresco OFF
 #
-# Ejemplo:
-#
-# 0 h     -> LOW
-# 3 h     -> HIGH
-# 3.5 h   -> LOW
-#
+# Ninguna purga supera 12 minutos.
 # =========================================================
 
 CICLOS = [
@@ -46,39 +58,77 @@ CICLOS = [
     {
         "inicio_low_h": 0.0,
         "high_h": 3.0,
-        "fin_purga_h": 3.5,
+        "purga_minutos": 8,
         "co2_inicio": 2500,
         "co2_high": 9200,
-        "co2_fin": 2500,
+        "co2_fin": 2800,
     },
 
     {
         "inicio_low_h": 8.0,
         "high_h": 12.0,
-        "fin_purga_h": 12.5,
+        "purga_minutos": 10,
         "co2_inicio": 2600,
         "co2_high": 9300,
-        "co2_fin": 2400,
+        "co2_fin": 2900,
     },
 
     {
         "inicio_low_h": 17.0,
         "high_h": 22.0,
-        "fin_purga_h": 22.5,
+        "purga_minutos": 12,
         "co2_inicio": 2500,
         "co2_high": 9100,
-        "co2_fin": 2600,
+        "co2_fin": 2950,
     },
 
     {
         "inicio_low_h": 27.0,
         "high_h": 34.0,
-        "fin_purga_h": 34.5,
+        "purga_minutos": 11,
         "co2_inicio": 2400,
         "co2_high": 9400,
-        "co2_fin": 2500,
+        "co2_fin": 2850,
     },
 ]
+
+
+# =========================================================
+# VALIDAR CONFIGURACIÓN
+# =========================================================
+
+def validar_perfil_simulacion():
+
+    for numero, ciclo in enumerate(
+        CICLOS,
+        start=1
+    ):
+
+        purga_minutos = float(
+            ciclo["purga_minutos"]
+        )
+
+        co2_fin = float(
+            ciclo["co2_fin"]
+        )
+
+        if purga_minutos > PURGA_MAX_MINUTOS:
+
+            raise ValueError(
+                f"Ciclo {numero}: "
+                f"purga={purga_minutos} min "
+                f"supera máximo de "
+                f"{PURGA_MAX_MINUTOS} min."
+            )
+
+        if co2_fin > CO2_LOW:
+
+            raise ValueError(
+                f"Ciclo {numero}: "
+                f"CO2 final={co2_fin} ppm "
+                f"no alcanza LOW="
+                f"{CO2_LOW} ppm."
+            )
 
 
 # =========================================================
@@ -94,61 +144,83 @@ def interpolar(
 ):
 
     if x1 == x0:
-        return float(y1)
+
+        return float(
+            y1
+        )
 
     proporcion = (
-        (x - x0) /
+        (x - x0)
+        /
         (x1 - x0)
     )
 
     return (
-        float(y0) +
+        float(y0)
+        +
         (
-            float(y1) -
+            float(y1)
+            -
             float(y0)
-        ) *
+        )
+        *
         proporcion
     )
 
 
 # =========================================================
-# GENERAR CO2 PARA UNA HORA FICTICIA
+# CALCULAR CO2
 # =========================================================
 
 def calcular_co2(
     hora
 ):
 
-    # Valor de espera entre ciclos.
-    #
-    # IMPORTANTE:
-    # Debe quedar por encima de LOW para no abrir
-    # accidentalmente un nuevo ciclo.
+    # Entre ciclos se mantiene por encima de LOW
+    # para evitar abrir ciclos accidentalmente.
 
     valor_espera = 4500.0
 
 
     for ciclo in CICLOS:
 
-        inicio = ciclo[
-            "inicio_low_h"
-        ]
+        inicio = float(
+            ciclo[
+                "inicio_low_h"
+            ]
+        )
 
-        high = ciclo[
-            "high_h"
-        ]
+        high = float(
+            ciclo[
+                "high_h"
+            ]
+        )
 
-        fin_purga = ciclo[
-            "fin_purga_h"
-        ]
+        purga_horas = (
+            float(
+                ciclo[
+                    "purga_minutos"
+                ]
+            )
+            /
+            60.0
+        )
+
+        fin_purga = (
+            high
+            +
+            purga_horas
+        )
 
 
-        # ---------------------------------------------
-        # SUBIDA LOW -> HIGH
-        # ---------------------------------------------
+        # -------------------------------------------------
+        # ACUMULACIÓN LOW -> HIGH
+        # -------------------------------------------------
 
         if (
-            inicio <= hora <= high
+            inicio
+            <= hora
+            <= high
         ):
 
             return interpolar(
@@ -164,12 +236,20 @@ def calcular_co2(
             )
 
 
-        # ---------------------------------------------
+        # -------------------------------------------------
         # PURGA HIGH -> LOW
-        # ---------------------------------------------
+        #
+        # Durante este tiempo:
+        #
+        # extractor = ON
+        # aire_fresco = ON
+        #
+        # -------------------------------------------------
 
         if (
-            high < hora <= fin_purga
+            high
+            < hora
+            <= fin_purga
         ):
 
             return interpolar(
@@ -189,7 +269,63 @@ def calcular_co2(
 
 
 # =========================================================
-# VARIABLES AMBIENTALES FICTICIAS
+# ACTUADORES FICTICIOS
+# =========================================================
+
+def calcular_actuadores(
+    hora
+):
+
+    extractor = 0
+    aire_fresco = 0
+
+
+    for ciclo in CICLOS:
+
+        high = float(
+            ciclo[
+                "high_h"
+            ]
+        )
+
+        fin_purga = (
+            high
+            +
+            (
+                float(
+                    ciclo[
+                        "purga_minutos"
+                    ]
+                )
+                /
+                60.0
+            )
+        )
+
+
+        if (
+            high
+            <= hora
+            <= fin_purga
+        ):
+
+            extractor = 1
+            aire_fresco = 1
+
+            break
+
+
+    return {
+        "extractor":
+            extractor,
+
+        "aire_fresco":
+            aire_fresco
+    }
+
+
+# =========================================================
+# TEMPERATURA
 # =========================================================
 
 def calcular_temperatura(
@@ -197,43 +333,13 @@ def calcular_temperatura(
 ):
 
     return round(
-        19.0 +
-        0.8 *
+        19.0
+        +
+        0.8
+        *
         math.sin(
-            hora /
-            3.0
-        ),
-        1
-    )
-
-
-def calcular_humedad(
-    hora
-):
-
-    return round(
-        87.0 +
-        2.0 *
-        math.sin(
-            hora /
-            4.0
-        ),
-        1
-    )
-
-
-def calcular_c2h4(
-    hora
-):
-
-    # Curva sencilla ascendente durante
-    # la maduración ficticia.
-
-    return round(
-        min(
-            150.0,
-            5.0 +
-            hora *
+            hora
+            /
             3.0
         ),
         1
@@ -241,7 +347,126 @@ def calcular_c2h4(
 
 
 # =========================================================
-# LIMPIAR PROCESO DE SIMULACIÓN ANTERIOR
+# HUMEDAD
+# =========================================================
+
+def calcular_humedad(
+    hora
+):
+
+    return round(
+        87.0
+        +
+        2.0
+        *
+        math.sin(
+            hora
+            /
+            4.0
+        ),
+        1
+    )
+
+
+# =========================================================
+# C2H4
+# =========================================================
+
+def calcular_c2h4(
+    hora
+):
+
+    return round(
+        min(
+            150.0,
+            5.0
+            +
+            hora
+            *
+            3.0
+        ),
+        1
+    )
+
+
+# =========================================================
+# VERIFICAR QUE rpi-mdfr.py ESTÉ DETENIDO
+# =========================================================
+
+def verificar_mdfr_detenido():
+
+    resultado = subprocess.run(
+        [
+            "pgrep",
+            "-af",
+            "rpi-mdfr.py"
+        ],
+        capture_output=True,
+        text=True
+    )
+
+
+    procesos = []
+
+    for linea in (
+        resultado
+        .stdout
+        .splitlines()
+    ):
+
+        linea = (
+            linea.strip()
+        )
+
+        if not linea:
+
+            continue
+
+        if "pgrep" in linea:
+
+            continue
+
+        procesos.append(
+            linea
+        )
+
+
+    if procesos:
+
+        raise RuntimeError(
+            "rpi-mdfr.py está ejecutándose.\n"
+            "Deténgalo antes de ejecutar "
+            "la simulación.\n\n"
+            +
+            "\n".join(
+                procesos
+            )
+        )
+
+
+# =========================================================
+# VERIFICAR PROCESO ACTIVO
+# =========================================================
+
+def verificar_sin_proceso_activo():
+
+    proceso = (
+        db_service
+        .obtener_proceso_activo()
+    )
+
+
+    if proceso is not None:
+
+        raise RuntimeError(
+            "Existe un proceso ACTIVO "
+            f"id={proceso.get('id')}. "
+            "Finalícelo primero desde la web."
+        )
+
+
+# =========================================================
+# LIMPIAR SIMULACIÓN ANTERIOR
 # =========================================================
 
 def limpiar_simulacion_anterior():
@@ -252,6 +477,7 @@ def limpiar_simulacion_anterior():
     with sqlite3.connect(
         db_service.DB_PATH
     ) as conn:
+
 
         filas = conn.execute(
             """
@@ -299,27 +525,6 @@ def limpiar_simulacion_anterior():
 
 
 # =========================================================
-# VERIFICAR QUE NO HAYA PROCESO ACTIVO
-# =========================================================
-
-def verificar_sin_proceso_activo():
-
-    proceso = (
-        db_service
-        .obtener_proceso_activo()
-    )
-
-
-    if proceso is not None:
-
-        raise RuntimeError(
-            "Existe un proceso ACTIVO "
-            f"id={proceso.get('id')}. "
-            "Finalícelo primero desde la web."
-        )
-
-
-# =========================================================
 # CREAR PROCESO FICTICIO
 # =========================================================
 
@@ -358,12 +563,9 @@ def crear_proceso_simulado(
     )
 
 
-    # -----------------------------------------------------
-    # iniciar_proceso() usa hora real.
-    #
-    # Para esta prueba movemos SOLAMENTE el inicio
-    # del proceso ficticio 36 horas hacia atrás.
-    # -----------------------------------------------------
+    # iniciar_proceso usa hora real.
+    # Movemos solo el inicio del proceso
+    # 36 horas hacia atrás.
 
     with sqlite3.connect(
         db_service.DB_PATH
@@ -394,7 +596,7 @@ def crear_proceso_simulado(
 
 
 # =========================================================
-# GUARDAR MEDICIONES FICTICIAS
+# GUARDAR MEDICIONES
 # =========================================================
 
 def guardar_mediciones(
@@ -402,7 +604,9 @@ def guardar_mediciones(
     co2,
     temperatura,
     humedad,
-    c2h4
+    c2h4,
+    extractor,
+    aire_fresco
 ):
 
     ts = (
@@ -410,6 +614,10 @@ def guardar_mediciones(
         .isoformat()
     )
 
+
+    # -----------------------------------------------------
+    # CO2
+    # -----------------------------------------------------
 
     db_service.guardar_medicion(
         sensor=
@@ -429,6 +637,10 @@ def guardar_mediciones(
     )
 
 
+    # -----------------------------------------------------
+    # TEMPERATURA
+    # -----------------------------------------------------
+
     db_service.guardar_medicion(
         sensor=
             "THT03R",
@@ -446,6 +658,10 @@ def guardar_mediciones(
             ts
     )
 
+
+    # -----------------------------------------------------
+    # HUMEDAD
+    # -----------------------------------------------------
 
     db_service.guardar_medicion(
         sensor=
@@ -465,6 +681,10 @@ def guardar_mediciones(
     )
 
 
+    # -----------------------------------------------------
+    # ETILENO
+    # -----------------------------------------------------
+
     db_service.guardar_medicion(
         sensor=
             "C2H4",
@@ -477,6 +697,51 @@ def guardar_mediciones(
 
         unidad=
             "ppm",
+
+        timestamp_utc=
+            ts
+    )
+
+
+    # -----------------------------------------------------
+    # ACTUADORES SIMULADOS
+    #
+    # IMPORTANTE:
+    #
+    # SIM_MDFR evita confundir estos estados
+    # con los actuadores físicos reales DIOUSTOU.
+    # -----------------------------------------------------
+
+    db_service.guardar_medicion(
+        sensor=
+            "SIM_MDFR",
+
+        variable=
+            "extractor",
+
+        valor=
+            extractor,
+
+        unidad=
+            "estado",
+
+        timestamp_utc=
+            ts
+    )
+
+
+    db_service.guardar_medicion(
+        sensor=
+            "SIM_MDFR",
+
+        variable=
+            "aire_fresco",
+
+        valor=
+            aire_fresco,
+
+        unidad=
+            "estado",
 
         timestamp_utc=
             ts
@@ -500,6 +765,7 @@ def mostrar_resultados(
 
 
     print()
+
     print(
         "=" * 72
     )
@@ -512,18 +778,24 @@ def mostrar_resultados(
         "=" * 72
     )
 
-    print(
-        f"Proceso ID: {proceso_id}"
-    )
 
     print(
-        f"Ciclos registrados: {len(ciclos)}"
+        f"Proceso ID: "
+        f"{proceso_id}"
     )
+
+
+    print(
+        f"Ciclos registrados: "
+        f"{len(ciclos)}"
+    )
+
 
     print()
 
 
     for ciclo in ciclos:
+
 
         print(
             "Ciclo:",
@@ -532,12 +804,14 @@ def mostrar_resultados(
             )
         )
 
+
         print(
             "  Estado:",
             ciclo.get(
                 "estado"
             )
         )
+
 
         print(
             "  Inicio LOW:",
@@ -546,6 +820,7 @@ def mostrar_resultados(
             )
         )
 
+
         print(
             "  Inicio purga:",
             ciclo.get(
@@ -553,12 +828,14 @@ def mostrar_resultados(
             )
         )
 
+
         print(
             "  Fin purga:",
             ciclo.get(
                 "purga_fin_utc"
             )
         )
+
 
         print(
             "  LOW -> HIGH:",
@@ -568,6 +845,7 @@ def mostrar_resultados(
             "s"
         )
 
+
         print(
             "  Purga:",
             ciclo.get(
@@ -575,6 +853,7 @@ def mostrar_resultados(
             ),
             "s"
         )
+
 
         print(
             "  Intervalo purgas:",
@@ -584,12 +863,14 @@ def mostrar_resultados(
             "s"
         )
 
+
         print(
             "  CO2 inicio purga:",
             ciclo.get(
                 "co2_purge_start_ppm"
             )
         )
+
 
         print(
             "  CO2 fin purga:",
@@ -598,12 +879,14 @@ def mostrar_resultados(
             )
         )
 
+
         print(
             "  Temp media:",
             ciclo.get(
                 "temperatura_media"
             )
         )
+
 
         print(
             "  Hum media:",
@@ -612,6 +895,7 @@ def mostrar_resultados(
             )
         )
 
+
         print(
             "  C2H4 medio:",
             ciclo.get(
@@ -619,61 +903,20 @@ def mostrar_resultados(
             )
         )
 
+
         print(
             "-" * 72
         )
 
-# =========================================================
-# SEGURIDAD - NO SIMULAR CON MDFR REAL EJECUTÁNDOSE
-# =========================================================
 
-def verificar_mdfr_detenido():
-
-    resultado = subprocess.run(
-        [
-            "pgrep",
-            "-af",
-            "rpi-mdfr.py"
-        ],
-        capture_output=True,
-        text=True
-    )
-
-
-    lineas = [
-        linea.strip()
-        for linea
-        in resultado.stdout.splitlines()
-        if linea.strip()
-    ]
-
-
-    # Ignorar cualquier coincidencia del propio comando pgrep
-    procesos = [
-        linea
-        for linea
-        in lineas
-        if "pgrep" not in linea
-    ]
-
-
-    if procesos:
-
-        raise RuntimeError(
-            "rpi-mdfr.py está ejecutándose. "
-            "Deténgalo antes de iniciar la simulación.\n"
-            +
-            "\n".join(
-                procesos
-            )
-        )
 # =========================================================
 # SIMULACIÓN PRINCIPAL
 # =========================================================
 
 def main():
-    verificar_mdfr_detenido()
+
     print()
+
     print(
         "=" * 72
     )
@@ -687,6 +930,15 @@ def main():
     )
 
 
+    # -----------------------------------------------------
+    # SEGURIDAD
+    # -----------------------------------------------------
+
+    verificar_mdfr_detenido()
+
+    validar_perfil_simulacion()
+
+
     db_service.init_db()
 
 
@@ -697,10 +949,7 @@ def main():
 
 
     # -----------------------------------------------------
-    # Tiempo ficticio:
-    #
-    # termina aproximadamente AHORA.
-    # comienza hace 36 horas.
+    # TIEMPO FICTICIO
     # -----------------------------------------------------
 
     fin_simulacion = (
@@ -711,7 +960,8 @@ def main():
 
 
     inicio_simulacion = (
-        fin_simulacion -
+        fin_simulacion
+        -
         timedelta(
             hours=
                 DURACION_HORAS
@@ -727,24 +977,58 @@ def main():
 
 
     print(
-        f"Proceso simulado creado: {proceso_id}"
+        f"Proceso simulado creado: "
+        f"{proceso_id}"
     )
 
-    print(
-        f"Inicio ficticio: {inicio_simulacion.isoformat()}"
-    )
 
     print(
-        f"Fin ficticio:    {fin_simulacion.isoformat()}"
+        f"Inicio ficticio: "
+        f"{inicio_simulacion.isoformat()}"
     )
+
+
+    print(
+        f"Fin ficticio:    "
+        f"{fin_simulacion.isoformat()}"
+    )
+
 
     print()
 
 
+    print(
+        f"LOW={CO2_LOW:.0f} ppm | "
+        f"HIGH={CO2_HIGH:.0f} ppm"
+    )
+
+
+    print(
+        f"Purga máxima="
+        f"{PURGA_MAX_MINUTOS} min"
+    )
+
+
+    print(
+        "Durante PURGA: "
+        "EXTRACTOR=ON + "
+        "AIRE_FRESCO=ON"
+    )
+
+
+    print()
+
+
+    # -----------------------------------------------------
+    # CANTIDAD DE MUESTRAS
+    # -----------------------------------------------------
+
     cantidad_muestras = (
         int(
-            DURACION_HORAS *
-            60 /
+            DURACION_HORAS
+            *
+            60
+            /
             INTERVALO_MINUTOS
         )
         +
@@ -755,30 +1039,42 @@ def main():
     eventos_detectados = []
 
 
+    # =====================================================
+    # BUCLE DE SIMULACIÓN
+    # =====================================================
+
     for indice in range(
         cantidad_muestras
     ):
 
+
         minutos = (
-            indice *
+            indice
+            *
             INTERVALO_MINUTOS
         )
 
 
         hora = (
-            minutos /
+            minutos
+            /
             60.0
         )
 
 
         timestamp = (
-            inicio_simulacion +
+            inicio_simulacion
+            +
             timedelta(
                 minutes=
                     minutos
             )
         )
 
+
+        # -------------------------------------------------
+        # VARIABLES
+        # -------------------------------------------------
 
         co2 = round(
             calcular_co2(
@@ -809,11 +1105,19 @@ def main():
         )
 
 
-        # ---------------------------------------------
-        # HISTÓRICO FICTICIO
-        # ---------------------------------------------
+        actuadores = (
+            calcular_actuadores(
+                hora
+            )
+        )
+
+
+        # -------------------------------------------------
+        # GUARDAR HISTÓRICO
+        # -------------------------------------------------
 
         guardar_mediciones(
+
             timestamp=
                 timestamp,
 
@@ -827,17 +1131,28 @@ def main():
                 humedad,
 
             c2h4=
-                c2h4
+                c2h4,
+
+            extractor=
+                actuadores[
+                    "extractor"
+                ],
+
+            aire_fresco=
+                actuadores[
+                    "aire_fresco"
+                ]
         )
 
 
-        # ---------------------------------------------
-        # MISMA MÁQUINA DE ESTADOS DE PRODUCCIÓN
-        # ---------------------------------------------
+        # -------------------------------------------------
+        # MÁQUINA REAL DE ESTADOS
+        # -------------------------------------------------
 
         resultado = (
             db_service
             .procesar_ciclo_co2(
+
                 valor_co2=
                     co2,
 
@@ -863,7 +1178,12 @@ def main():
         )
 
 
+        # -------------------------------------------------
+        # MOSTRAR TRANSICIONES
+        # -------------------------------------------------
+
         if evento:
+
 
             eventos_detectados.append(
                 (
@@ -874,18 +1194,63 @@ def main():
             )
 
 
+            if (
+                evento
+                ==
+                "PURGA_INICIADA"
+            ):
+
+                estado_actuadores = (
+                    "EXTRACTOR=ON | "
+                    "AIRE_FRESCO=ON"
+                )
+
+
+            elif (
+                evento
+                ==
+                "CICLO_COMPLETO"
+            ):
+
+                estado_actuadores = (
+                    "EXTRACTOR=OFF | "
+                    "AIRE_FRESCO=OFF"
+                )
+
+
+            else:
+
+                estado_actuadores = (
+                    "EXTRACTOR=OFF | "
+                    "AIRE_FRESCO=OFF"
+                )
+
+
             print(
+
                 f"{timestamp.isoformat()} | "
-                f"CO2={co2:7.1f} ppm | "
-                f"{evento}"
+
+                f"CO2="
+                f"{co2:7.1f} ppm | "
+
+                f"{evento} | "
+
+                f"{estado_actuadores}"
             )
 
 
+    # =====================================================
+    # RESULTADOS
+    # =====================================================
+
     print()
+
+
     print(
         f"Muestras generadas: "
         f"{cantidad_muestras}"
     )
+
 
     print(
         f"Transiciones detectadas: "
@@ -899,22 +1264,37 @@ def main():
 
 
     print()
+
+
     print(
         "Simulación terminada."
     )
 
-    print(
-        "El proceso queda ACTIVO para "
-        "poder revisarlo desde la web."
-    )
 
     print(
-        "Cuando termine la revisión, "
-        "finalícelo desde el botón de la página."
+        "El proceso queda ACTIVO para "
+        "revisarlo desde la web."
     )
+
+
+    print(
+        "Mantenga rpi-mdfr.py detenido "
+        "durante la revisión."
+    )
+
+
+    print(
+        "Cuando termine, finalice el "
+        "proceso desde la web."
+    )
+
 
     print()
 
+
+# =========================================================
+# MAIN
+# =========================================================
 
 if __name__ == "__main__":
 
