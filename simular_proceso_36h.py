@@ -52,46 +52,78 @@ OBSERVACIONES = (
 #
 # Ninguna purga supera 12 minutos.
 # =========================================================
-
 CICLOS = [
+
+    # =====================================================
+    # CICLO 1
+    #
+    # LOW -> HIGH = 6 horas
+    # Purga = 8 minutos
+    # =====================================================
 
     {
         "inicio_low_h": 0.0,
-        "high_h": 3.0,
+        "high_h": 6.0,
         "purga_minutos": 8,
         "co2_inicio": 2500,
         "co2_high": 9200,
         "co2_fin": 2800,
     },
 
+
+    # =====================================================
+    # CICLO 2
+    #
+    # Empieza 2 horas después del fin aproximado
+    # del ciclo anterior.
+    #
+    # LOW -> HIGH = 5 horas
+    # Purga = 10 minutos
+    # =====================================================
+
     {
         "inicio_low_h": 8.0,
-        "high_h": 12.0,
+        "high_h": 13.0,
         "purga_minutos": 10,
         "co2_inicio": 2600,
         "co2_high": 9300,
         "co2_fin": 2900,
     },
 
+
+    # =====================================================
+    # CICLO 3
+    #
+    # LOW -> HIGH = 4 horas
+    # Purga = 12 minutos
+    # =====================================================
+
     {
         "inicio_low_h": 17.0,
-        "high_h": 22.0,
+        "high_h": 21.0,
         "purga_minutos": 12,
         "co2_inicio": 2500,
         "co2_high": 9100,
         "co2_fin": 2950,
     },
 
+
+    # =====================================================
+    # CICLO 4
+    #
+    # LOW -> HIGH = 3 horas
+    # Purga = 11 minutos
+    # =====================================================
+
     {
         "inicio_low_h": 27.0,
-        "high_h": 34.0,
+        "high_h": 30.0,
         "purga_minutos": 11,
         "co2_inicio": 2400,
         "co2_high": 9400,
         "co2_fin": 2850,
     },
 ]
-
 
 # =========================================================
 # VALIDAR CONFIGURACIÓN
