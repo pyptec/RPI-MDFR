@@ -176,8 +176,9 @@ def calcular_co2(
     hora
 ):
 
-    # Entre ciclos se mantiene por encima de LOW
-    # para evitar abrir ciclos accidentalmente.
+    # =====================================================
+    # VALOR ENTRE CICLOS
+    # =====================================================
 
     valor_espera = 4500.0
 
@@ -196,12 +197,14 @@ def calcular_co2(
             ]
         )
 
+        purga_minutos = float(
+            ciclo[
+                "purga_minutos"
+            ]
+        )
+
         purga_horas = (
-            float(
-                ciclo[
-                    "purga_minutos"
-                ]
-            )
+            purga_minutos
             /
             60.0
         )
@@ -213,15 +216,28 @@ def calcular_co2(
         )
 
 
-        # -------------------------------------------------
-        # ACUMULACIÓN LOW -> HIGH
-        # -------------------------------------------------
+        # =================================================
+        # SUBIDA LOW -> JUSTO ANTES DE HIGH
+        # =================================================
+        #
+        # Muy importante:
+        #
+        # Antes del instante HIGH nunca dejamos
+        # que el CO2 alcance 9000 ppm.
+        #
+        # De esta forma procesar_ciclo_co2()
+        # NO inicia la purga prematuramente.
+        #
+        # =================================================
 
         if (
             inicio
             <= hora
-            <= high
+            < high
         ):
+
+            # Último valor antes de HIGH:
+            # 8990 ppm
 
             return interpolar(
                 hora,
@@ -230,21 +246,44 @@ def calcular_co2(
                     "co2_inicio"
                 ],
                 high,
+                8990.0
+            )
+
+
+        # =================================================
+        # INSTANTE EXACTO DE HIGH
+        # =================================================
+        #
+        # Aquí sí saltamos al valor real de inicio
+        # de purga:
+        #
+        # 9200 / 9300 / 9100 / 9400 ppm
+        #
+        # =================================================
+
+        if abs(
+            hora -
+            high
+        ) < 0.000001:
+
+            return float(
                 ciclo[
                     "co2_high"
                 ]
             )
 
 
-        # -------------------------------------------------
-        # PURGA HIGH -> LOW
+        # =================================================
+        # PURGA
+        # =================================================
         #
-        # Durante este tiempo:
+        # EXTRACTOR = ON
+        # AIRE FRESCO = ON
         #
-        # extractor = ON
-        # aire_fresco = ON
+        # Desde co2_high hasta co2_fin
+        # dentro del tiempo configurado.
         #
-        # -------------------------------------------------
+        # =================================================
 
         if (
             high
@@ -266,8 +305,6 @@ def calcular_co2(
 
 
     return valor_espera
-
-
 # =========================================================
 # ACTUADORES FICTICIOS
 # =========================================================
