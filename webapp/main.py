@@ -2982,3 +2982,336 @@ async def api_proceso_historico_ciclos(
         "ciclos":
             ciclos
     }
+    
+   # =========================================================
+# ESTADO OPERATIVO PARA INICIO
+# =========================================================
+
+@app.get(
+    "/api/estado-operacion"
+)
+async def api_estado_operacion():
+
+    try:
+
+        db_service.init_db()
+
+        with sqlite3.connect(
+            db_service.DB_PATH
+        ) as conn:
+
+            conn.row_factory = sqlite3.Row
+
+            # ---------------------------------------------
+            # ÚLTIMO EVENTO DE PUERTA
+            # ---------------------------------------------
+
+            puerta = conn.execute(
+                """
+                SELECT
+                    id,
+                    timestamp_utc,
+                    estado,
+                    valor,
+                    detalle
+                FROM eventos
+                WHERE tipo = 'PUERTA'
+                ORDER BY id DESC
+                LIMIT 1
+                """
+            ).fetchone()
+
+
+            # ---------------------------------------------
+            # ÚLTIMO EVENTO MAN
+            # ---------------------------------------------
+
+            man = conn.execute(
+                """
+                SELECT
+                    id,
+                    timestamp_utc,
+                    estado,
+                    valor,
+                    detalle
+                FROM eventos
+                WHERE tipo = 'HOMBRE_ATRAPADO'
+                ORDER BY id DESC
+                LIMIT 1
+                """
+            ).fetchone()
+
+
+            # ---------------------------------------------
+            # ÚLTIMA APERTURA DE PUERTA
+            # Una apertura libera el latch MAN.
+            # ---------------------------------------------
+
+            puerta_abierta = conn.execute(
+                """
+                SELECT
+                    id,
+                    timestamp_utc
+                FROM eventos
+                WHERE tipo = 'PUERTA'
+                  AND estado = 'ABIERTA'
+                ORDER BY id DESC
+                LIMIT 1
+                """
+            ).fetchone()
+
+
+        # =================================================
+        # PUERTA
+        # =================================================
+
+        puerta_estado = "SIN DATOS"
+        puerta_timestamp = None
+
+        if puerta is not None:
+
+            puerta_estado = (
+                puerta["estado"]
+                or "SIN DATOS"
+            )
+
+            puerta_timestamp = (
+                puerta["timestamp_utc"]
+            )
+
+
+        # =================================================
+        # HOMBRE ATRAPADO
+        # =================================================
+
+        man_activo = False
+        man_timestamp = None
+
+        if man is not None:
+
+            man_timestamp = (
+                man["timestamp_utc"]
+            )
+
+            id_man = int(
+                man["id"]
+            )
+
+            id_apertura = (
+                int(
+                    puerta_abierta["id"]
+                )
+                if puerta_abierta is not None
+                else -1
+            )
+
+            # MAN permanece activo mientras no haya
+            # una apertura de puerta posterior.
+            man_activo = (
+                man["estado"] == "ACTIVO"
+                and
+                id_man > id_apertura
+            )
+
+
+        # =================================================
+        # ANTIGÜEDAD DE DATOS
+        # =================================================
+
+        variables = {
+            "co2": (
+                "CT01CO2",
+                "co2"
+            ),
+
+            "temperatura": (
+                "THT03R",
+                "temperatura"
+            ),
+
+            "humedad": (
+                "THT03R",
+                "humedad"
+            ),
+
+            "c2h4": (
+                "C2H4",
+                "c2h4"
+            ),
+
+            "pt1000": (
+                "CWT",
+                "temperatura_ch1"
+            )
+        }
+
+
+        ahora_utc = datetime.now(
+            TZ_UTC
+        )
+
+
+        calidad_datos = {}
+
+
+        for nombre, (
+            sensor,
+            variable
+        ) in variables.items():
+
+            dato = (
+                db_service.obtener_ultimo_valor(
+                    sensor=sensor,
+                    variable=variable
+                )
+            )
+
+
+            if (
+                dato is None
+                or
+                not dato.get(
+                    "timestamp_utc"
+                )
+            ):
+
+                calidad_datos[
+                    nombre
+                ] = {
+                    "estado":
+                        "SIN_DATOS",
+
+                    "edad_segundos":
+                        None
+                }
+
+                continue
+
+
+            fecha = datetime.fromisoformat(
+                str(
+                    dato[
+                        "timestamp_utc"
+                    ]
+                ).replace(
+                    "Z",
+                    "+00:00"
+                )
+            )
+
+
+            if fecha.tzinfo is None:
+
+                fecha = fecha.replace(
+                    tzinfo=TZ_UTC
+                )
+
+
+            edad = max(
+                0,
+                (
+                    ahora_utc -
+                    fecha.astimezone(
+                        TZ_UTC
+                    )
+                ).total_seconds()
+            )
+
+
+            # TIMERMEDICION actual es aprox. 600 s.
+            # Dejamos margen para que una sola lectura
+            # retrasada no genere una falsa alarma.
+            if edad <= 900:
+
+                estado = "OK"
+
+            elif edad <= 1800:
+
+                estado = "ATRASADO"
+
+            else:
+
+                estado = "SIN_DATOS"
+
+
+            calidad_datos[
+                nombre
+            ] = {
+                "estado":
+                    estado,
+
+                "edad_segundos":
+                    round(
+                        edad,
+                        1
+                    )
+            }
+
+
+        # =================================================
+        # PROCESO
+        # =================================================
+
+        proceso = (
+            db_service.obtener_proceso_activo()
+        )
+
+
+        return {
+
+            "seguridad": {
+
+                "puerta": {
+                    "estado":
+                        puerta_estado,
+
+                    "timestamp_utc":
+                        puerta_timestamp
+                },
+
+                "hombre_atrapado": {
+                    "activo":
+                        man_activo,
+
+                    "estado":
+                        (
+                            "ACTIVO"
+                            if man_activo
+                            else "NORMAL"
+                        ),
+
+                    "timestamp_utc":
+                        man_timestamp
+                }
+            },
+
+
+            "datos":
+                calidad_datos,
+
+
+            "proceso": {
+                "activo":
+                    proceso is not None,
+
+                "id":
+                    (
+                        proceso.get(
+                            "id"
+                        )
+                        if proceso
+                        else None
+                    )
+            }
+        }
+
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Error obteniendo estado operativo: "
+                f"{type(e).__name__}: {e}"
+            )
+        ) from e 
