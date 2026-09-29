@@ -1,5 +1,5 @@
 // =========================================================
-// VARIABLE HISTÓRICA ACTUAL
+// VARIABLE HISTÓRICA
 // =========================================================
 
 let variableActual = {
@@ -19,6 +19,18 @@ let variableActual = {
 
 
 // =========================================================
+// MDFR PROCESS
+// =========================================================
+
+let mdfrModo =
+    "activo";
+
+
+let mdfrProcesoId =
+    null;
+
+
+// =========================================================
 // HORAS
 // =========================================================
 
@@ -29,6 +41,7 @@ function cargarHoras() {
             "horaDesde"
         );
 
+
     const hasta =
         document.getElementById(
             "horaHasta"
@@ -37,6 +50,7 @@ function cargarHoras() {
 
     desde.innerHTML =
         "";
+
 
     hasta.innerHTML =
         "";
@@ -147,7 +161,8 @@ function configurarInicial() {
 
 
     let horaDesde =
-        horaHasta - 2;
+        horaHasta -
+        2;
 
 
     if (
@@ -185,7 +200,9 @@ function configurarInicial() {
         Math.floor(
             ahora.getMinutes() /
             10
-        ) * 10;
+        )
+        *
+        10;
 
 
     document.getElementById(
@@ -212,7 +229,7 @@ function configurarInicial() {
 
 
 // =========================================================
-// FECHA HORA DEL FILTRO
+// FECHA / HORA DEL FILTRO
 // =========================================================
 
 function obtenerFechaHora(
@@ -244,14 +261,16 @@ function obtenerFechaHora(
 
 
 // =========================================================
-// FORMATO FECHA COLOMBIA
+// FECHA COLOMBIA
 // =========================================================
 
 function formatoColombia(
     timestamp
 ) {
 
-    if (!timestamp) {
+    if (
+        !timestamp
+    ) {
 
         return "--";
     }
@@ -295,20 +314,70 @@ function formatoColombia(
 
 
 // =========================================================
-// FORMATO HORA
+// FECHA CORTA
+// =========================================================
+
+function formatoFechaCorta(
+    timestamp
+) {
+
+    if (
+        !timestamp
+    ) {
+
+        return "--";
+    }
+
+
+    return new Date(
+        timestamp
+    ).toLocaleString(
+        "es-CO",
+        {
+            timeZone:
+                "America/Bogota",
+
+            day:
+                "2-digit",
+
+            month:
+                "2-digit",
+
+            year:
+                "numeric",
+
+            hour:
+                "2-digit",
+
+            minute:
+                "2-digit",
+
+            hour12:
+                false
+        }
+    );
+}
+
+
+// =========================================================
+// HORA
 // =========================================================
 
 function formatoHoraColombia(
     timestamp
 ) {
 
-    const fecha =
-        new Date(
-            timestamp
-        );
+    if (
+        !timestamp
+    ) {
+
+        return "--";
+    }
 
 
-    return fecha.toLocaleTimeString(
+    return new Date(
+        timestamp
+    ).toLocaleTimeString(
         "es-CO",
         {
             timeZone:
@@ -328,7 +397,7 @@ function formatoHoraColombia(
 
 
 // =========================================================
-// FORMATO DURACIÓN
+// DURACIÓN
 // =========================================================
 
 function formatoDuracion(
@@ -413,7 +482,7 @@ function formatoDuracion(
 
 
 // =========================================================
-// SEGUNDOS A HORAS DECIMALES
+// SEGUNDOS A HORAS
 // =========================================================
 
 function segundosAHoras(
@@ -453,7 +522,7 @@ function segundosAHoras(
 
 
 // =========================================================
-// SELECCIÓN VARIABLE
+// SELECCIONAR VARIABLE
 // =========================================================
 
 function seleccionarVariable(
@@ -492,7 +561,7 @@ function seleccionarVariable(
 
 
 // =========================================================
-// BOTONES DE VARIABLES
+// VARIABLES
 // =========================================================
 
 function consultarCO2() {
@@ -588,6 +657,7 @@ async function consultarHistorico() {
             "Seleccione el rango de fechas."
         );
 
+
         return;
     }
 
@@ -645,6 +715,7 @@ async function consultarHistorico() {
 
             limpiarGrafica();
 
+
             return;
         }
 
@@ -681,7 +752,6 @@ async function consultarHistorico() {
             variableActual.unidad
         );
 
-
     }
 
     catch (
@@ -704,7 +774,7 @@ async function consultarHistorico() {
 
 
 // =========================================================
-// RESULTADO HISTÓRICO
+// RESULTADO
 // =========================================================
 
 function mostrarResultado(
@@ -808,26 +878,27 @@ function dibujarGrafica(
     );
 
 
+    ctx.fillStyle =
+        "#1e293b";
+
+
+    ctx.strokeStyle =
+        "#64748b";
+
+
+    ctx.font =
+        "14px Arial";
+
+
     if (
         !datos ||
         datos.length === 0
     ) {
 
-        ctx.font =
-            "18px Arial";
-
-
         ctx.fillText(
             "No hay datos para este período.",
             40,
             60
-        );
-
-
-        activarTooltip(
-            canvas,
-            [],
-            unidad
         );
 
 
@@ -838,15 +909,15 @@ function dibujarGrafica(
     const valores =
         datos
         .map(
-            d =>
+            dato =>
                 Number(
-                    d.valor
+                    dato.valor
                 )
         )
         .filter(
-            v =>
+            valor =>
                 Number.isFinite(
-                    v
+                    valor
                 )
         );
 
@@ -854,17 +925,6 @@ function dibujarGrafica(
     if (
         valores.length === 0
     ) {
-
-        ctx.font =
-            "18px Arial";
-
-
-        ctx.fillText(
-            "No hay valores numéricos válidos.",
-            40,
-            60
-        );
-
 
         return;
     }
@@ -882,30 +942,32 @@ function dibujarGrafica(
         );
 
 
-    let margenValor =
+    let margen =
         (
             maximoReal -
             minimoReal
-        ) *
+        )
+        *
         0.10;
 
 
     if (
-        margenValor === 0
+        margen === 0
     ) {
 
-        margenValor =
+        margen =
             Math.abs(
                 maximoReal
-            ) *
+            )
+            *
             0.05;
 
 
         if (
-            margenValor === 0
+            margen === 0
         ) {
 
-            margenValor =
+            margen =
                 1;
         }
     }
@@ -913,22 +975,25 @@ function dibujarGrafica(
 
     const minimo =
         minimoReal -
-        margenValor;
+        margen;
 
 
     const maximo =
         maximoReal +
-        margenValor;
+        margen;
 
 
     const margenIzq =
         75;
 
+
     const margenDer =
         40;
 
+
     const margenSup =
         45;
+
 
     const margenInf =
         80;
@@ -951,10 +1016,6 @@ function dibujarGrafica(
         minimo;
 
 
-    ctx.font =
-        "14px Arial";
-
-
     ctx.fillText(
         `${titulo} (${unidad})`,
         margenIzq,
@@ -962,9 +1023,7 @@ function dibujarGrafica(
     );
 
 
-    // =====================================================
     // EJES
-    // =====================================================
 
     ctx.beginPath();
 
@@ -977,22 +1036,23 @@ function dibujarGrafica(
 
     ctx.lineTo(
         margenIzq,
-        H - margenInf
+        H -
+        margenInf
     );
 
 
     ctx.lineTo(
-        W - margenDer,
-        H - margenInf
+        W -
+        margenDer,
+        H -
+        margenInf
     );
 
 
     ctx.stroke();
 
 
-    // =====================================================
     // ESCALA Y
-    // =====================================================
 
     for (
         let i = 0;
@@ -1028,7 +1088,8 @@ function dibujarGrafica(
 
 
         ctx.lineTo(
-            W - margenDer,
+            W -
+            margenDer,
             y
         );
 
@@ -1051,9 +1112,7 @@ function dibujarGrafica(
     }
 
 
-    // =====================================================
     // PUNTOS
-    // =====================================================
 
     const puntos =
         [];
@@ -1062,7 +1121,7 @@ function dibujarGrafica(
     datos.forEach(
         (
             dato,
-            i
+            indice
         ) => {
 
             const valor =
@@ -1084,12 +1143,14 @@ function dibujarGrafica(
             const x =
                 margenIzq +
                 (
-                    i /
+                    indice /
                     Math.max(
-                        datos.length - 1,
+                        datos.length -
+                        1,
                         1
                     )
-                ) *
+                )
+                *
                 ancho;
 
 
@@ -1100,24 +1161,26 @@ function dibujarGrafica(
                     (
                         valor -
                         minimo
-                    ) /
+                    )
+                    /
                     rango
-                ) *
+                )
+                *
                 alto;
 
 
-            puntos.push({
-                x,
-                y,
-                dato
-            });
+            puntos.push(
+                {
+                    x,
+                    y,
+                    dato
+                }
+            );
         }
     );
 
 
-    // =====================================================
     // LÍNEA
-    // =====================================================
 
     if (
         puntos.length > 0
@@ -1129,11 +1192,11 @@ function dibujarGrafica(
         puntos.forEach(
             (
                 punto,
-                i
+                indice
             ) => {
 
                 if (
-                    i === 0
+                    indice === 0
                 ) {
 
                     ctx.moveTo(
@@ -1158,9 +1221,7 @@ function dibujarGrafica(
     }
 
 
-    // =====================================================
     // PUNTOS
-    // =====================================================
 
     puntos.forEach(
         punto => {
@@ -1171,9 +1232,10 @@ function dibujarGrafica(
             ctx.arc(
                 punto.x,
                 punto.y,
-                4,
+                3,
                 0,
-                Math.PI * 2
+                Math.PI *
+                2
             );
 
 
@@ -1182,11 +1244,9 @@ function dibujarGrafica(
     );
 
 
-    // =====================================================
-    // ETIQUETAS X
-    // =====================================================
+    // EJE X
 
-    const cantidadEtiquetas =
+    const etiquetas =
         Math.min(
             6,
             datos.length
@@ -1195,7 +1255,7 @@ function dibujarGrafica(
 
     for (
         let i = 0;
-        i < cantidadEtiquetas;
+        i < etiquetas;
         i++
     ) {
 
@@ -1203,10 +1263,13 @@ function dibujarGrafica(
             Math.round(
                 i *
                 (
-                    datos.length - 1
-                ) /
+                    datos.length -
+                    1
+                )
+                /
                 Math.max(
-                    cantidadEtiquetas - 1,
+                    etiquetas -
+                    1,
                     1
                 )
             );
@@ -1223,57 +1286,50 @@ function dibujarGrafica(
             (
                 indice /
                 Math.max(
-                    datos.length - 1,
+                    datos.length -
+                    1,
                     1
                 )
-            ) *
+            )
+            *
             ancho;
 
 
-        const hora =
+        ctx.fillText(
             formatoHoraColombia(
                 dato.timestamp
-            );
-
-
-        ctx.fillText(
-            hora,
-            x - 20,
-            H - 45
+            ),
+            x -
+            20,
+            H -
+            45
         );
     }
 
 
-    // =====================================================
-    // FECHA INICIO / FIN
-    // =====================================================
-
-    const primeraFecha =
+    ctx.fillText(
         formatoColombia(
             datos[0]
                 .timestamp
-        );
-
-
-    const ultimaFecha =
-        formatoColombia(
-            datos[
-                datos.length - 1
-            ].timestamp
-        );
-
-
-    ctx.fillText(
-        primeraFecha,
+        ),
         margenIzq,
-        H - 15
+        H -
+        15
     );
 
 
     ctx.fillText(
-        ultimaFecha,
-        W - 240,
-        H - 15
+        formatoColombia(
+            datos[
+                datos.length -
+                1
+            ]
+            .timestamp
+        ),
+        W -
+        240,
+        H -
+        15
     );
 
 
@@ -1286,7 +1342,7 @@ function dibujarGrafica(
 
 
 // =========================================================
-// TOOLTIP HISTÓRICO
+// TOOLTIP
 // =========================================================
 
 function activarTooltip(
@@ -1314,18 +1370,6 @@ function activarTooltip(
             }
 
 
-            if (
-                !puntos ||
-                puntos.length === 0
-            ) {
-
-                tooltip.style.display =
-                    "none";
-
-                return;
-            }
-
-
             const rect =
                 canvas
                 .getBoundingClientRect();
@@ -1345,7 +1389,8 @@ function activarTooltip(
                 (
                     event.clientX -
                     rect.left
-                ) *
+                )
+                *
                 escalaX;
 
 
@@ -1353,7 +1398,8 @@ function activarTooltip(
                 (
                     event.clientY -
                     rect.top
-                ) *
+                )
+                *
                 escalaY;
 
 
@@ -1380,8 +1426,11 @@ function activarTooltip(
 
                     const distancia =
                         Math.sqrt(
-                            dx * dx +
-                            dy * dy
+                            dx *
+                            dx
+                            +
+                            dy *
+                            dy
                         );
 
 
@@ -1407,6 +1456,7 @@ function activarTooltip(
 
                 tooltip.style.display =
                     "none";
+
 
                 return;
             }
@@ -1456,7 +1506,219 @@ function activarTooltip(
 
 
 // =========================================================
-// MDFR PROCESS
+// LISTA DE PROCESOS MDFR
+// =========================================================
+
+async function cargarProcesosMdfr() {
+
+    const selector =
+        document.getElementById(
+            "selectorMdfrProceso"
+        );
+
+
+    if (
+        !selector
+    ) {
+
+        return;
+    }
+
+
+    try {
+
+        const valorAnterior =
+            selector.value;
+
+
+        const response =
+            await fetch(
+                "/api/procesos?limite=100",
+                {
+                    cache:
+                        "no-store"
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (
+            !response.ok
+        ) {
+
+            throw new Error(
+                data.detail ||
+                "Error consultando procesos."
+            );
+        }
+
+
+        const procesos =
+            Array.isArray(
+                data.procesos
+            )
+                ?
+                data.procesos
+                :
+                [];
+
+
+        selector.innerHTML =
+            "";
+
+
+        if (
+            procesos.length ===
+            0
+        ) {
+
+            selector.innerHTML =
+                `
+                <option value="">
+                    No hay procesos registrados
+                </option>
+                `;
+
+
+            return;
+        }
+
+
+        for (
+            const proceso
+            of procesos
+        ) {
+
+            const option =
+                document.createElement(
+                    "option"
+                );
+
+
+            option.value =
+                proceso.id;
+
+
+            option.textContent =
+                `ID ${proceso.id}`
+                +
+                ` | ${proceso.lote || "SIN-LOTE"}`
+                +
+                ` | ${formatoFechaCorta(
+                    proceso.inicio
+                )}`
+                +
+                ` | ${proceso.estado || "--"}`
+                +
+                ` | ${proceso.ciclos_cerrados || 0} ciclos`;
+
+
+            selector.appendChild(
+                option
+            );
+        }
+
+
+        if (
+            mdfrProcesoId !==
+            null
+        ) {
+
+            selector.value =
+                String(
+                    mdfrProcesoId
+                );
+
+        }
+
+        else if (
+            valorAnterior
+        ) {
+
+            selector.value =
+                valorAnterior;
+        }
+
+    }
+
+    catch (
+        error
+    ) {
+
+        console.error(
+            "Error cargarProcesosMdfr:",
+            error
+        );
+
+
+        selector.innerHTML =
+            `
+            <option value="">
+                Error consultando procesos
+            </option>
+            `;
+    }
+}
+
+
+// =========================================================
+// ANALIZAR HISTÓRICO
+// =========================================================
+
+async function analizarMdfrHistorico() {
+
+    const selector =
+        document.getElementById(
+            "selectorMdfrProceso"
+        );
+
+
+    if (
+        !selector ||
+        !selector.value
+    ) {
+
+        return;
+    }
+
+
+    mdfrModo =
+        "historico";
+
+
+    mdfrProcesoId =
+        Number(
+            selector.value
+        );
+
+
+    await cargarMdfrProcess();
+}
+
+
+// =========================================================
+// PROCESO ACTIVO
+// =========================================================
+
+async function mostrarMdfrActivo() {
+
+    mdfrModo =
+        "activo";
+
+
+    mdfrProcesoId =
+        null;
+
+
+    await cargarMdfrProcess();
+}
+
+
+// =========================================================
+// CARGAR MDFR PROCESS
 // =========================================================
 
 async function cargarMdfrProcess() {
@@ -1467,11 +1729,40 @@ async function cargarMdfrProcess() {
         );
 
 
+    const origen =
+        document.getElementById(
+            "mdfrOrigen"
+        );
+
+
     try {
+
+        let url;
+
+
+        if (
+            mdfrModo ===
+            "historico"
+            &&
+            mdfrProcesoId !==
+            null
+        ) {
+
+            url =
+                `/api/procesos/${mdfrProcesoId}/ciclos`;
+
+        }
+
+        else {
+
+            url =
+                "/api/proceso/ciclos?modo=activo";
+        }
+
 
         const response =
             await fetch(
-                "/api/proceso/ciclos?modo=activo",
+                url,
                 {
                     cache:
                         "no-store"
@@ -1494,10 +1785,6 @@ async function cargarMdfrProcess() {
         }
 
 
-        // =================================================
-        // SIN PROCESO
-        // =================================================
-
         if (
             !data.proceso
         ) {
@@ -1515,8 +1802,25 @@ async function cargarMdfrProcess() {
             }
 
 
+            if (
+                origen
+            ) {
+
+                origen.innerText =
+                    (
+                        mdfrModo ===
+                        "historico"
+                    )
+                        ?
+                        "No existe el proceso histórico seleccionado."
+                        :
+                        "No existe un proceso activo.";
+            }
+
+
             actualizarResumenMdfr(
-                null
+                null,
+                []
             );
 
 
@@ -1544,20 +1848,80 @@ async function cargarMdfrProcess() {
         }
 
 
-        // =================================================
-        // PROCESO ACTIVO
-        // =================================================
-
         if (
             estado
         ) {
 
-            estado.innerText =
-                `PROCESO ${data.proceso.id}`;
+            if (
+                mdfrModo ===
+                "historico"
+            ) {
+
+                estado.innerText =
+                    `HISTÓRICO ${data.proceso.id}`;
+
+            }
+
+            else {
+
+                estado.innerText =
+                    `PROCESO ${data.proceso.id}`;
+            }
 
 
             estado.className =
                 "process-badge active";
+        }
+
+
+        if (
+            origen
+        ) {
+
+            if (
+                mdfrModo ===
+                "historico"
+            ) {
+
+                origen.innerText =
+                    "Proceso histórico"
+                    +
+                    " | ID "
+                    +
+                    data.proceso.id
+                    +
+                    " | Lote "
+                    +
+                    (
+                        data.proceso.lote ||
+                        "--"
+                    )
+                    +
+                    " | Estado "
+                    +
+                    (
+                        data.proceso.estado ||
+                        "--"
+                    );
+
+            }
+
+            else {
+
+                origen.innerText =
+                    "Proceso activo"
+                    +
+                    " | ID "
+                    +
+                    data.proceso.id
+                    +
+                    " | Lote "
+                    +
+                    (
+                        data.proceso.lote ||
+                        "--"
+                    );
+            }
         }
 
 
@@ -1574,7 +1938,8 @@ async function cargarMdfrProcess() {
 
 
         actualizarResumenMdfr(
-            data.resumen
+            data.resumen,
+            ciclos
         );
 
 
@@ -1596,7 +1961,6 @@ async function cargarMdfrProcess() {
         dibujarCO2Mdfr(
             ciclos
         );
-
 
     }
 
@@ -1621,6 +1985,17 @@ async function cargarMdfrProcess() {
             estado.className =
                 "process-badge";
         }
+
+
+        if (
+            origen
+        ) {
+
+            origen.innerText =
+                "Error consultando MDFR-PROCESS: "
+                +
+                error.message;
+        }
     }
 }
 
@@ -1630,80 +2005,74 @@ async function cargarMdfrProcess() {
 // =========================================================
 
 function actualizarResumenMdfr(
-    resumen
+    resumen,
+    ciclos
 ) {
 
-    const ciclos =
+    resumen =
+        resumen ||
+        {};
+
+
+    ciclos =
+        Array.isArray(
+            ciclos
+        )
+            ?
+            ciclos
+            :
+            [];
+
+
+    const campoCiclos =
         document.getElementById(
             "mdfrCiclos"
         );
 
 
-    const lowHigh =
+    const campoLowHigh =
         document.getElementById(
             "mdfrLowHigh"
         );
 
 
-    const purga =
+    const campoPurga =
         document.getElementById(
             "mdfrPurga"
         );
 
 
-    const intervalo =
+    const campoIntervalo =
         document.getElementById(
             "mdfrIntervalo"
         );
 
 
+    const campoUltimo =
+        document.getElementById(
+            "mdfrUltimoIntervalo"
+        );
+
+
     if (
-        !resumen
+        campoCiclos
     ) {
 
-        if (ciclos) {
-            ciclos.innerText =
-                "--";
-        }
-
-
-        if (lowHigh) {
-            lowHigh.innerText =
-                "--";
-        }
-
-
-        if (purga) {
-            purga.innerText =
-                "--";
-        }
-
-
-        if (intervalo) {
-            intervalo.innerText =
-                "--";
-        }
-
-
-        return;
+        campoCiclos.innerText =
+            resumen.ciclos !==
+            undefined
+                ?
+                resumen.ciclos
+                :
+                ciclos.length;
     }
 
 
     if (
-        ciclos
+        campoLowHigh
     ) {
 
-        ciclos.innerText =
-            resumen.ciclos ??
-            0;
-    }
-
-
-    if (
-        lowHigh
-    ) {
-
-        lowHigh.innerText =
+        campoLowHigh.innerText =
             formatoDuracion(
                 resumen
                     .low_high_promedio_s
@@ -1712,10 +2081,10 @@ function actualizarResumenMdfr(
 
 
     if (
-        purga
+        campoPurga
     ) {
 
-        purga.innerText =
+        campoPurga.innerText =
             formatoDuracion(
                 resumen
                     .purga_promedio_s
@@ -1724,13 +2093,69 @@ function actualizarResumenMdfr(
 
 
     if (
-        intervalo
+        campoIntervalo
     ) {
 
-        intervalo.innerText =
+        campoIntervalo.innerText =
             formatoDuracion(
                 resumen
                     .intervalo_promedio_s
+            );
+    }
+
+
+    let ultimo =
+        resumen
+            .ultimo_intervalo_s;
+
+
+    if (
+        ultimo === null ||
+        ultimo === undefined
+    ) {
+
+        const intervalos =
+            ciclos
+            .map(
+                ciclo =>
+                    ciclo
+                        .intervalo_purgas_segundos
+            )
+            .filter(
+                valor =>
+                    valor !== null
+                    &&
+                    valor !== undefined
+                    &&
+                    Number.isFinite(
+                        Number(
+                            valor
+                        )
+                    )
+            );
+
+
+        if (
+            intervalos.length >
+            0
+        ) {
+
+            ultimo =
+                intervalos[
+                    intervalos.length -
+                    1
+                ];
+        }
+    }
+
+
+    if (
+        campoUltimo
+    ) {
+
+        campoUltimo.innerText =
+            formatoDuracion(
+                ultimo
             );
     }
 }
@@ -1764,7 +2189,8 @@ function actualizarTablaMdfr(
 
     if (
         !ciclos ||
-        ciclos.length === 0
+        ciclos.length ===
+        0
     ) {
 
         cuerpo.innerHTML =
@@ -1822,7 +2248,9 @@ function actualizarTablaMdfr(
                             ?
                             Number(
                                 ciclo.co2_purge_start_ppm
-                            ).toFixed(0)
+                            ).toFixed(
+                                0
+                            )
                             +
                             " ppm"
                             :
@@ -1838,7 +2266,9 @@ function actualizarTablaMdfr(
                             ?
                             Number(
                                 ciclo.co2_purge_end_ppm
-                            ).toFixed(0)
+                            ).toFixed(
+                                0
+                            )
                             +
                             " ppm"
                             :
@@ -1857,7 +2287,7 @@ function actualizarTablaMdfr(
 
 
 // =========================================================
-// UTILIDAD CANVAS MDFR
+// CANVAS
 // =========================================================
 
 function prepararCanvas(
@@ -1892,6 +2322,14 @@ function prepararCanvas(
     );
 
 
+    ctx.fillStyle =
+        "#1e293b";
+
+
+    ctx.strokeStyle =
+        "#94a3b8";
+
+
     ctx.font =
         "13px Arial";
 
@@ -1904,7 +2342,7 @@ function prepararCanvas(
 
 
 // =========================================================
-// EJE GRÁFICA BARRAS
+// EJES
 // =========================================================
 
 function dibujarEjesBarras(
@@ -1918,11 +2356,14 @@ function dibujarEjesBarras(
     const izquierda =
         70;
 
+
     const derecha =
         30;
 
+
     const arriba =
         35;
+
 
     const abajo =
         55;
@@ -1951,13 +2392,16 @@ function dibujarEjesBarras(
 
     ctx.lineTo(
         izquierda,
-        H - abajo
+        H -
+        abajo
     );
 
 
     ctx.lineTo(
-        W - derecha,
-        H - abajo
+        W -
+        derecha,
+        H -
+        abajo
     );
 
 
@@ -1974,7 +2418,8 @@ function dibujarEjesBarras(
             maximo *
             (
                 1 -
-                i / 5
+                i /
+                5
             );
 
 
@@ -1997,7 +2442,8 @@ function dibujarEjesBarras(
 
 
         ctx.lineTo(
-            W - derecha,
+            W -
+            derecha,
             y
         );
 
@@ -2010,7 +2456,8 @@ function dibujarEjesBarras(
                 1
             ),
             8,
-            y + 4
+            y +
+            4
         );
     }
 
@@ -2034,7 +2481,7 @@ function dibujarEjesBarras(
 
 
 // =========================================================
-// GRÁFICA 1 - LOW HIGH Y PURGA
+// GRÁFICA DURACIONES
 // =========================================================
 
 function dibujarDuracionesMdfr(
@@ -2064,7 +2511,8 @@ function dibujarDuracionesMdfr(
 
     if (
         !ciclos ||
-        ciclos.length === 0
+        ciclos.length ===
+        0
     ) {
 
         ctx.fillText(
@@ -2072,6 +2520,7 @@ function dibujarDuracionesMdfr(
             40,
             60
         );
+
 
         return;
     }
@@ -2088,7 +2537,9 @@ function dibujarDuracionesMdfr(
                 segundosAHoras(
                     ciclo
                         .duracion_segundos
-                ) || 0
+                )
+                ||
+                0
             );
 
 
@@ -2096,7 +2547,9 @@ function dibujarDuracionesMdfr(
                 segundosAHoras(
                     ciclo
                         .purga_duracion_segundos
-                ) || 0
+                )
+                ||
+                0
             );
         }
     );
@@ -2106,7 +2559,8 @@ function dibujarDuracionesMdfr(
         Math.max(
             ...valores,
             1
-        ) *
+        )
+        *
         1.15;
 
 
@@ -2135,20 +2589,25 @@ function dibujarDuracionesMdfr(
                 segundosAHoras(
                     ciclo
                         .duracion_segundos
-                ) || 0;
+                )
+                ||
+                0;
 
 
             const purga =
                 segundosAHoras(
                     ciclo
                         .purga_duracion_segundos
-                ) || 0;
+                )
+                ||
+                0;
 
 
             const anchoBarra =
                 Math.min(
                     34,
-                    grupo * 0.25
+                    grupo *
+                    0.25
                 );
 
 
@@ -2165,7 +2624,8 @@ function dibujarDuracionesMdfr(
                 (
                     lowHigh /
                     maximo
-                ) *
+                )
+                *
                 eje.alto;
 
 
@@ -2173,7 +2633,8 @@ function dibujarDuracionesMdfr(
                 (
                     purga /
                     maximo
-                ) *
+                )
+                *
                 eje.alto;
 
 
@@ -2214,14 +2675,14 @@ function dibujarDuracionesMdfr(
 
             ctx.fillText(
                 `C${ciclo.numero_ciclo}`,
-                centroX - 10,
-                canvas.height - 28
+                centroX -
+                10,
+                canvas.height -
+                28
             );
         }
     );
 
-
-    // LEYENDA
 
     ctx.fillStyle =
         "#2563eb";
@@ -2271,7 +2732,7 @@ function dibujarDuracionesMdfr(
 
 
 // =========================================================
-// GRÁFICA 2 - INTERVALOS
+// GRÁFICA INTERVALOS
 // =========================================================
 
 function dibujarIntervalosMdfr(
@@ -2313,7 +2774,8 @@ function dibujarIntervalosMdfr(
 
 
     if (
-        datos.length === 0
+        datos.length ===
+        0
     ) {
 
         ctx.fillText(
@@ -2321,6 +2783,7 @@ function dibujarIntervalosMdfr(
             40,
             60
         );
+
 
         return;
     }
@@ -2332,7 +2795,9 @@ function dibujarIntervalosMdfr(
                 segundosAHoras(
                     ciclo
                         .intervalo_purgas_segundos
-                ) || 0
+                )
+                ||
+                0
         );
 
 
@@ -2340,7 +2805,8 @@ function dibujarIntervalosMdfr(
         Math.max(
             ...valores,
             1
-        ) *
+        )
+        *
         1.15;
 
 
@@ -2369,14 +2835,17 @@ function dibujarIntervalosMdfr(
                 segundosAHoras(
                     ciclo
                         .intervalo_purgas_segundos
-                ) || 0;
+                )
+                ||
+                0;
 
 
             const altura =
                 (
                     valor /
                     maximo
-                ) *
+                )
+                *
                 eje.alto;
 
 
@@ -2434,7 +2903,8 @@ function dibujarIntervalosMdfr(
                     ciclo
                         .intervalo_purgas_segundos
                 ),
-                x - 4,
+                x -
+                4,
                 canvas.height -
                 eje.abajo -
                 altura -
@@ -2446,7 +2916,7 @@ function dibujarIntervalosMdfr(
 
 
 // =========================================================
-// GRÁFICA 3 - CO2 PURGA
+// GRÁFICA CO2
 // =========================================================
 
 function dibujarCO2Mdfr(
@@ -2476,7 +2946,8 @@ function dibujarCO2Mdfr(
 
     if (
         !ciclos ||
-        ciclos.length === 0
+        ciclos.length ===
+        0
     ) {
 
         ctx.fillText(
@@ -2484,6 +2955,7 @@ function dibujarCO2Mdfr(
             40,
             60
         );
+
 
         return;
     }
@@ -2500,7 +2972,9 @@ function dibujarCO2Mdfr(
                 Number(
                     ciclo
                         .co2_purge_start_ppm
-                ) || 0
+                )
+                ||
+                0
             );
 
 
@@ -2508,7 +2982,9 @@ function dibujarCO2Mdfr(
                 Number(
                     ciclo
                         .co2_purge_end_ppm
-                ) || 0
+                )
+                ||
+                0
             );
         }
     );
@@ -2518,7 +2994,8 @@ function dibujarCO2Mdfr(
         Math.max(
             ...valores,
             1000
-        ) *
+        )
+        *
         1.10;
 
 
@@ -2547,14 +3024,18 @@ function dibujarCO2Mdfr(
                 Number(
                     ciclo
                         .co2_purge_start_ppm
-                ) || 0;
+                )
+                ||
+                0;
 
 
             const fin =
                 Number(
                     ciclo
                         .co2_purge_end_ppm
-                ) || 0;
+                )
+                ||
+                0;
 
 
             const anchoBarra =
@@ -2578,7 +3059,8 @@ function dibujarCO2Mdfr(
                 (
                     inicio /
                     maximo
-                ) *
+                )
+                *
                 eje.alto;
 
 
@@ -2586,7 +3068,8 @@ function dibujarCO2Mdfr(
                 (
                     fin /
                     maximo
-                ) *
+                )
+                *
                 eje.alto;
 
 
@@ -2635,8 +3118,6 @@ function dibujarCO2Mdfr(
         }
     );
 
-
-    // LEYENDA
 
     ctx.fillStyle =
         "#dc2626";
@@ -2691,10 +3172,37 @@ function dibujarCO2Mdfr(
 
 document.addEventListener(
     "DOMContentLoaded",
-    function() {
+    async function() {
 
         configurarInicial();
 
-        cargarMdfrProcess();
+
+        await cargarProcesosMdfr();
+
+
+        await cargarMdfrProcess();
     }
+);
+
+
+// =========================================================
+// ACTUALIZACIONES
+// =========================================================
+
+// Lista de procesos
+
+setInterval(
+    cargarProcesosMdfr,
+    60000
+);
+
+
+// MDFR PROCESS
+//
+// Si el usuario está viendo histórico,
+// mantiene el mismo proceso seleccionado.
+
+setInterval(
+    cargarMdfrProcess,
+    30000
 );

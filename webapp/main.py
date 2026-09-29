@@ -644,26 +644,81 @@ async def api_proceso_ciclos(
         else None
     )
 
+    # =====================================================
+    # INTERVALOS ENTRE PURGAS
+    # =====================================================
+
+    intervalos = [
+
+        float(
+            ciclo[
+                "intervalo_purgas_segundos"
+            ]
+        )
+
+        for ciclo in cerrados
+
+        if ciclo.get(
+            "intervalo_purgas_segundos"
+        ) is not None
+    ]
+
+
+    # =====================================================
+    # RESPUESTA
+    # =====================================================
+
     return {
+
         "ok": True,
-        "modo": modo,
-        "proceso": proceso_dict,
+
+        "proceso":
+            proceso_dict,
+
         "resumen": {
-            "ciclos": len(cerrados),
-            "low_high_promedio_s": promedio("duracion_segundos"),
-            "purga_promedio_s": promedio("purga_duracion_segundos"),
-            "intervalo_promedio_s": (
-                sum(intervalos) / len(intervalos)
-                if intervalos
-                else None
-            ),
-            "ultimo_intervalo_s": (
-                intervalos[-1]
-                if intervalos
-                else None
-            )
+
+            "ciclos":
+                len(
+                    cerrados
+                ),
+
+            "low_high_promedio_s":
+                promedio(
+                    "duracion_segundos"
+                ),
+
+            "purga_promedio_s":
+                promedio(
+                    "purga_duracion_segundos"
+                ),
+
+            "intervalo_promedio_s":
+                (
+                    sum(
+                        intervalos
+                    )
+                    /
+                    len(
+                        intervalos
+                    )
+
+                    if intervalos
+
+                    else None
+                ),
+
+            "ultimo_intervalo_s":
+                (
+                    intervalos[-1]
+
+                    if intervalos
+
+                    else None
+                )
         },
-        "ciclos": ciclos
+
+        "ciclos":
+            ciclos
     }
 # =========================================================
 # EVENTOS
