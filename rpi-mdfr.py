@@ -465,477 +465,1389 @@ def procesar_ciclo_co2_actual(payload_co2):
 #-----------------------------------------------------------------------------------------------------------    
 def obtener_datos_medidores_y_sensor(promediar=False):
     """
-    Lee los sensores:
-    - CT01CO2
-    - THT03R
-    - PT21A01
+    Lee los sensores configurados del sistema.
 
-    Si alguno no responde:
-    - deja valores en None
-    - registra error en log
+    Cada equipo debe definir en su YAML:
 
-    Devuelve un diccionario donde cada valor es JSON.
+        enabled: true
+
+    o:
+
+        enabled: false
+
+    Si enabled=false:
+    - NO intenta comunicación Modbus.
+    - NO genera errores de comunicación.
+    - Devuelve payload con valores None.
+    - Mantiene id_device y unidades obtenidas del YAML.
+
+    Si enabled no existe:
+    - se asume True por compatibilidad.
     """
+
+    # =========================================================
+    # HELPER: PAYLOAD VACÍO BASADO EN YAML
+    # =========================================================
+
+    def payload_sin_datos(config, cantidad):
+
+        config = config or {}
+
+        registers = config.get("registers", [])
+
+        unidades = []
+
+        for indice in range(cantidad):
+
+            if indice < len(registers):
+
+                unidad = registers[indice].get("unit")
+
+                unidades.append(str(unidad) if unidad is not None else None)
+
+            else:
+
+                unidades.append(None)
+
+
+        return {
+            "d": [{
+                "t": util.get__time_utc(),
+                "g": config.get(
+                    "id_device"
+                ),
+                "v": [
+                    None
+                    for _ in range(
+                        cantidad
+                    )
+                ],
+                "u": unidades
+            }]
+        }
+
+
     try:
-        # === SENSOR 1 — CT01CO2 ===
-        try:
-            config_CT01CO2  = util.cargar_configuracion(os.getenv("CFG_CT01CO2"), os.getenv("CFG_CT01CO2_SECTION"))
-            #config_CT01CO2 = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/ct01co2.yml','ct01co2_sensor')            
-            g_ct01 = config_CT01CO2.get('id_device')
-            simular = bool(config_CT01CO2.get('simular', False))
-            
-            if simular:
-                co2_simulado = random.randint(800, 9600)
-                util.logging.info(f"[CT01CO2] SIM → CO₂ = {co2_simulado} ppm")
-                medicion_CT01CO2 = {
-                    "d": [{
-                        "t": util.get__time_utc(),
-                        "g": g_ct01,
-                        "v": [str(co2_simulado)],
-                        "u": ["139"]
-                    }]
-                }
-            else:
-                medicion_CT01CO2 = modbusdevices.payload_event_modbus(config_CT01CO2)
-                if medicion_CT01CO2 is None:
-                    util.logging.warning("CT01CO2 sin respuesta.")
-                    medicion_CT01CO2 = {
-                        "d": [{"t": util.get__time_utc(), "g": g_ct01, "v": [None], "u": [None]}]
-                    }
-                else:
-                    try:
-                        valor_co2 = medicion_CT01CO2["d"][0]["v"][0]
-                        if valor_co2 not in [None, "None"]:
-                            util.logging.info(f"CT01CO2 → {valor_co2} ppm")
-                        else:
-                            util.logging.warning("CT01CO2 sin valor válido (None)")
-                    except Exception:
-                        util.logging.warning(f"CT01CO2: payload inesperado (g={g_ct01})")
-        except Exception as e:
-            util.logging.error(f"Error CT01CO2: {e}")
-            medicion_CT01CO2 = {
-                "d": [{"t": util.get__time_utc(), "g": g_ct01, "v": [None], "u": [None]}]
-            }
 
-        medicionSensorCT01CO2 = json.dumps(medicion_CT01CO2)
-        # =========================================================
-        # DETECCIÓN CICLO CO2 LOW -> HIGH
-        # =========================================================
+        # =====================================================
+        # SENSOR 1 — CT01CO2
+        # =====================================================
 
-        #procesar_ciclo_co2_actual(medicionSensorCT01CO2)
-        # =========================================================
-        # === SENSOR 2 — THT03R ===
-        # =========================================================
-        try:
-            config_THT03R = util.cargar_configuracion(os.getenv("CFG_THT03R"),os.getenv("CFG_THT03R_SECTION"))
-            #config_THT03R = util.cargar_configuracion('/home/pi/.scr/.scr/RPI-MDFR/device/tht03r.yml', 'tht03r_sensor')
-            g_tht03r = config_THT03R.get('id_device')
-            simular = bool(config_THT03R.get('simular', False))
-
-            if simular:
-                
-                temp_simulada = round(random.uniform(17.5, 19.5), 1)
-                hum_simulada = round(random.uniform(85.0, 95.0), 1)
-                regs = config_THT03R.get('registers', [])
-                unidades = [str(r.get('unit')) for r in regs]
-                
-                util.logging.info(f"[THT03R] SIM → Temp={temp_simulada} °C, Hum={hum_simulada} %")
-                
-                medicion_THT03R = {
-                    "d": [{
-                        "t": util.get__time_utc(),
-                        "g": g_tht03r,
-                        "v": [str(temp_simulada), str(hum_simulada)],
-                        "u": unidades
-                    }]
-                }
-                
-            else:
-                if promediar:
-                    #medicion_THT03R = modbusdevices.payload_event_modbus(config_THT03R)
-                    medicion_THT03R = modbusdevices.payload_event_modbus_promedio(config_THT03R, muestras=10, delay_s=0.2, decimales=1)
-                else:
-                    #medicion_THT03R = modbusdevices.payload_event_modbus_promedio(config_THT03R, muestras=10, delay_s=0.2, decimales=1)
-                    medicion_THT03R = modbusdevices.payload_event_modbus(config_THT03R)
-                if medicion_THT03R is None:
-                    util.logging.warning("THT03R sin respuesta.")
-                    medicion_THT03R = {
-                        "d": [{"t": util.get__time_utc(), "g":  g_tht03r, "v": [None, None], "u": [None, None]}]
-                    }
-                else:
-                    valores = medicion_THT03R["d"][0]["v"]
-                    temp = valores[0] if len(valores) > 0 else None
-                    hum  = valores[1] if len(valores) > 1 else None
-
-                    if temp not in [None, "None"] or hum not in [None, "None"]:
-                        util.logging.info(f"THT03R → Temp={temp} °C, Hum={hum} %")
-                    else:
-                        util.logging.warning("THT03R sin valores válidos (None)")
-        except Exception as e:
-            util.logging.error(f"Error THT03R: {e}")
-            medicion_THT03R = {
-                "d": [{"t": util.get__time_utc(), "g":  g_tht03r, "v": [None, None], "u": [None, None]}]
-            }
-
-        medicionSensorTHT03R = json.dumps(medicion_THT03R)
-     
-     
-     
-        # =========================================================
-        # SENSOR 3 — PT21A01
-        # =========================================================
-        try:
-
-            config_PT21A01 = util.cargar_configuracion(os.getenv("CFG_PT21A01"), os.getenv("CFG_PT21A01_SECTION"))          
-
-            g_pt21 = config_PT21A01.get('id_device')
-
-            simular = bool(config_PT21A01.get('simular', False))
-
-            if simular:
-
-                temp_pulpa = round(random.uniform(16.0, 20.0), 1)
-                resistencia = round(random.uniform(100.0, 120.0), 1)
-
-                regs = config_PT21A01.get('registers', [])
-
-                unidades = [
-                    str(r.get('unit'))
-                    for r in regs
-                ]
-
-                util.logging.info(f"[PT21A01] SIM → " f"Temp={temp_pulpa} °C, " f"R={resistencia} Ω")
-
-                medicion_PT21A01 = {
-                    "d": [{
-                        "t": util.get__time_utc(),
-                        "g": g_pt21,
-                        "v": [
-                            str(temp_pulpa),
-                            str(resistencia)
-                        ],
-                        "u": unidades
-                    }]
-                }
-
-            else:
-                if promediar:
-                    #medicion_PT21A01 = (modbusdevices.payload_event_modbus(config_PT21A01))
-                    medicion_PT21A01 = modbusdevices.payload_event_modbus_promedio(config_PT21A01, muestras=10, delay_s=0.2, decimales=1)
-
-                else:
-                    #medicion_PT21A01 = modbusdevices.payload_event_modbus_promedio(config_PT21A01, muestras=10, delay_s=0.2, decimales=1)
-                    medicion_PT21A01 = (modbusdevices.payload_event_modbus(config_PT21A01))
-                if medicion_PT21A01 is None:
-
-                    util.logging.warning("PT21A01 sin respuesta.")
-
-                    medicion_PT21A01 = {
-                        "d": [{
-                            "t": util.get__time_utc(),
-                            "g": g_pt21,
-                            "v": [None, None],
-                            "u": [None, None]
-                        }]
-                    }
-
-                else:
-
-                    valores = (medicion_PT21A01["d"][0]["v"])
-
-                    temp = (valores[0] if len(valores) > 0 else None)
-
-                    resistencia = (valores[1] if len(valores) > 1 else None)
-
-                    if (temp not in [None, "None"] or resistencia not in [None, "None"]):
-
-                        util.logging.info(f"[PT21A01] → " f"Temp={temp} °C, " f"R={resistencia} Ω" )
-
-                    else:
-
-                        util.logging.warning("PT21A01 sin valores válidos (None)")
-
-        except Exception as e:
-
-            util.logging.error(f"Error PT21A01: {e}")
-
-            medicion_PT21A01 = {
-                "d": [{
-                    "t": util.get__time_utc(),
-                    "g": g_pt21,
-                    "v": [None, None],
-                    "u": [None, None]
-                }]
-            }
-
-        medicionSensorPT21A01 = json.dumps(medicion_PT21A01)
-        
-        # =========================================================
-        # === SENSOR 3 — C2H4 / ETILENO ===
-        # =========================================================
+        config_CT01CO2 = {}
 
         try:
 
-            config_C2H4 = util.cargar_configuracion(os.getenv("CFG_C2H4"), os.getenv("CFG_C2H4_SECTION"))
+            config_CT01CO2 = (util.cargar_configuracion(os.getenv("CFG_CT01CO2"), os.getenv("CFG_CT01CO2_SECTION")) or {})  
 
-            # config_C2H4 = util.cargar_configuracion(
-            #     '/home/pi/.scr/.scr/RPI-MDFR/device/c2h4.yml',
-            #     'c2h4_sensor'
-            # )
+            g_ct01 = (config_CT01CO2.get("id_device"))
 
-            g_c2h4 = config_C2H4.get('id_device')
 
-            simular = bool(config_C2H4.get('simular', False))
+            enabled = bool(config_CT01CO2.get("enabled", True))
 
-            if simular:
 
-                hum_simulada = round(random.uniform(50.0, 70.0), 1)
-                temp_simulada = round(random.uniform(18.0, 22.0), 1)
-                c2h4_simulado = round(random.uniform(0.0, 150.0), 1)
+            # -------------------------------------------------
+            # DESHABILITADO POR YAML
+            # -------------------------------------------------
 
-                regs = config_C2H4.get('registers', [])
-                unidades = [str(r.get('unit')) for r in regs]
+            if not enabled:
 
                 util.logging.info(
-                    f"[C2H4] SIM → "
-                    f"Hum={hum_simulada} %, "
-                    f"Temp={temp_simulada} °C, "
-                    f"C2H4={c2h4_simulado} ppm"
+                    "[CT01CO2] "
+                    "Deshabilitado por YAML."
                 )
 
-                medicion_C2H4 = {
-                    "d": [{
-                        "t": util.get__time_utc(),
-                        "g": g_c2h4,
-                        "v": [
-                            str(hum_simulada),
-                            str(temp_simulada),
-                            str(c2h4_simulado)
-                        ],
-                        "u": unidades
-                    }]
-                }
+                medicion_CT01CO2 = (payload_sin_datos(config_CT01CO2, 1 ))
+
 
             else:
 
-                medicion_C2H4 = modbusdevices.payload_event_c2h4(config_C2H4)
+                simular = bool(config_CT01CO2.get("simular", False ))
 
-                if medicion_C2H4 is None:
 
-                    util.logging.warning("C2H4 sin respuesta.")
+                # ---------------------------------------------
+                # SIMULACIÓN
+                # ---------------------------------------------
 
-                    medicion_C2H4 = {
+                if simular:
+
+                    co2_simulado = (random.randint(800, 9600 ))
+
+
+                    registers = (config_CT01CO2.get("registers",[]))
+
+
+                    unidad = (registers[0].get("unit") if registers else None )
+
+
+                    util.logging.info(
+                        "[CT01CO2] "
+                        f"SIM → CO₂ = "
+                        f"{co2_simulado} ppm"
+                    )
+
+
+                    medicion_CT01CO2 = {
                         "d": [{
-                            "t": util.get__time_utc(),
-                            "g": g_c2h4,
-                            "v": [None, None, None],
-                            "u": [None, None, None]
+                            "t":
+                                util.get__time_utc(),
+
+                            "g":
+                                g_ct01,
+
+                            "v": [
+                                str(
+                                    co2_simulado
+                                )
+                            ],
+
+                            "u": [
+                                str(
+                                    unidad
+                                )
+                                if unidad is not None
+                                else None
+                            ]
                         }]
                     }
 
+
+                # ---------------------------------------------
+                # SENSOR REAL
+                # ---------------------------------------------
+
                 else:
 
-                    valores = medicion_C2H4["d"][0]["v"]
+                    medicion_CT01CO2 = (
+                        modbusdevices
+                        .payload_event_modbus(
+                            config_CT01CO2
+                        )
+                    )
 
-                    hum = valores[0] if len(valores) > 0 else None
-                    temp = valores[1] if len(valores) > 1 else None
-                    c2h4 = valores[2] if len(valores) > 2 else None
 
                     if (
-                        hum not in [None, "None"]
-                        or temp not in [None, "None"]
-                        or c2h4 not in [None, "None"]
+                        medicion_CT01CO2
+                        is None
                     ):
 
-                        util.logging.info(
-                            f"C2H4 → "
-                            f"Hum={hum} %, "
-                            f"Temp={temp} °C, "
-                            f"C2H4={c2h4} ppm"
+                        util.logging.warning(
+                            "CT01CO2 sin respuesta."
                         )
+
+                        medicion_CT01CO2 = (
+                            payload_sin_datos(
+                                config_CT01CO2,
+                                1
+                            )
+                        )
+
 
                     else:
 
-                        util.logging.warning(
-                            "C2H4 sin valores válidos (None)"
-                        )
+                        try:
 
-        except Exception as e:
+                            valor_co2 = (
+                                medicion_CT01CO2[
+                                    "d"
+                                ][0][
+                                    "v"
+                                ][0]
+                            )
 
-            util.logging.error(f"Error C2H4: {e}")
 
-            medicion_C2H4 = {
-                "d": [{
-                    "t": util.get__time_utc(),
-                    "g": g_c2h4,
-                    "v": [None, None, None],
-                    "u": [None, None, None]
-                }]
-            }
+                            if valor_co2 not in [
+                                None,
+                                "None",
+                                ""
+                            ]:
 
-        medicionSensorC2H4 = json.dumps(medicion_C2H4)
-        
-                # =========================================================
-        # === SENSOR 4 — CWT-TM-2PT / PT1000 CANAL 1 ===
-        # =========================================================
+                                util.logging.info(
+                                    "CT01CO2 → "
+                                    f"{valor_co2} ppm"
+                                )
 
-        try:
+                            else:
 
-            config_CWT = util.cargar_configuracion(
-                os.getenv("CFG_CWT"),
-                os.getenv("CFG_CWT_SECTION")
-            )
+                                util.logging.warning(
+                                    "CT01CO2 sin "
+                                    "valor válido."
+                                )
 
-            g_cwt = config_CWT.get('id_device')
-            simular = bool(config_CWT.get('simular', False))
 
-            if simular:
+                        except Exception:
 
-                temp_simulada = round(
-                    random.uniform(17.5, 22.0),
-                    1
-                )
+                            util.logging.warning(
+                                "[CT01CO2] "
+                                "Payload inesperado "
+                                f"(g={g_ct01})"
+                            )
 
-                regs = config_CWT.get('registers', [])
-
-                # Solo Unit ID del canal 1
-                unidad_ch1 = (
-                    str(regs[0].get('unit'))
-                    if len(regs) > 0
-                    else None
-                )
-
-                util.logging.info(
-                    f"[CWT-PT1000] SIM → CH1 Temp={temp_simulada} °C"
-                )
-
-                medicion_CWT = {
-                    "d": [{
-                        "t": util.get__time_utc(),
-                        "g": g_cwt,
-                        "v": [str(temp_simulada)],
-                        "u": [unidad_ch1]
-                    }]
-                }
-
-            else:
-
-                if promediar:
-
-                    medicion_CWT_raw = (
-                        modbusdevices.payload_event_modbus_promedio(
-                            config_CWT,
-                            muestras=10,
-                            delay_s=0.2,
-                            decimales=1
-                        )
-                    )
-
-                else:
-
-                    medicion_CWT_raw = (
-                        modbusdevices.payload_event_modbus(
-                            config_CWT
-                        )
-                    )
-
-                if medicion_CWT_raw is None:
-
-                    util.logging.warning(
-                        "CWT-PT1000 CH1 sin respuesta."
-                    )
-
-                    medicion_CWT = {
-                        "d": [{
-                            "t": util.get__time_utc(),
-                            "g": g_cwt,
-                            "v": [None],
-                            "u": [None]
-                        }]
-                    }
-
-                else:
-
-                    valores = medicion_CWT_raw["d"][0].get("v", [])
-                    unidades = medicion_CWT_raw["d"][0].get("u", [])
-
-                    # =============================================
-                    # TOMAR ÚNICAMENTE CANAL 1
-                    # =============================================
-
-                    temp_pt1000 = (
-                        valores[0]
-                        if len(valores) > 0
-                        else None
-                    )
-
-                    unidad_ch1 = (
-                        unidades[0]
-                        if len(unidades) > 0
-                        else None
-                    )
-
-                    # Crear nuevo payload exclusivamente con CH1
-                    medicion_CWT = {
-                        "d": [{
-                            "t": medicion_CWT_raw["d"][0].get(
-                                "t",
-                                util.get__time_utc()
-                            ),
-                            "g": g_cwt,
-                            "v": [temp_pt1000],
-                            "u": [unidad_ch1]
-                        }]
-                    }
-
-                    if temp_pt1000 not in [None, "None"]:
-
-                        util.logging.info(
-                            f"CWT-PT1000 → "
-                            f"CH1 Temp={temp_pt1000} °C"
-                        )
-
-                    else:
-
-                        util.logging.warning(
-                            "CWT-PT1000 CH1 sin valor válido (None)"
-                        )
 
         except Exception as e:
 
             util.logging.error(
-                f"Error CWT-PT1000: {e}"
+                "[CT01CO2] "
+                f"Error: "
+                f"{type(e).__name__}: {e}"
             )
 
-            medicion_CWT = {
-                "d": [{
-                    "t": util.get__time_utc(),
-                    "g": g_cwt,
-                    "v": [None],
-                    "u": [None]
-                }]
-            }
+            medicion_CT01CO2 = (
+                payload_sin_datos(
+                    config_CT01CO2,
+                    1
+                )
+            )
 
-        medicionSensorCWT = json.dumps(medicion_CWT)
-        
-        # =========================================================
+
+        medicionSensorCT01CO2 = (
+            json.dumps(
+                medicion_CT01CO2
+            )
+        )
+
+
+        # =====================================================
+        # SENSOR 2 — THT03R
+        # =====================================================
+
+        config_THT03R = {}
+
+        try:
+
+            config_THT03R = (
+                util.cargar_configuracion(
+                    os.getenv(
+                        "CFG_THT03R"
+                    ),
+                    os.getenv(
+                        "CFG_THT03R_SECTION"
+                    )
+                )
+                or {}
+            )
+
+
+            g_tht03r = (
+                config_THT03R.get(
+                    "id_device"
+                )
+            )
+
+
+            enabled = bool(
+                config_THT03R.get(
+                    "enabled",
+                    True
+                )
+            )
+
+
+            if not enabled:
+
+                util.logging.info(
+                    "[THT03R] "
+                    "Deshabilitado por YAML."
+                )
+
+                medicion_THT03R = (
+                    payload_sin_datos(
+                        config_THT03R,
+                        2
+                    )
+                )
+
+
+            else:
+
+                simular = bool(
+                    config_THT03R.get(
+                        "simular",
+                        False
+                    )
+                )
+
+
+                # ---------------------------------------------
+                # SIMULACIÓN
+                # ---------------------------------------------
+
+                if simular:
+
+                    temp_simulada = round(
+                        random.uniform(
+                            17.5,
+                            19.5
+                        ),
+                        1
+                    )
+
+                    hum_simulada = round(
+                        random.uniform(
+                            85.0,
+                            95.0
+                        ),
+                        1
+                    )
+
+
+                    regs = (
+                        config_THT03R.get(
+                            "registers",
+                            []
+                        )
+                    )
+
+
+                    unidades = [
+                        str(
+                            r.get(
+                                "unit"
+                            )
+                        )
+                        if r.get(
+                            "unit"
+                        ) is not None
+                        else None
+                        for r in regs[:2]
+                    ]
+
+
+                    while len(
+                        unidades
+                    ) < 2:
+
+                        unidades.append(
+                            None
+                        )
+
+
+                    util.logging.info(
+                        "[THT03R] SIM → "
+                        f"Temp={temp_simulada} °C, "
+                        f"Hum={hum_simulada} %"
+                    )
+
+
+                    medicion_THT03R = {
+                        "d": [{
+                            "t":
+                                util.get__time_utc(),
+
+                            "g":
+                                g_tht03r,
+
+                            "v": [
+                                str(
+                                    temp_simulada
+                                ),
+                                str(
+                                    hum_simulada
+                                )
+                            ],
+
+                            "u":
+                                unidades
+                        }]
+                    }
+
+
+                # ---------------------------------------------
+                # SENSOR REAL
+                # ---------------------------------------------
+
+                else:
+
+                    if promediar:
+
+                        medicion_THT03R = (
+                            modbusdevices
+                            .payload_event_modbus_promedio(
+                                config_THT03R,
+                                muestras=10,
+                                delay_s=0.2,
+                                decimales=1
+                            )
+                        )
+
+                    else:
+
+                        medicion_THT03R = (
+                            modbusdevices
+                            .payload_event_modbus(
+                                config_THT03R
+                            )
+                        )
+
+
+                    if (
+                        medicion_THT03R
+                        is None
+                    ):
+
+                        util.logging.warning(
+                            "THT03R sin respuesta."
+                        )
+
+                        medicion_THT03R = (
+                            payload_sin_datos(
+                                config_THT03R,
+                                2
+                            )
+                        )
+
+
+                    else:
+
+                        valores = (
+                            medicion_THT03R[
+                                "d"
+                            ][0][
+                                "v"
+                            ]
+                        )
+
+
+                        temp = (
+                            valores[0]
+                            if len(
+                                valores
+                            ) > 0
+                            else None
+                        )
+
+
+                        hum = (
+                            valores[1]
+                            if len(
+                                valores
+                            ) > 1
+                            else None
+                        )
+
+
+                        if (
+                            temp not in [
+                                None,
+                                "None",
+                                ""
+                            ]
+                            or
+                            hum not in [
+                                None,
+                                "None",
+                                ""
+                            ]
+                        ):
+
+                            util.logging.info(
+                                "THT03R → "
+                                f"Temp={temp} °C, "
+                                f"Hum={hum} %"
+                            )
+
+                        else:
+
+                            util.logging.warning(
+                                "THT03R sin "
+                                "valores válidos."
+                            )
+
+
+        except Exception as e:
+
+            util.logging.error(
+                "[THT03R] "
+                f"Error: "
+                f"{type(e).__name__}: {e}"
+            )
+
+            medicion_THT03R = (
+                payload_sin_datos(
+                    config_THT03R,
+                    2
+                )
+            )
+
+
+        medicionSensorTHT03R = (
+            json.dumps(
+                medicion_THT03R
+            )
+        )
+
+
+        # =====================================================
+        # SENSOR 3 — PT21A01 / PT100
+        # =====================================================
+
+        config_PT21A01 = {}
+
+        try:
+
+            config_PT21A01 = (
+                util.cargar_configuracion(
+                    os.getenv(
+                        "CFG_PT21A01"
+                    ),
+                    os.getenv(
+                        "CFG_PT21A01_SECTION"
+                    )
+                )
+                or {}
+            )
+
+
+            g_pt21 = (
+                config_PT21A01.get(
+                    "id_device"
+                )
+            )
+
+
+            enabled = bool(
+                config_PT21A01.get(
+                    "enabled",
+                    True
+                )
+            )
+
+
+            if not enabled:
+
+                util.logging.info(
+                    "[PT21A01] "
+                    "Deshabilitado por YAML."
+                )
+
+                medicion_PT21A01 = (
+                    payload_sin_datos(
+                        config_PT21A01,
+                        2
+                    )
+                )
+
+
+            else:
+
+                simular = bool(
+                    config_PT21A01.get(
+                        "simular",
+                        False
+                    )
+                )
+
+
+                if simular:
+
+                    temp_pulpa = round(
+                        random.uniform(
+                            16.0,
+                            20.0
+                        ),
+                        1
+                    )
+
+                    resistencia = round(
+                        random.uniform(
+                            100.0,
+                            120.0
+                        ),
+                        1
+                    )
+
+
+                    regs = (
+                        config_PT21A01.get(
+                            "registers",
+                            []
+                        )
+                    )
+
+
+                    unidades = [
+                        str(
+                            r.get(
+                                "unit"
+                            )
+                        )
+                        if r.get(
+                            "unit"
+                        ) is not None
+                        else None
+                        for r in regs[:2]
+                    ]
+
+
+                    while len(
+                        unidades
+                    ) < 2:
+
+                        unidades.append(
+                            None
+                        )
+
+
+                    util.logging.info(
+                        "[PT21A01] SIM → "
+                        f"Temp={temp_pulpa} °C, "
+                        f"R={resistencia} Ω"
+                    )
+
+
+                    medicion_PT21A01 = {
+                        "d": [{
+                            "t":
+                                util.get__time_utc(),
+
+                            "g":
+                                g_pt21,
+
+                            "v": [
+                                str(
+                                    temp_pulpa
+                                ),
+                                str(
+                                    resistencia
+                                )
+                            ],
+
+                            "u":
+                                unidades
+                        }]
+                    }
+
+
+                else:
+
+                    if promediar:
+
+                        medicion_PT21A01 = (
+                            modbusdevices
+                            .payload_event_modbus_promedio(
+                                config_PT21A01,
+                                muestras=10,
+                                delay_s=0.2,
+                                decimales=1
+                            )
+                        )
+
+                    else:
+
+                        medicion_PT21A01 = (
+                            modbusdevices
+                            .payload_event_modbus(
+                                config_PT21A01
+                            )
+                        )
+
+
+                    if (
+                        medicion_PT21A01
+                        is None
+                    ):
+
+                        util.logging.warning(
+                            "PT21A01 sin respuesta."
+                        )
+
+                        medicion_PT21A01 = (
+                            payload_sin_datos(
+                                config_PT21A01,
+                                2
+                            )
+                        )
+
+
+                    else:
+
+                        valores = (
+                            medicion_PT21A01[
+                                "d"
+                            ][0][
+                                "v"
+                            ]
+                        )
+
+
+                        temp = (
+                            valores[0]
+                            if len(
+                                valores
+                            ) > 0
+                            else None
+                        )
+
+
+                        resistencia = (
+                            valores[1]
+                            if len(
+                                valores
+                            ) > 1
+                            else None
+                        )
+
+
+                        if (
+                            temp not in [
+                                None,
+                                "None",
+                                ""
+                            ]
+                            or
+                            resistencia not in [
+                                None,
+                                "None",
+                                ""
+                            ]
+                        ):
+
+                            util.logging.info(
+                                "[PT21A01] → "
+                                f"Temp={temp} °C, "
+                                f"R={resistencia} Ω"
+                            )
+
+                        else:
+
+                            util.logging.warning(
+                                "[PT21A01] "
+                                "sin valores válidos."
+                            )
+
+
+        except Exception as e:
+
+            util.logging.error(
+                "[PT21A01] "
+                f"Error: "
+                f"{type(e).__name__}: {e}"
+            )
+
+            medicion_PT21A01 = (
+                payload_sin_datos(
+                    config_PT21A01,
+                    2
+                )
+            )
+
+
+        medicionSensorPT21A01 = (
+            json.dumps(
+                medicion_PT21A01
+            )
+        )
+
+
+        # =====================================================
+        # SENSOR 4 — C2H4 / ETILENO
+        # =====================================================
+
+        config_C2H4 = {}
+
+        try:
+
+            config_C2H4 = (
+                util.cargar_configuracion(
+                    os.getenv(
+                        "CFG_C2H4"
+                    ),
+                    os.getenv(
+                        "CFG_C2H4_SECTION"
+                    )
+                )
+                or {}
+            )
+
+
+            g_c2h4 = (
+                config_C2H4.get(
+                    "id_device"
+                )
+            )
+
+
+            enabled = bool(
+                config_C2H4.get(
+                    "enabled",
+                    True
+                )
+            )
+
+
+            if not enabled:
+
+                util.logging.info(
+                    "[C2H4] "
+                    "Deshabilitado por YAML."
+                )
+
+                medicion_C2H4 = (
+                    payload_sin_datos(
+                        config_C2H4,
+                        3
+                    )
+                )
+
+
+            else:
+
+                simular = bool(
+                    config_C2H4.get(
+                        "simular",
+                        False
+                    )
+                )
+
+
+                if simular:
+
+                    hum_simulada = round(
+                        random.uniform(
+                            50.0,
+                            70.0
+                        ),
+                        1
+                    )
+
+                    temp_simulada = round(
+                        random.uniform(
+                            18.0,
+                            22.0
+                        ),
+                        1
+                    )
+
+                    c2h4_simulado = round(
+                        random.uniform(
+                            0.0,
+                            150.0
+                        ),
+                        1
+                    )
+
+
+                    regs = (
+                        config_C2H4.get(
+                            "registers",
+                            []
+                        )
+                    )
+
+
+                    unidades = [
+                        str(
+                            r.get(
+                                "unit"
+                            )
+                        )
+                        if r.get(
+                            "unit"
+                        ) is not None
+                        else None
+                        for r in regs[:3]
+                    ]
+
+
+                    while len(
+                        unidades
+                    ) < 3:
+
+                        unidades.append(
+                            None
+                        )
+
+
+                    util.logging.info(
+                        "[C2H4] SIM → "
+                        f"Hum={hum_simulada} %, "
+                        f"Temp={temp_simulada} °C, "
+                        f"C2H4={c2h4_simulado} ppm"
+                    )
+
+
+                    medicion_C2H4 = {
+                        "d": [{
+                            "t":
+                                util.get__time_utc(),
+
+                            "g":
+                                g_c2h4,
+
+                            "v": [
+                                str(
+                                    hum_simulada
+                                ),
+                                str(
+                                    temp_simulada
+                                ),
+                                str(
+                                    c2h4_simulado
+                                )
+                            ],
+
+                            "u":
+                                unidades
+                        }]
+                    }
+
+
+                else:
+
+                    medicion_C2H4 = (
+                        modbusdevices
+                        .payload_event_c2h4(
+                            config_C2H4
+                        )
+                    )
+
+
+                    if (
+                        medicion_C2H4
+                        is None
+                    ):
+
+                        util.logging.warning(
+                            "C2H4 sin respuesta."
+                        )
+
+                        medicion_C2H4 = (
+                            payload_sin_datos(
+                                config_C2H4,
+                                3
+                            )
+                        )
+
+
+                    else:
+
+                        valores = (
+                            medicion_C2H4[
+                                "d"
+                            ][0][
+                                "v"
+                            ]
+                        )
+
+
+                        hum = (
+                            valores[0]
+                            if len(
+                                valores
+                            ) > 0
+                            else None
+                        )
+
+                        temp = (
+                            valores[1]
+                            if len(
+                                valores
+                            ) > 1
+                            else None
+                        )
+
+                        c2h4 = (
+                            valores[2]
+                            if len(
+                                valores
+                            ) > 2
+                            else None
+                        )
+
+
+                        if (
+                            hum not in [
+                                None,
+                                "None",
+                                ""
+                            ]
+                            or
+                            temp not in [
+                                None,
+                                "None",
+                                ""
+                            ]
+                            or
+                            c2h4 not in [
+                                None,
+                                "None",
+                                ""
+                            ]
+                        ):
+
+                            util.logging.info(
+                                "C2H4 → "
+                                f"Hum={hum} %, "
+                                f"Temp={temp} °C, "
+                                f"C2H4={c2h4} ppm"
+                            )
+
+                        else:
+
+                            util.logging.warning(
+                                "C2H4 sin "
+                                "valores válidos."
+                            )
+
+
+        except Exception as e:
+
+            util.logging.error(
+                "[C2H4] "
+                f"Error: "
+                f"{type(e).__name__}: {e}"
+            )
+
+            medicion_C2H4 = (
+                payload_sin_datos(
+                    config_C2H4,
+                    3
+                )
+            )
+
+
+        medicionSensorC2H4 = (
+            json.dumps(
+                medicion_C2H4
+            )
+        )
+
+
+        # =====================================================
+        # SENSOR 5 — CWT-TM-2PT / PT1000 CANAL 1
+        # =====================================================
+
+        config_CWT = {}
+
+        try:
+
+            config_CWT = (
+                util.cargar_configuracion(
+                    os.getenv(
+                        "CFG_CWT"
+                    ),
+                    os.getenv(
+                        "CFG_CWT_SECTION"
+                    )
+                )
+                or {}
+            )
+
+
+            g_cwt = (
+                config_CWT.get(
+                    "id_device"
+                )
+            )
+
+
+            enabled = bool(
+                config_CWT.get(
+                    "enabled",
+                    True
+                )
+            )
+
+
+            if not enabled:
+
+                util.logging.info(
+                    "[CWT-PT1000] "
+                    "Deshabilitado por YAML."
+                )
+
+                medicion_CWT = (
+                    payload_sin_datos(
+                        config_CWT,
+                        1
+                    )
+                )
+
+
+            else:
+
+                simular = bool(
+                    config_CWT.get(
+                        "simular",
+                        False
+                    )
+                )
+
+
+                if simular:
+
+                    temp_simulada = round(
+                        random.uniform(
+                            17.5,
+                            22.0
+                        ),
+                        1
+                    )
+
+
+                    regs = (
+                        config_CWT.get(
+                            "registers",
+                            []
+                        )
+                    )
+
+
+                    unidad_ch1 = (
+                        regs[0].get(
+                            "unit"
+                        )
+                        if regs
+                        else None
+                    )
+
+
+                    util.logging.info(
+                        "[CWT-PT1000] SIM → "
+                        f"CH1 Temp="
+                        f"{temp_simulada} °C"
+                    )
+
+
+                    medicion_CWT = {
+                        "d": [{
+                            "t":
+                                util.get__time_utc(),
+
+                            "g":
+                                g_cwt,
+
+                            "v": [
+                                str(
+                                    temp_simulada
+                                )
+                            ],
+
+                            "u": [
+                                str(
+                                    unidad_ch1
+                                )
+                                if unidad_ch1
+                                is not None
+                                else None
+                            ]
+                        }]
+                    }
+
+
+                else:
+
+                    if promediar:
+
+                        medicion_CWT_raw = (
+                            modbusdevices
+                            .payload_event_modbus_promedio(
+                                config_CWT,
+                                muestras=10,
+                                delay_s=0.2,
+                                decimales=1
+                            )
+                        )
+
+                    else:
+
+                        medicion_CWT_raw = (
+                            modbusdevices
+                            .payload_event_modbus(
+                                config_CWT
+                            )
+                        )
+
+
+                    if (
+                        medicion_CWT_raw
+                        is None
+                    ):
+
+                        util.logging.warning(
+                            "[CWT-PT1000] "
+                            "CH1 sin respuesta."
+                        )
+
+                        medicion_CWT = (
+                            payload_sin_datos(
+                                config_CWT,
+                                1
+                            )
+                        )
+
+
+                    else:
+
+                        valores = (
+                            medicion_CWT_raw[
+                                "d"
+                            ][0].get(
+                                "v",
+                                []
+                            )
+                        )
+
+                        unidades = (
+                            medicion_CWT_raw[
+                                "d"
+                            ][0].get(
+                                "u",
+                                []
+                            )
+                        )
+
+
+                        temp_pt1000 = (
+                            valores[0]
+                            if len(
+                                valores
+                            ) > 0
+                            else None
+                        )
+
+
+                        unidad_ch1 = (
+                            unidades[0]
+                            if len(
+                                unidades
+                            ) > 0
+                            else None
+                        )
+
+
+                        medicion_CWT = {
+                            "d": [{
+                                "t":
+                                    medicion_CWT_raw[
+                                        "d"
+                                    ][0].get(
+                                        "t",
+                                        util.get__time_utc()
+                                    ),
+
+                                "g":
+                                    g_cwt,
+
+                                "v": [
+                                    temp_pt1000
+                                ],
+
+                                "u": [
+                                    unidad_ch1
+                                ]
+                            }]
+                        }
+
+
+                        if temp_pt1000 not in [
+                            None,
+                            "None",
+                            ""
+                        ]:
+
+                            util.logging.info(
+                                "CWT-PT1000 → "
+                                f"CH1 Temp="
+                                f"{temp_pt1000} °C"
+                            )
+
+                        else:
+
+                            util.logging.warning(
+                                "[CWT-PT1000] "
+                                "CH1 sin valor válido."
+                            )
+
+
+        except Exception as e:
+
+            util.logging.error(
+                "[CWT-PT1000] "
+                f"Error: "
+                f"{type(e).__name__}: {e}"
+            )
+
+            medicion_CWT = (
+                payload_sin_datos(
+                    config_CWT,
+                    1
+                )
+            )
+
+
+        medicionSensorCWT = (
+            json.dumps(
+                medicion_CWT
+            )
+        )
+
+
+        # =====================================================
         # RETORNO
-        # =========================================================
-        
+        # =====================================================
 
         return {
-            'sensor_CT01CO2': medicionSensorCT01CO2,
-            'sensor_THT03R':  medicionSensorTHT03R,
-            'sensor_PT21A01': medicionSensorPT21A01,
-            'sensor_C2H4':    medicionSensorC2H4,
-            'sensor_CWT':     medicionSensorCWT
+
+            "sensor_CT01CO2":
+                medicionSensorCT01CO2,
+
+            "sensor_THT03R":
+                medicionSensorTHT03R,
+
+            "sensor_PT21A01":
+                medicionSensorPT21A01,
+
+            "sensor_C2H4":
+                medicionSensorC2H4,
+
+            "sensor_CWT":
+                medicionSensorCWT
         }
 
-    except Exception as e:
-        util.logging.error(f"Error general en obtener_datos_medidores_y_sensor: {e}")
-        resultado = {'sensor_CT01CO2': json.dumps(None),'sensor_THT03R':  json.dumps(None),'sensor_PT21A01': json.dumps(None)}
 
-        util.logging.info(f"[SENSORES] Resultado → {resultado}")
+    except Exception as e:
+
+        util.logging.error(
+            "[SENSORES] "
+            "Error general: "
+            f"{type(e).__name__}: {e}"
+        )
+
+
+        resultado = {
+
+            "sensor_CT01CO2":
+                json.dumps(
+                    None
+                ),
+
+            "sensor_THT03R":
+                json.dumps(
+                    None
+                ),
+
+            "sensor_PT21A01":
+                json.dumps(
+                    None
+                ),
+
+            "sensor_C2H4":
+                json.dumps(
+                    None
+                ),
+
+            "sensor_CWT":
+                json.dumps(
+                    None
+                )
+        }
+
+
+        util.logging.info(
+            "[SENSORES] "
+            f"Resultado → {resultado}"
+        )
+
 
         return resultado
         

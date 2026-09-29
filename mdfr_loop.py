@@ -619,12 +619,16 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                             os.getenv("CFG_DISPLAY"),
                             os.getenv("CFG_DISPLAY_SECTION")
                         )
+                        display_enabled = bool(config_display.get("enabled", True ))
+                        
+                        if display_enabled:
 
-                        modbusdevices.display_write_temperature(
-                            config_display,
-                            temp_c
-                        )
+                            modbusdevices.display_write_temperature(config_display, temp_c )
 
+                        else:
+
+                            util.logging.info("[DISPLAY] Deshabilitado por YAML.")
+                        
                     else:
                         util.logging.warning(
                             "[DISPLAY] THT03R sin temperatura válida; "
