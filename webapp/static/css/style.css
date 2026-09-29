@@ -662,3 +662,307 @@ footer {
     font-weight: 700;
     color: #263842;
 }
+
+/* =========================================================
+   ACTUADORES VISUALES
+   ========================================================= */
+
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 16px;
+}
+
+.actuator-grid {
+    display: grid;
+    grid-template-columns:
+        repeat(
+            auto-fit,
+            minmax(145px, 1fr)
+        );
+
+    gap: 14px;
+}
+
+.actuator-box {
+    background: #ffffff;
+    border: 1px solid #d8dee4;
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+    min-height: 125px;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
+    box-shadow:
+        0 2px 5px
+        rgba(0, 0, 0, 0.05);
+}
+
+.actuator-icon {
+    height: 32px;
+    min-width: 32px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    margin-bottom: 7px;
+
+    font-size: 22px;
+    font-weight: 700;
+
+    color: #35596b;
+}
+
+.actuator-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 10px;
+}
+
+.actuator-state {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    gap: 7px;
+
+    padding:
+        6px 12px;
+
+    border-radius:
+        999px;
+
+    font-size:
+        13px;
+
+    font-weight:
+        800;
+}
+
+.status-light {
+    width: 11px;
+    height: 11px;
+
+    border-radius:
+        50%;
+
+    display:
+        inline-block;
+}
+
+
+/* ON */
+
+.state-on {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.state-on .status-light {
+    background: #22c55e;
+
+    box-shadow:
+        0 0 7px
+        rgba(34, 197, 94, 0.8);
+}
+
+
+/* OFF */
+
+.state-off {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.state-off .status-light {
+    background: #ef4444;
+
+    box-shadow:
+        0 0 7px
+        rgba(239, 68, 68, 0.65);
+}
+
+
+/* SIN DATOS */
+
+.state-unknown {
+    background: #f3f4f6;
+    color: #6b7280;
+}
+
+.state-unknown .status-light {
+    background: #9ca3af;
+}
+
+
+.last-update {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+
+/* =========================================================
+   PROCESO
+   ========================================================= */
+
+.process-status {
+    padding: 8px 16px;
+    border-radius: 999px;
+
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.process-status-on {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.process-status-off {
+    background: #f3f4f6;
+    color: #6b7280;
+}
+
+
+.process-grid-visual {
+    display: grid;
+
+    grid-template-columns:
+        repeat(
+            auto-fit,
+            minmax(160px, 1fr)
+        );
+
+    gap: 12px;
+
+    margin-bottom: 18px;
+}
+
+.process-info-card {
+    background: #f8fafc;
+
+    border:
+        1px solid
+        #e2e8f0;
+
+    border-radius:
+        9px;
+
+    padding:
+        12px;
+}
+
+.process-label {
+    display: block;
+
+    color: #64748b;
+
+    font-size:
+        12px;
+
+    margin-bottom:
+        5px;
+}
+
+.process-info-card strong {
+    font-size:
+        16px;
+
+    color:
+        #1e293b;
+}
+
+
+/* BOTONES */
+
+.process-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.btn-process {
+    border: none;
+
+    border-radius:
+        8px;
+
+    padding:
+        12px 20px;
+
+    font-size:
+        13px;
+
+    font-weight:
+        800;
+
+    cursor:
+        pointer;
+
+    display:
+        inline-flex;
+
+    align-items:
+        center;
+
+    gap:
+        9px;
+}
+
+.btn-start {
+    background:
+        #15803d;
+
+    color:
+        white;
+}
+
+.btn-start:hover {
+    background:
+        #166534;
+}
+
+.btn-stop {
+    background:
+        #b91c1c;
+
+    color:
+        white;
+}
+
+.btn-stop:hover {
+    background:
+        #991b1b;
+}
+
+.btn-process:disabled {
+    opacity:
+        0.4;
+
+    cursor:
+        not-allowed;
+}
+
+.btn-process-icon {
+    font-size:
+        15px;
+}
+
+.process-message {
+    margin-top:
+        10px;
+
+    min-height:
+        20px;
+
+    font-size:
+        13px;
+}

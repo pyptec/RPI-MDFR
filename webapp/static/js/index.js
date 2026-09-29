@@ -1,3 +1,7 @@
+// =========================================================
+// UTILIDADES
+// =========================================================
+
 function mostrarValor(
     id,
     dato,
@@ -5,11 +9,15 @@ function mostrarValor(
 ) {
 
     const elemento =
-        document.getElementById(id);
+        document.getElementById(
+            id
+        );
+
 
     if (!elemento) {
         return;
     }
+
 
     if (
         !dato ||
@@ -23,10 +31,18 @@ function mostrarValor(
         return;
     }
 
-    let valor =
-        Number(dato.valor);
 
-    if (!Number.isFinite(valor)) {
+    const valor =
+        Number(
+            dato.valor
+        );
+
+
+    if (
+        !Number.isFinite(
+            valor
+        )
+    ) {
 
         elemento.innerText =
             "Sin datos";
@@ -34,34 +50,51 @@ function mostrarValor(
         return;
     }
 
+
     let textoValor;
 
+
     if (
-        unidadEsperada === "ppm"
+        unidadEsperada ===
+        "ppm"
     ) {
 
         textoValor =
-            valor.toFixed(0);
+            valor.toFixed(
+                0
+            );
 
-    } else {
+    }
+
+    else {
 
         textoValor =
-            valor.toFixed(1);
+            valor.toFixed(
+                1
+            );
     }
+
 
     elemento.innerText =
         `${textoValor} ${unidadEsperada}`;
 }
 
 
-function formatoFecha(timestamp) {
+
+function formatoFecha(
+    timestamp
+) {
 
     if (!timestamp) {
         return "--";
     }
 
+
     const fecha =
-        new Date(timestamp);
+        new Date(
+            timestamp
+        );
+
 
     return fecha.toLocaleString(
         "es-CO",
@@ -94,14 +127,24 @@ function formatoFecha(timestamp) {
 }
 
 
+
+// =========================================================
+// MEDICIONES ACTUALES
+// =========================================================
+
 async function actualizarValores() {
 
     try {
 
         const response =
             await fetch(
-                "/api/actual"
+                "/api/actual",
+                {
+                    cache:
+                        "no-store"
+                }
             );
+
 
         if (!response.ok) {
 
@@ -112,6 +155,7 @@ async function actualizarValores() {
 
             return;
         }
+
 
         const data =
             await response.json();
@@ -159,7 +203,13 @@ async function actualizarValores() {
         );
 
 
-        let ultimaFecha = null;
+        // =============================================
+        // ÚLTIMA ACTUALIZACIÓN
+        // =============================================
+
+        let ultimaFecha =
+            null;
+
 
         Object.values(
             data
@@ -175,6 +225,7 @@ async function actualizarValores() {
                         new Date(
                             dato.timestamp
                         );
+
 
                     if (
                         !ultimaFecha ||
@@ -195,23 +246,30 @@ async function actualizarValores() {
                 "ultimaActualizacion"
             );
 
+
         if (elemento) {
 
             if (ultimaFecha) {
 
                 elemento.innerText =
                     formatoFecha(
-                        ultimaFecha.toISOString()
+                        ultimaFecha
+                        .toISOString()
                     );
 
-            } else {
+            }
+
+            else {
 
                 elemento.innerText =
                     "Sin datos";
             }
         }
 
-    } catch (error) {
+
+    }
+
+    catch (error) {
 
         console.error(
             "Error actualizando valores:",
@@ -221,73 +279,134 @@ async function actualizarValores() {
 }
 
 
-// Primera carga
-//actualizarValores();
 
-let inicioProcesoHomeMs = null;
+// =========================================================
+// PROCESO DE MADURACIÓN
+// =========================================================
+
+let inicioProcesoHomeMs =
+    null;
 
 
-function formatoDuracionHome(segundos) {
+
+function formatoDuracionHome(
+    segundos
+) {
 
     if (
         segundos === null ||
         segundos === undefined ||
-        isNaN(Number(segundos))
+        isNaN(
+            Number(
+                segundos
+            )
+        )
     ) {
+
         return "--";
     }
+
 
     let total =
         Math.max(
             0,
             Math.floor(
-                Number(segundos)
+                Number(
+                    segundos
+                )
             )
         );
 
+
     const dias =
         Math.floor(
-            total / 86400
+            total /
+            86400
         );
 
-    total %= 86400;
+
+    total %=
+        86400;
+
 
     const horas =
         Math.floor(
-            total / 3600
+            total /
+            3600
         );
 
-    total %= 3600;
+
+    total %=
+        3600;
+
 
     const minutos =
         Math.floor(
-            total / 60
+            total /
+            60
         );
 
-    const segundosRestantes =
-        total % 60;
 
-    if (dias > 0) {
+    const segundosRestantes =
+        total %
+        60;
+
+
+    if (
+        dias > 0
+    ) {
 
         return (
             dias +
             " d " +
-            String(horas).padStart(2, "0") +
+            String(
+                horas
+            ).padStart(
+                2,
+                "0"
+            ) +
             ":" +
-            String(minutos).padStart(2, "0") +
+            String(
+                minutos
+            ).padStart(
+                2,
+                "0"
+            ) +
             ":" +
-            String(segundosRestantes).padStart(2, "0")
+            String(
+                segundosRestantes
+            ).padStart(
+                2,
+                "0"
+            )
         );
     }
 
+
     return (
-        String(horas).padStart(2, "0") +
+        String(
+            horas
+        ).padStart(
+            2,
+            "0"
+        ) +
         ":" +
-        String(minutos).padStart(2, "0") +
+        String(
+            minutos
+        ).padStart(
+            2,
+            "0"
+        ) +
         ":" +
-        String(segundosRestantes).padStart(2, "0")
+        String(
+            segundosRestantes
+        ).padStart(
+            2,
+            "0"
+        )
     );
 }
+
 
 
 function actualizarTiempoProcesoHome() {
@@ -297,28 +416,70 @@ function actualizarTiempoProcesoHome() {
             "tiempoProceso"
         );
 
+
     if (!elemento) {
         return;
     }
 
-    if (inicioProcesoHomeMs === null) {
 
-        elemento.innerText = "--";
+    if (
+        inicioProcesoHomeMs ===
+        null
+    ) {
+
+        elemento.innerText =
+            "--";
 
         return;
     }
+
 
     const segundos =
         (
             Date.now() -
             inicioProcesoHomeMs
-        ) / 1000;
+        ) /
+        1000;
+
 
     elemento.innerText =
         formatoDuracionHome(
             segundos
         );
 }
+
+
+
+function actualizarBotonesProceso(
+    activo
+) {
+
+    const btnIniciar =
+        document.getElementById(
+            "btnIniciarProcesoHome"
+        );
+
+
+    const btnFinalizar =
+        document.getElementById(
+            "btnFinalizarProcesoHome"
+        );
+
+
+    if (btnIniciar) {
+
+        btnIniciar.disabled =
+            activo;
+    }
+
+
+    if (btnFinalizar) {
+
+        btnFinalizar.disabled =
+            !activo;
+    }
+}
+
 
 
 async function actualizarProcesoHome() {
@@ -329,14 +490,20 @@ async function actualizarProcesoHome() {
             await fetch(
                 "/api/proceso/actual",
                 {
-                    cache: "no-store"
+                    cache:
+                        "no-store"
                 }
             );
 
-        const dataProceso =
-            await responseProceso.json();
 
-        if (!responseProceso.ok) {
+        const dataProceso =
+            await responseProceso
+                .json();
+
+
+        if (
+            !responseProceso.ok
+        ) {
 
             throw new Error(
                 dataProceso.detail ||
@@ -350,31 +517,6 @@ async function actualizarProcesoHome() {
                 "estadoProceso"
             );
 
-        if (
-            !dataProceso.activo ||
-            !dataProceso.proceso
-        ) {
-
-            if (estado) {
-
-                estado.innerText =
-                    "SIN PROCESO";
-
-                estado.className =
-                    "estado-inactivo";
-            }
-
-        } else {
-
-            if (estado) {
-
-                estado.innerText =
-                    "ACTIVO";
-
-                estado.className =
-                    "estado-activo";
-            }
-        }
 
         const inicio =
             document.getElementById(
@@ -382,63 +524,134 @@ async function actualizarProcesoHome() {
             );
 
 
+        // =============================================
+        // SIN PROCESO ACTIVO
+        // =============================================
+
         if (
             !dataProceso.activo ||
             !dataProceso.proceso
         ) {
 
             if (estado) {
+
                 estado.innerText =
                     "SIN PROCESO";
+
+                estado.className =
+                    "process-status estado-inactivo";
             }
 
+
             if (inicio) {
+
                 inicio.innerText =
                     "--";
             }
 
-            inicioProcesoHomeMs = null;
-
-        } else {
-
-            const proceso =
-                dataProceso.proceso;
-
-            if (estado) {
-                estado.innerText =
-                    "ACTIVO";
-            }
-
-            if (inicio) {
-
-                inicio.innerText =
-                    formatoFecha(
-                        proceso.inicio
-                    );
-            }
 
             inicioProcesoHomeMs =
-                new Date(
-                    proceso.inicio
-                ).getTime();
+                null;
+
+
+            actualizarBotonesProceso(
+                false
+            );
+
+
+            const ciclos =
+                document.getElementById(
+                    "ciclosCO2"
+                );
+
+
+            const ultimo =
+                document.getElementById(
+                    "ultimoCicloCO2"
+                );
+
+
+            if (ciclos) {
+                ciclos.innerText =
+                    "0";
+            }
+
+
+            if (ultimo) {
+                ultimo.innerText =
+                    "--";
+            }
+
+
+            actualizarTiempoProcesoHome();
+
+            return;
         }
+
+
+        // =============================================
+        // PROCESO ACTIVO
+        // =============================================
+
+        const proceso =
+            dataProceso.proceso;
+
+
+        if (estado) {
+
+            estado.innerText =
+                "ACTIVO";
+
+            estado.className =
+                "process-status estado-activo";
+        }
+
+
+        if (inicio) {
+
+            inicio.innerText =
+                formatoFecha(
+                    proceso.inicio
+                );
+        }
+
+
+        inicioProcesoHomeMs =
+            new Date(
+                proceso.inicio
+            ).getTime();
+
+
+        actualizarBotonesProceso(
+            true
+        );
 
 
         actualizarTiempoProcesoHome();
 
 
+        // =============================================
+        // CICLOS CO2
+        // =============================================
+
         const responseCiclos =
             await fetch(
                 "/api/proceso/ciclos?modo=activo",
                 {
-                    cache: "no-store"
+                    cache:
+                        "no-store"
                 }
             );
 
-        const dataCiclos =
-            await responseCiclos.json();
 
-        if (!responseCiclos.ok) {
+        const dataCiclos =
+            await responseCiclos
+                .json();
+
+
+        if (
+            !responseCiclos.ok
+        ) {
 
             throw new Error(
                 dataCiclos.detail ||
@@ -452,6 +665,7 @@ async function actualizarProcesoHome() {
                 "ciclosCO2"
             );
 
+
         const ultimo =
             document.getElementById(
                 "ultimoCicloCO2"
@@ -461,12 +675,19 @@ async function actualizarProcesoHome() {
         if (ciclos) {
 
             ciclos.innerText =
-                dataCiclos.resumen &&
-                dataCiclos.resumen.ciclos !== undefined
+                (
+                    dataCiclos.resumen &&
+                    dataCiclos.resumen
+                        .ciclos !==
+                    undefined
+                )
 
-                    ? dataCiclos.resumen.ciclos
+                    ?
+                    dataCiclos.resumen
+                        .ciclos
 
-                    : 0;
+                    :
+                    0;
         }
 
 
@@ -474,9 +695,12 @@ async function actualizarProcesoHome() {
 
             const valor =
                 dataCiclos.resumen
-                    ? dataCiclos.resumen
+                    ?
+                    dataCiclos.resumen
                         .low_high_promedio_s
-                    : null;
+                    :
+                    null;
+
 
             ultimo.innerText =
                 formatoDuracionHome(
@@ -484,7 +708,10 @@ async function actualizarProcesoHome() {
                 );
         }
 
-    } catch (error) {
+
+    }
+
+    catch (error) {
 
         console.error(
             "Error actualizando proceso home:",
@@ -492,6 +719,205 @@ async function actualizarProcesoHome() {
         );
     }
 }
+
+
+
+// =========================================================
+// INICIAR PROCESO DESDE HOME
+// =========================================================
+
+async function iniciarProcesoHome() {
+
+    const confirmar =
+        window.confirm(
+            "¿Desea INICIAR un nuevo proceso de maduración?"
+        );
+
+
+    if (!confirmar) {
+        return;
+    }
+
+
+    const mensaje =
+        document.getElementById(
+            "mensajeProcesoHome"
+        );
+
+
+    if (mensaje) {
+
+        mensaje.innerText =
+            "Iniciando proceso...";
+    }
+
+
+    try {
+
+        const form =
+            new FormData();
+
+
+        form.append(
+            "lote",
+            ""
+        );
+
+
+        form.append(
+            "observaciones",
+            "Proceso iniciado manualmente desde Inicio"
+        );
+
+
+        const response =
+            await fetch(
+                "/api/proceso/iniciar",
+                {
+                    method:
+                        "POST",
+
+                    body:
+                        form
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.detail ||
+                "No se pudo iniciar el proceso"
+            );
+        }
+
+
+        if (mensaje) {
+
+            mensaje.innerText =
+                "Proceso iniciado correctamente.";
+        }
+
+
+        await actualizarProcesoHome();
+
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "Error iniciando proceso:",
+            error
+        );
+
+
+        if (mensaje) {
+
+            mensaje.innerText =
+                error.message;
+        }
+    }
+}
+
+
+
+// =========================================================
+// FINALIZAR PROCESO DESDE HOME
+// =========================================================
+
+async function finalizarProcesoHome() {
+
+    const confirmar =
+        window.confirm(
+            "¿Desea FINALIZAR el proceso de maduración actual?"
+        );
+
+
+    if (!confirmar) {
+        return;
+    }
+
+
+    const mensaje =
+        document.getElementById(
+            "mensajeProcesoHome"
+        );
+
+
+    if (mensaje) {
+
+        mensaje.innerText =
+            "Finalizando proceso...";
+    }
+
+
+    try {
+
+        const response =
+            await fetch(
+                "/api/proceso/finalizar",
+                {
+                    method:
+                        "POST"
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.detail ||
+                "No se pudo finalizar el proceso"
+            );
+        }
+
+
+        if (mensaje) {
+
+            mensaje.innerText =
+                "Proceso finalizado correctamente.";
+        }
+
+
+        inicioProcesoHomeMs =
+            null;
+
+
+        await actualizarProcesoHome();
+
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "Error finalizando proceso:",
+            error
+        );
+
+
+        if (mensaje) {
+
+            mensaje.innerText =
+                error.message;
+        }
+    }
+}
+
+
+
+// =========================================================
+// CALIDAD DE DATOS
+// =========================================================
 
 function formatoEdadDato(
     segundos
@@ -501,6 +927,7 @@ function formatoEdadDato(
         segundos === null ||
         segundos === undefined
     ) {
+
         return "--";
     }
 
@@ -511,7 +938,9 @@ function formatoEdadDato(
         );
 
 
-    if (segundos < 60) {
+    if (
+        segundos < 60
+    ) {
 
         return (
             `${Math.round(segundos)} s`
@@ -520,10 +949,13 @@ function formatoEdadDato(
 
 
     const minutos =
-        segundos / 60;
+        segundos /
+        60;
 
 
-    if (minutos < 60) {
+    if (
+        minutos < 60
+    ) {
 
         return (
             `${Math.round(minutos)} min`
@@ -532,13 +964,15 @@ function formatoEdadDato(
 
 
     const horas =
-        minutos / 60;
+        minutos /
+        60;
 
 
     return (
         `${horas.toFixed(1)} h`
     );
 }
+
 
 
 function pintarCalidadDato(
@@ -563,7 +997,7 @@ function pintarCalidadDato(
             "SIN DATOS";
 
         elemento.className =
-            "config-value estado-alerta";
+            "info-value estado-alerta";
 
         return;
     }
@@ -576,35 +1010,46 @@ function pintarCalidadDato(
 
 
     if (
-        dato.estado === "OK"
+        dato.estado ===
+        "OK"
     ) {
 
         elemento.innerText =
             `OK · hace ${edad}`;
 
         elemento.className =
-            "config-value estado-activo";
+            "info-value estado-activo";
 
-    } else if (
-        dato.estado === "ATRASADO"
+    }
+
+    else if (
+        dato.estado ===
+        "ATRASADO"
     ) {
 
         elemento.innerText =
             `ATRASADO · hace ${edad}`;
 
         elemento.className =
-            "config-value estado-alerta";
+            "info-value estado-alerta";
 
-    } else {
+    }
+
+    else {
 
         elemento.innerText =
             `SIN DATOS · hace ${edad}`;
 
         elemento.className =
-            "config-value estado-alerta";
+            "info-value estado-alerta";
     }
 }
 
+
+
+// =========================================================
+// ESTADO OPERATIVO
+// =========================================================
 
 async function actualizarEstadoOperacion() {
 
@@ -656,14 +1101,21 @@ async function actualizarEstadoOperacion() {
                 estado;
 
 
-            puerta.className =
-                (
-                    estado === "CERRADA"
-                )
-                    ?
-                    "config-value estado-activo"
-                    :
-                    "config-value estado-alerta";
+            if (
+                estado ===
+                "CERRADA"
+            ) {
+
+                puerta.style.color =
+                    "#15803d";
+
+            }
+
+            else {
+
+                puerta.style.color =
+                    "#b91c1c";
+            }
         }
 
 
@@ -682,7 +1134,8 @@ async function actualizarEstadoOperacion() {
             const activo =
                 data.seguridad
                     ?.hombre_atrapado
-                    ?.activo === true;
+                    ?.activo ===
+                true;
 
 
             man.innerText =
@@ -693,12 +1146,12 @@ async function actualizarEstadoOperacion() {
                     "NORMAL";
 
 
-            man.className =
+            man.style.color =
                 activo
                     ?
-                    "config-value estado-alerta"
+                    "#b91c1c"
                     :
-                    "config-value estado-activo";
+                    "#15803d";
         }
 
 
@@ -736,7 +1189,9 @@ async function actualizarEstadoOperacion() {
         );
 
 
-    } catch (error) {
+    }
+
+    catch (error) {
 
         console.error(
             "Error actualizarEstadoOperacion:",
@@ -744,6 +1199,13 @@ async function actualizarEstadoOperacion() {
         );
     }
 }
+
+
+
+// =========================================================
+// SALUD DEL SISTEMA
+// =========================================================
+
 async function actualizarSaludSistema() {
 
     try {
@@ -752,7 +1214,8 @@ async function actualizarSaludSistema() {
             await fetch(
                 "/api/sistema",
                 {
-                    cache: "no-store"
+                    cache:
+                        "no-store"
                 }
             );
 
@@ -789,16 +1252,18 @@ async function actualizarSaludSistema() {
                 internet.innerText =
                     "CONECTADO";
 
-                internet.className =
-                    "config-value estado-activo";
+                internet.style.color =
+                    "#15803d";
 
-            } else {
+            }
+
+            else {
 
                 internet.innerText =
                     "SIN INTERNET";
 
-                internet.className =
-                    "config-value estado-alerta";
+                internet.style.color =
+                    "#b91c1c";
             }
         }
 
@@ -817,7 +1282,9 @@ async function actualizarSaludSistema() {
 
             const pendientes =
                 Number(
-                    data.aws?.pendientes ?? 0
+                    data.aws
+                        ?.pendientes ??
+                    0
                 );
 
 
@@ -825,14 +1292,15 @@ async function actualizarSaludSistema() {
                 pendientes;
 
 
-            aws.className =
+            aws.style.color =
                 (
-                    pendientes === 0
+                    pendientes ===
+                    0
                 )
                     ?
-                    "config-value estado-activo"
+                    "#15803d"
                     :
-                    "config-value estado-alerta";
+                    "#b91c1c";
         }
 
 
@@ -849,7 +1317,8 @@ async function actualizarSaludSistema() {
         if (db) {
 
             const estado =
-                data.database?.estado ||
+                data.database
+                    ?.estado ||
                 "--";
 
 
@@ -857,14 +1326,15 @@ async function actualizarSaludSistema() {
                 estado;
 
 
-            db.className =
+            db.style.color =
                 (
-                    estado === "OK"
+                    estado ===
+                    "OK"
                 )
                     ?
-                    "config-value estado-activo"
+                    "#15803d"
                     :
-                    "config-value estado-alerta";
+                    "#b91c1c";
         }
 
 
@@ -893,25 +1363,32 @@ async function actualizarSaludSistema() {
                 cpu.innerText =
                     "--";
 
-            } else {
+                cpu.style.color =
+                    "#64748b";
+
+            }
+
+            else {
 
                 cpu.innerText =
                     `${temp} °C`;
 
 
-                cpu.className =
+                cpu.style.color =
                     (
                         temp < 70
                     )
                         ?
-                        "config-value estado-activo"
+                        "#15803d"
                         :
-                        "config-value estado-alerta";
+                        "#b91c1c";
             }
         }
 
 
-    } catch (error) {
+    }
+
+    catch (error) {
 
         console.error(
             "Error actualizarSaludSistema:",
@@ -919,6 +1396,109 @@ async function actualizarSaludSistema() {
         );
     }
 }
+
+
+
+// =========================================================
+// ACTUADORES - COLOR VISUAL
+// =========================================================
+
+function pintarActuador(
+    idElemento,
+    estado
+) {
+
+    const elemento =
+        document.getElementById(
+            idElemento
+        );
+
+
+    if (!elemento) {
+        return;
+    }
+
+
+    const texto =
+        elemento.querySelector(
+            ".status-text"
+        );
+
+
+    elemento.classList.remove(
+        "state-on",
+        "state-off",
+        "state-unknown"
+    );
+
+
+    // =============================================
+    // ON = VERDE
+    // =============================================
+
+    if (
+        estado ===
+        "ON"
+    ) {
+
+        elemento.classList.add(
+            "state-on"
+        );
+
+
+        if (texto) {
+
+            texto.innerText =
+                "ON";
+        }
+
+
+        return;
+    }
+
+
+    // =============================================
+    // OFF = ROJO
+    // =============================================
+
+    if (
+        estado ===
+        "OFF"
+    ) {
+
+        elemento.classList.add(
+            "state-off"
+        );
+
+
+        if (texto) {
+
+            texto.innerText =
+                "OFF";
+        }
+
+
+        return;
+    }
+
+
+    // =============================================
+    // SIN DATOS = GRIS
+    // =============================================
+
+    elemento.classList.add(
+        "state-unknown"
+    );
+
+
+    if (texto) {
+
+        texto.innerText =
+            "SIN DATOS";
+    }
+}
+
+
 
 // =========================================================
 // ACTUADORES
@@ -932,7 +1512,8 @@ async function actualizarActuadores() {
             await fetch(
                 "/api/actuadores",
                 {
-                    cache: "no-store"
+                    cache:
+                        "no-store"
                 }
             );
 
@@ -951,12 +1532,13 @@ async function actualizarActuadores() {
 
 
         const actuadores =
-            data.actuadores || {};
+            data.actuadores ||
+            {};
 
 
-        // -------------------------------------------------
-        // MAPA API -> ELEMENTO HTML
-        // -------------------------------------------------
+        // =============================================
+        // MAPA API -> HTML
+        // =============================================
 
         const mapa = {
 
@@ -977,31 +1559,20 @@ async function actualizarActuadores() {
         };
 
 
-        // -------------------------------------------------
-        // ACTUALIZAR ESTADOS
-        // -------------------------------------------------
+        // =============================================
+        // PINTAR ESTADOS
+        // =============================================
 
         for (
             const [
                 nombre,
                 idElemento
             ]
-            of Object.entries(
+            of
+            Object.entries(
                 mapa
             )
         ) {
-
-            const elemento =
-                document.getElementById(
-                    idElemento
-                );
-
-
-            if (!elemento) {
-
-                continue;
-            }
-
 
             const actuador =
                 actuadores[
@@ -1009,56 +1580,20 @@ async function actualizarActuadores() {
                 ];
 
 
-            if (!actuador) {
-
-                elemento.innerText =
-                    "--";
-
-                continue;
-            }
-
-
-            if (
-                actuador.estado ===
-                "ON"
-            ) {
-
-                elemento.innerText =
-                    "ON";
-
-            }
-
-            else if (
-                actuador.estado ===
-                "OFF"
-            ) {
-
-                elemento.innerText =
-                    "OFF";
-
-            }
-
-            else if (
-                actuador.estado ===
-                "SIN_DATOS"
-            ) {
-
-                elemento.innerText =
-                    "SIN DATOS";
-
-            }
-
-            else {
-
-                elemento.innerText =
-                    "--";
-            }
+            pintarActuador(
+                idElemento,
+                actuador
+                    ?
+                    actuador.estado
+                    :
+                    null
+            );
         }
 
 
-        // -------------------------------------------------
+        // =============================================
         // TIMESTAMP
-        // -------------------------------------------------
+        // =============================================
 
         const actualizacion =
             document.getElementById(
@@ -1068,25 +1603,14 @@ async function actualizarActuadores() {
 
         if (actualizacion) {
 
-            if (data.timestamp) {
-
-                const fecha =
-                    new Date(
-                        data.timestamp
-                    );
-
+            if (
+                data.timestamp
+            ) {
 
                 actualizacion.innerText =
                     "Última lectura: " +
-                    fecha.toLocaleString(
-                        "es-CO",
-                        {
-                            dateStyle:
-                                "short",
-
-                            timeStyle:
-                                "medium"
-                        }
+                    formatoFecha(
+                        data.timestamp
                     );
 
             }
@@ -1125,17 +1649,10 @@ async function actualizarActuadores() {
             of ids
         ) {
 
-            const elemento =
-                document.getElementById(
-                    id
-                );
-
-
-            if (elemento) {
-
-                elemento.innerText =
-                    "SIN DATOS";
-            }
+            pintarActuador(
+                id,
+                null
+            );
         }
 
 
@@ -1148,43 +1665,62 @@ async function actualizarActuadores() {
         if (actualizacion) {
 
             actualizacion.innerText =
-                "No se pudo consultar " +
-                "el estado de actuadores.";
+                "No se pudo consultar el estado de actuadores.";
         }
     }
 }
 
 
+
+// =========================================================
+// PRIMERA CARGA
+// =========================================================
+
 actualizarValores();
+
 actualizarProcesoHome();
+
 actualizarEstadoOperacion();
+
 actualizarSaludSistema();
+
 actualizarActuadores();
 
-setInterval(
-    actualizarActuadores,
-    10000
-);
 
-setInterval(
-    actualizarSaludSistema,
-    30000
-);
 
-setInterval(
-    actualizarEstadoOperacion,
-    10000
-);
+// =========================================================
+// ACTUALIZACIONES PERIÓDICAS
+// =========================================================
 
 setInterval(
     actualizarValores,
     10000
 );
 
+
 setInterval(
     actualizarProcesoHome,
     10000
 );
+
+
+setInterval(
+    actualizarEstadoOperacion,
+    10000
+);
+
+
+setInterval(
+    actualizarActuadores,
+    10000
+);
+
+
+setInterval(
+    actualizarSaludSistema,
+    30000
+);
+
 
 setInterval(
     actualizarTiempoProcesoHome,
