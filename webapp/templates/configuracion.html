@@ -251,7 +251,257 @@
 
 </section>
 
+<!-- =====================================================
+     RED ETHERNET LOCAL
+     ===================================================== -->
 
-<script src="/static/js/configuracion.js?v=20260928-1"></script>
+<section class="panel">
+
+    <h2>
+        Red Ethernet local
+    </h2>
+
+    <p class="subtitle">
+        Configuración IP fija de la interfaz eth0 para la red interna del cliente
+    </p>
+
+
+    <div
+        style="
+            padding:12px;
+            margin-bottom:18px;
+            background:#f8fafc;
+            border:1px solid #dbe3ea;
+            border-radius:8px;
+        "
+    >
+
+        <strong>
+            Estado actual
+        </strong>
+
+
+        <div
+            class="config-grid"
+            style="margin-top:12px;"
+        >
+
+            <div class="config-item">
+
+                <label>
+                    Interfaz
+                </label>
+
+                <div>
+                    <strong>
+                        eth0
+                    </strong>
+                </div>
+
+            </div>
+
+
+            <div class="config-item">
+
+                <label>
+                    Estado
+                </label>
+
+                <div>
+                    <strong id="redEstadoLink">
+                        --
+                    </strong>
+                </div>
+
+            </div>
+
+
+            <div class="config-item">
+
+                <label>
+                    IP actual
+                </label>
+
+                <div>
+                    <strong id="redIpActual">
+                        --
+                    </strong>
+                </div>
+
+            </div>
+
+
+            <div class="config-item">
+
+                <label>
+                    Máscara actual
+                </label>
+
+                <div>
+                    <strong id="redMascaraActual">
+                        --
+                    </strong>
+                </div>
+
+            </div>
+
+
+            <div class="config-item">
+
+                <label>
+                    Puerta de enlace actual
+                </label>
+
+                <div>
+                    <strong id="redGatewayActual">
+                        --
+                    </strong>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div class="config-grid">
+
+
+        <div class="config-item">
+
+            <label for="redIp">
+                Dirección IP
+            </label>
+
+            <div>
+
+                <input
+                    id="redIp"
+                    type="text"
+                    placeholder="10.195.6.147"
+                    autocomplete="off"
+                >
+
+            </div>
+
+        </div>
+
+
+        <div class="config-item">
+
+            <label for="redMascara">
+                Máscara de red
+            </label>
+
+            <div>
+
+                <input
+                    id="redMascara"
+                    type="text"
+                    value="255.255.240.0"
+                    placeholder="255.255.240.0"
+                    autocomplete="off"
+                >
+
+            </div>
+
+        </div>
+
+
+        <div class="config-item">
+
+            <label for="redGateway">
+                Puerta de enlace
+            </label>
+
+            <div>
+
+                <input
+                    id="redGateway"
+                    type="text"
+                    placeholder="Gateway de la red interna"
+                    autocomplete="off"
+                >
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div
+        style="
+            margin-top:16px;
+            padding:12px;
+            background:#fff7ed;
+            border:1px solid #fed7aa;
+            border-radius:8px;
+        "
+    >
+
+        <strong>
+            Importante
+        </strong>
+
+        <div style="margin-top:6px;">
+
+            Al aplicar una nueva dirección IP,
+            la conexión actual al dashboard puede perderse.
+
+            <br>
+
+            La nueva dirección de acceso será:
+
+            <strong id="redNuevaUrl">
+                --
+            </strong>
+
+        </div>
+
+    </div>
+
+
+    <div style="margin-top:20px;">
+
+        <button
+            type="button"
+            id="btnGuardarRed"
+            onclick="guardarConfiguracionRed()"
+        >
+            Aplicar configuración de red
+        </button>
+
+
+        <span
+            id="estadoGuardarRed"
+            style="margin-left:12px;"
+        ></span>
+
+    </div>
+
+
+    <div
+        style="
+            margin-top:16px;
+            font-size:13px;
+            color:#64748b;
+        "
+    >
+
+        <strong>
+            Arquitectura:
+        </strong>
+
+        eth0 = red interna del cliente |
+        usb0 = Internet / AWS |
+        wlan0 = mantenimiento
+
+    </div>
+
+</section>
+
+<script src="/static/js/configuracion.js?v=20261002-1"></script>
 
 {% endblock %}

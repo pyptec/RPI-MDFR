@@ -498,3 +498,586 @@ async function guardarConfiguracionHumedad() {
             false;
     }
 }
+// =========================================================
+// CONFIGURACIÓN RED ETHERNET
+// =========================================================
+
+function validarIPv4(
+    valor
+) {
+
+    const partes =
+        String(
+            valor
+        )
+        .trim()
+        .split(".");
+
+
+    if (
+        partes.length !== 4
+    ) {
+
+        return false;
+    }
+
+
+    return partes.every(
+        parte => {
+
+            if (
+                parte === ""
+            ) {
+
+                return false;
+            }
+
+
+            const numero =
+                Number(
+                    parte
+                );
+
+
+            return (
+                Number.isInteger(
+                    numero
+                )
+                &&
+                numero >= 0
+                &&
+                numero <= 255
+                &&
+                String(
+                    numero
+                ) ===
+                String(
+                    Number(
+                        parte
+                    )
+                )
+            );
+        }
+    );
+}
+
+
+// =========================================================
+// MOSTRAR NUEVA URL
+// =========================================================
+
+function actualizarNuevaUrlRed() {
+
+    const campoIp =
+        document.getElementById(
+            "redIp"
+        );
+
+
+    const campoUrl =
+        document.getElementById(
+            "redNuevaUrl"
+        );
+
+
+    if (
+        !campoIp ||
+        !campoUrl
+    ) {
+
+        return;
+    }
+
+
+    const ip =
+        campoIp.value.trim();
+
+
+    if (
+        validarIPv4(
+            ip
+        )
+    ) {
+
+        campoUrl.innerText =
+            `http://${ip}:8080`;
+
+    }
+
+    else {
+
+        campoUrl.innerText =
+            "--";
+    }
+}
+
+
+// =========================================================
+// CARGAR ESTADO DE RED
+// =========================================================
+
+async function cargarConfiguracionRed() {
+
+    try {
+
+        const response =
+            await fetch(
+                "/api/red/estado",
+                {
+                    cache:
+                        "no-store"
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (
+            !response.ok
+        ) {
+
+            throw new Error(
+                data.detail ||
+                "Error consultando red."
+            );
+        }
+
+
+        const red =
+            data.red ||
+            {};
+
+
+        const ipActual =
+            document.getElementById(
+                "redIpActual"
+            );
+
+
+        const mascaraActual =
+            document.getElementById(
+                "redMascaraActual"
+            );
+
+
+        const gatewayActual =
+            document.getElementById(
+                "redGatewayActual"
+            );
+
+
+        const estadoLink =
+            document.getElementById(
+                "redEstadoLink"
+            );
+
+
+        const campoIp =
+            document.getElementById(
+                "redIp"
+            );
+
+
+        const campoMascara =
+            document.getElementById(
+                "redMascara"
+            );
+
+
+        const campoGateway =
+            document.getElementById(
+                "redGateway"
+            );
+
+
+        if (
+            ipActual
+        ) {
+
+            ipActual.innerText =
+                red.ip ||
+                "--";
+        }
+
+
+        if (
+            mascaraActual
+        ) {
+
+            mascaraActual.innerText =
+                red.mascara ||
+                "--";
+        }
+
+
+        if (
+            gatewayActual
+        ) {
+
+            gatewayActual.innerText =
+                red.gateway ||
+                "--";
+        }
+
+
+        if (
+            estadoLink
+        ) {
+
+            estadoLink.innerText =
+                red.link ||
+                "--";
+        }
+
+
+        if (
+            campoIp
+            &&
+            red.ip
+        ) {
+
+            campoIp.value =
+                red.ip;
+        }
+
+
+        if (
+            campoMascara
+        ) {
+
+            campoMascara.value =
+                red.mascara ||
+                "255.255.240.0";
+        }
+
+
+        if (
+            campoGateway
+            &&
+            red.gateway
+        ) {
+
+            campoGateway.value =
+                red.gateway;
+        }
+
+
+        actualizarNuevaUrlRed();
+
+
+    }
+
+    catch (
+        error
+    ) {
+
+        console.error(
+            "Error cargarConfiguracionRed:",
+            error
+        );
+
+
+        const estado =
+            document.getElementById(
+                "estadoGuardarRed"
+            );
+
+
+        if (
+            estado
+        ) {
+
+            estado.innerText =
+                error.message;
+        }
+    }
+}
+
+
+// =========================================================
+// GUARDAR CONFIGURACIÓN DE RED
+// =========================================================
+
+async function guardarConfiguracionRed() {
+
+    const boton =
+        document.getElementById(
+            "btnGuardarRed"
+        );
+
+
+    const estado =
+        document.getElementById(
+            "estadoGuardarRed"
+        );
+
+
+    const ip =
+        document.getElementById(
+            "redIp"
+        )
+        .value
+        .trim();
+
+
+    const mascara =
+        document.getElementById(
+            "redMascara"
+        )
+        .value
+        .trim();
+
+
+    const gateway =
+        document.getElementById(
+            "redGateway"
+        )
+        .value
+        .trim();
+
+
+    // =====================================================
+    // VALIDACIÓN LOCAL
+    // =====================================================
+
+    if (
+        !validarIPv4(
+            ip
+        )
+    ) {
+
+        estado.innerText =
+            "Dirección IP inválida.";
+
+
+        return;
+    }
+
+
+    if (
+        !validarIPv4(
+            mascara
+        )
+    ) {
+
+        estado.innerText =
+            "Máscara inválida.";
+
+
+        return;
+    }
+
+
+    if (
+        !validarIPv4(
+            gateway
+        )
+    ) {
+
+        estado.innerText =
+            "Puerta de enlace inválida.";
+
+
+        return;
+    }
+
+
+    const nuevaUrl =
+        `http://${ip}:8080`;
+
+
+    const confirmar =
+        window.confirm(
+            "Se modificará la configuración de eth0.\n\n"
+            +
+            `IP: ${ip}\n`
+            +
+            `Máscara: ${mascara}\n`
+            +
+            `Gateway: ${gateway}\n\n`
+            +
+            "La conexión web actual puede perderse.\n"
+            +
+            "Después del cambio deberá ingresar por:\n\n"
+            +
+            nuevaUrl
+            +
+            "\n\n"
+            +
+            "¿Desea continuar?"
+        );
+
+
+    if (
+        !confirmar
+    ) {
+
+        return;
+    }
+
+
+    try {
+
+        boton.disabled =
+            true;
+
+
+        estado.innerText =
+            "Aplicando configuración...";
+
+
+        const response =
+            await fetch(
+                "/api/red/configurar",
+                {
+                    method:
+                        "POST",
+
+                    headers: {
+
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body:
+                        JSON.stringify(
+                            {
+                                ip:
+                                    ip,
+
+                                mascara:
+                                    mascara,
+
+                                gateway:
+                                    gateway
+                            }
+                        )
+                }
+            );
+
+
+        let data =
+            null;
+
+
+        try {
+
+            data =
+                await response.json();
+
+        }
+
+        catch (
+            error
+        ) {
+
+            // Es posible que la conexión se corte
+            // inmediatamente después de cambiar la IP.
+        }
+
+
+        if (
+            !response.ok
+        ) {
+
+            throw new Error(
+                (
+                    data
+                    &&
+                    data.detail
+                )
+                    ?
+                    data.detail
+                    :
+                    "No se pudo aplicar la configuración."
+            );
+        }
+
+
+        estado.innerText =
+            (
+                "Configuración aplicada. "
+                +
+                "Abra "
+                +
+                nuevaUrl
+            );
+
+
+        setTimeout(
+            function() {
+
+                window.location.href =
+                    nuevaUrl;
+
+            },
+            4000
+        );
+
+
+    }
+
+    catch (
+        error
+    ) {
+
+        console.error(
+            "Error guardarConfiguracionRed:",
+            error
+        );
+
+
+        // Si la IP cambió, el navegador puede reportar
+        // error aunque NetworkManager sí haya aplicado.
+        // Por eso mostramos la nueva URL.
+
+        estado.innerText =
+            (
+                error.message
+                +
+                " | Si la IP cambió, pruebe: "
+                +
+                nuevaUrl
+            );
+
+
+    }
+
+    finally {
+
+        boton.disabled =
+            false;
+    }
+}
+
+
+// =========================================================
+// EVENTOS DE LA PANTALLA DE RED
+// =========================================================
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function() {
+
+        cargarConfiguracionRed();
+
+
+        const campoIp =
+            document.getElementById(
+                "redIp"
+            );
+
+
+        if (
+            campoIp
+        ) {
+
+            campoIp.addEventListener(
+                "input",
+                actualizarNuevaUrlRed
+            );
+        }
+    }
+);

@@ -17,6 +17,8 @@ import tempfile
 import socket
 import shutil
 import time
+import subprocess
+import ipaddress
 # =========================================================
 # RUTAS
 # =========================================================
@@ -2423,6 +2425,837 @@ def _hay_internet():
         return False
 
 
+# =========================================================
+# CONFIGURACIÓN DE RED ETHERNET LOCAL
+# =========================================================
+#
+# Arquitectura:
+#
+# eth0  -> Red interna Alkosto
+#          IP fija
+#          acceso desde otras sedes / segmentos
+#
+# usb0  -> Dongle SIM7400
+#          Internet / AWS / IoTrack
+#
+# wlan0 -> Mantenimiento
+#          proxy inverso
+#
+# Este módulo modifica ÚNICAMENTE eth0.
+#
+# =========================================================
+
+RED_INTERFAZ = "eth0"
+
+
+# =========================================================
+# EJECUTAR COMANDO
+# =========================================================
+
+def _red_ejecutar(comando, timeout=10):
+
+    try:
+
+        resultado = subprocess.run(
+            comando,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False
+        )
+
+        return {
+            "ok": resultado.returncode == 0,
+            "codigo": resultado.returncode,
+            "stdout": resultado.stdout.strip(),
+            "stderr": resultado.stderr.strip()
+        }
+
+    except Exception as e:
+
+        return {
+            "ok": False,
+            "codigo": -1,
+            "stdout": "",
+            "stderr": f"{type(e).__name__}: {e}"
+        }
+
+
+# =========================================================
+# MÁSCARA A PREFIJO
+# =========================================================
+
+def _red_mascara_a_prefijo(mascara):
+
+    red = ipaddress.IPv4Network(
+        f"0.0.0.0/{mascara}"
+    )
+
+    return int(
+        red.prefixlen
+    )
+
+
+# =========================================================
+# PREFIJO A MÁSCARA
+# =========================================================
+
+def _red_prefijo_a_mascara(prefijo):
+
+    red = ipaddress.IPv4Network(
+        f"0.0.0.0/{int(prefijo)}"
+    )
+
+    return str(
+        red.netmask
+    )
+
+
+# =========================================================
+# OBTENER CONEXIÓN NETWORKMANAGER DE eth0
+# =========================================================
+
+def _red_obtener_conexion_eth0():
+
+    resultado = _red_ejecutar(
+        [
+            "nmcli",
+            "-t",
+            "-f",
+            "GENERAL.CONNECTION",
+            "device",
+            "show",
+            RED_INTERFAZ
+        ]
+    )
+
+    if not resultado["ok"]:
+        return None
+
+    texto = resultado["stdout"] or ""
+
+    if ":" not in texto:
+        return None
+
+    conexion = (
+        texto
+        .split(":", 1)[1]
+        .strip()
+    )
+
+    if (
+        not conexion
+        or
+        conexion == "--"
+    ):
+        return None
+
+    return conexion
+
+
+# =========================================================
+# OBTENER IP DE eth0
+# =========================================================
+
+def _red_obtener_ip_eth0():
+
+    resultado = _red_ejecutar(
+        [
+            "ip",
+            "-4",
+            "-o",
+            "addr",
+            "show",
+            "dev",
+            RED_INTERFAZ
+        ]
+    )
+
+    if not resultado["ok"]:
+
+        return {
+            "ip": None,
+            "prefijo": None,
+            "mascara": None
+        }
+
+    for linea in resultado["stdout"].splitlines():
+
+        partes = linea.split()
+
+        if "inet" not in partes:
+            continue
+
+        try:
+
+            indice = partes.index("inet")
+
+            direccion = partes[
+                indice + 1
+            ]
+
+            if "/" not in direccion:
+                continue
+
+            ip_texto, prefijo_texto = (
+                direccion.split(
+                    "/",
+                    1
+                )
+            )
+
+            ip_obj = ipaddress.IPv4Address(
+                ip_texto
+            )
+
+            if ip_obj.is_link_local:
+                continue
+
+            prefijo = int(
+                prefijo_texto
+            )
+
+            return {
+                "ip": str(ip_obj),
+                "prefijo": prefijo,
+                "mascara":
+                    _red_prefijo_a_mascara(
+                        prefijo
+                    )
+            }
+
+        except Exception:
+            continue
+
+    return {
+        "ip": None,
+        "prefijo": None,
+        "mascara": None
+    }
+
+
+# =========================================================
+# OBTENER GATEWAY REAL DE eth0
+# =========================================================
+#
+# Se lee desde la tabla de rutas.
+#
+# Esto funciona tanto si eth0 todavía está por DHCP
+# como cuando después quede configurada con IP fija.
+#
+# =========================================================
+
+def _red_obtener_gateway_eth0():
+
+    resultado = _red_ejecutar(
+        [
+            "ip",
+            "route",
+            "show",
+            "default",
+            "dev",
+            RED_INTERFAZ
+        ]
+    )
+
+    if not resultado["ok"]:
+        return None
+
+    for linea in resultado["stdout"].splitlines():
+
+        partes = linea.split()
+
+        if "via" not in partes:
+            continue
+
+        try:
+
+            indice = partes.index(
+                "via"
+            )
+
+            gateway = partes[
+                indice + 1
+            ]
+
+            ipaddress.IPv4Address(
+                gateway
+            )
+
+            return gateway
+
+        except Exception:
+            continue
+
+    # -----------------------------------------------------
+    # SEGUNDO MÉTODO:
+    # gateway almacenado en NetworkManager
+    # -----------------------------------------------------
+
+    conexion = (
+        _red_obtener_conexion_eth0()
+    )
+
+    if not conexion:
+        return None
+
+    resultado = _red_ejecutar(
+        [
+            "nmcli",
+            "-g",
+            "ipv4.gateway",
+            "connection",
+            "show",
+            conexion
+        ]
+    )
+
+    if not resultado["ok"]:
+        return None
+
+    gateway = (
+        resultado["stdout"]
+        .strip()
+    )
+
+    if not gateway:
+        return None
+
+    return gateway.split(
+        ",",
+        1
+    )[0]
+
+
+# =========================================================
+# ESTADO LINK eth0
+# =========================================================
+
+def _red_estado_link_eth0():
+
+    resultado = _red_ejecutar(
+        [
+            "nmcli",
+            "-t",
+            "-f",
+            "GENERAL.STATE",
+            "device",
+            "show",
+            RED_INTERFAZ
+        ]
+    )
+
+    if not resultado["ok"]:
+        return "DESCONOCIDO"
+
+    texto = (
+        resultado["stdout"]
+        .upper()
+    )
+
+    if (
+        "CONNECTED"
+        in texto
+        or
+        "CONECTADO"
+        in texto
+    ):
+        return "CONECTADO"
+
+    return "DESCONECTADO"
+
+
+# =========================================================
+# ESTADO COMPLETO DE eth0
+# =========================================================
+
+def _red_estado_eth0():
+
+    direccion = (
+        _red_obtener_ip_eth0()
+    )
+
+    conexion = (
+        _red_obtener_conexion_eth0()
+    )
+
+    gateway = (
+        _red_obtener_gateway_eth0()
+    )
+
+    link = (
+        _red_estado_link_eth0()
+    )
+
+    return {
+        "interfaz":
+            RED_INTERFAZ,
+
+        "conexion":
+            conexion,
+
+        "link":
+            link,
+
+        "ip":
+            direccion.get(
+                "ip"
+            ),
+
+        "mascara":
+            direccion.get(
+                "mascara"
+            ),
+
+        "prefijo":
+            direccion.get(
+                "prefijo"
+            ),
+
+        "gateway":
+            gateway
+    }
+
+
+# =========================================================
+# API - ESTADO DE RED
+# =========================================================
+
+@app.get(
+    "/api/red/estado"
+)
+async def api_red_estado():
+
+    try:
+
+        estado = (
+            _red_estado_eth0()
+        )
+
+        return {
+            "ok": True,
+            "red": estado
+        }
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Error obteniendo configuración "
+                "de eth0: "
+                f"{type(e).__name__}: {e}"
+            )
+        ) from e
+
+
+# =========================================================
+# API - CONFIGURAR eth0
+# =========================================================
+
+@app.post(
+    "/api/red/configurar"
+)
+async def api_red_configurar(
+    request: Request
+):
+
+    try:
+
+        datos = (
+            await request.json()
+        )
+
+        ip_texto = str(
+            datos.get(
+                "ip",
+                ""
+            )
+        ).strip()
+
+        mascara_texto = str(
+            datos.get(
+                "mascara",
+                ""
+            )
+        ).strip()
+
+        gateway_texto = str(
+            datos.get(
+                "gateway",
+                ""
+            )
+        ).strip()
+
+
+        # =================================================
+        # CAMPOS OBLIGATORIOS
+        # =================================================
+
+        if (
+            not ip_texto
+            or
+            not mascara_texto
+            or
+            not gateway_texto
+        ):
+
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "IP, máscara y puerta de enlace "
+                    "son obligatorias."
+                )
+            )
+
+
+        # =================================================
+        # VALIDAR IPv4
+        # =================================================
+
+        try:
+
+            ip_obj = (
+                ipaddress.IPv4Address(
+                    ip_texto
+                )
+            )
+
+            gateway_obj = (
+                ipaddress.IPv4Address(
+                    gateway_texto
+                )
+            )
+
+            prefijo = (
+                _red_mascara_a_prefijo(
+                    mascara_texto
+                )
+            )
+
+        except Exception as e:
+
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "IP, máscara o puerta de enlace "
+                    "inválida."
+                )
+            ) from e
+
+
+        # =================================================
+        # CALCULAR SUBRED
+        # =================================================
+
+        red = (
+            ipaddress.IPv4Network(
+                f"{ip_obj}/{prefijo}",
+                strict=False
+            )
+        )
+
+
+        # =================================================
+        # VALIDAR IP
+        # =================================================
+
+        if (
+            ip_obj ==
+            red.network_address
+        ):
+
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "La IP no puede ser la "
+                    "dirección de red."
+                )
+            )
+
+        if (
+            ip_obj ==
+            red.broadcast_address
+        ):
+
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "La IP no puede ser la "
+                    "dirección broadcast."
+                )
+            )
+
+
+        # =================================================
+        # VALIDAR GATEWAY
+        # =================================================
+
+        if (
+            gateway_obj
+            not in red
+        ):
+
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "La puerta de enlace debe "
+                    "pertenecer a la misma subred "
+                    "de eth0."
+                )
+            )
+
+        if (
+            gateway_obj ==
+            ip_obj
+        ):
+
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "La puerta de enlace no puede "
+                    "ser igual a la IP del equipo."
+                )
+            )
+
+
+        # =================================================
+        # OBTENER CONEXIÓN NETWORKMANAGER
+        # =================================================
+
+        conexion = (
+            _red_obtener_conexion_eth0()
+        )
+
+        if not conexion:
+
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "No se encontró una conexión "
+                    "NetworkManager activa para eth0."
+                )
+            )
+
+
+        direccion = (
+            f"{ip_obj}/{prefijo}"
+        )
+
+
+        # =================================================
+        # CONFIGURAR IP FIJA
+        # =========================================================
+        #
+        # IMPORTANTE:
+        #
+        # Solamente modifica eth0.
+        #
+        # NO toca usb0.
+        # NO toca wlan0.
+        #
+        # eth0:
+        #
+        # IP fija
+        # gateway corporativo
+        # sin DNS
+        # métrica 100
+        #
+        # =================================================
+
+        comando = [
+            "sudo",
+            "-n",
+            "nmcli",
+
+            "connection",
+            "modify",
+            conexion,
+
+            "ipv4.method",
+            "manual",
+
+            "ipv4.addresses",
+            direccion,
+
+            "ipv4.gateway",
+            str(
+                gateway_obj
+            ),
+
+            "ipv4.dns",
+            "",
+
+            "ipv4.ignore-auto-dns",
+            "yes",
+
+            "ipv4.never-default",
+            "no",
+
+            "ipv4.route-metric",
+            "100"
+        ]
+
+
+        resultado = (
+            _red_ejecutar(
+                comando,
+                timeout=15
+            )
+        )
+
+
+        if not resultado["ok"]:
+
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "NetworkManager no pudo "
+                    "guardar la configuración: "
+                    +
+                    (
+                        resultado["stderr"]
+                        or
+                        resultado["stdout"]
+                    )
+                )
+            )
+
+
+        # =================================================
+        # REGISTRAR EVENTO
+        # =================================================
+
+        try:
+
+            db_service.guardar_evento(
+                tipo=
+                    "CONFIG_RED",
+
+                estado=
+                    "ACTUALIZADA",
+
+                valor=
+                    None,
+
+                detalle=(
+                    f"eth0 | "
+                    f"IP={ip_obj} | "
+                    f"MASK={mascara_texto} | "
+                    f"PREFIX=/{prefijo} | "
+                    f"GW={gateway_obj}"
+                )
+            )
+
+        except Exception as e:
+
+            print(
+                "[RED] No se pudo guardar "
+                f"evento CONFIG_RED: {e}"
+            )
+
+
+        # =================================================
+        # REACTIVAR CONEXIÓN
+        # =========================================================
+        #
+        # Después de este comando puede perderse
+        # momentáneamente la conexión web.
+        #
+        # =================================================
+
+        resultado_up = (
+            _red_ejecutar(
+                [
+                    "sudo",
+                    "-n",
+                    "nmcli",
+                    "connection",
+                    "up",
+                    conexion
+                ],
+                timeout=20
+            )
+        )
+
+
+        # =================================================
+        # RESPUESTA
+        # =================================================
+
+        return {
+            "ok":
+                resultado_up["ok"],
+
+            "mensaje":
+                (
+                    "Configuración de eth0 aplicada."
+                ),
+
+            "red": {
+
+                "interfaz":
+                    RED_INTERFAZ,
+
+                "conexion":
+                    conexion,
+
+                "ip":
+                    str(
+                        ip_obj
+                    ),
+
+                "mascara":
+                    mascara_texto,
+
+                "prefijo":
+                    prefijo,
+
+                "gateway":
+                    str(
+                        gateway_obj
+                    ),
+
+                "url":
+                    (
+                        f"http://{ip_obj}:8080"
+                    )
+            },
+
+            "reactivacion": {
+
+                "ok":
+                    resultado_up["ok"],
+
+                "detalle":
+                    (
+                        resultado_up[
+                            "stderr"
+                        ]
+                        or
+                        resultado_up[
+                            "stdout"
+                        ]
+                    )
+            }
+        }
+
+
+    except HTTPException:
+
+        raise
+
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Error configurando eth0: "
+                f"{type(e).__name__}: {e}"
+            )
+        ) from e
+
 @app.get(
     "/api/sistema"
 )
@@ -3841,3 +4674,4 @@ async def api_estado_operacion():
                 f"{type(e).__name__}: {e}"
             )
         ) from e 
+        
