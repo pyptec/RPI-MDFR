@@ -1,6 +1,6 @@
 medidores:
   mdfr_process:
-    id_device: 52
+    id_device: 54       #52
     name: "MDFR_PROCESS"
 
     variables:

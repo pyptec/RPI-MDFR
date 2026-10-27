@@ -1,6 +1,6 @@
 medidores:
   samsung_mim_b19n:
-    id: 50 #38
+    id: 38 #38 50
     name: "Samsung MIM-B19N HVAC"
     slave_id: 1
     port: "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_AB0OI4DA-if00-port0"
