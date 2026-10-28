@@ -350,12 +350,14 @@ def all_relay():
     with _safety_actuation_lock:
 
         cfg = _cfg_relays()
-        
+
         # =====================================================
         # 1. APAGAR TODOS LOS RELÉS MODBUS
         # =====================================================
 
-        ok = modbusdevices.relay_set(cfg, 'all_off')
+        ok_modbus = modbusdevices.relay_set(cfg, 'all_off')
+        
+
         # =====================================================
         # 2. APAGAR AIRE FRESCO GPIO10
         # =====================================================
@@ -374,39 +376,33 @@ def all_relay():
                 f"[ALL_OFF] Error apagando aire fresco: "
                 f"{type(e).__name__}: {e}"
             )
+
         # =====================================================
         # 3. ACTUALIZAR SQLITE
         # =====================================================
 
+        if ok_modbus:
 
-        if ok:
             for nombre in (
                 "recircular",
                 "extractor",
                 "humidificador",
                 "etileno"
             ):
-                _guardar_estado_actuador_db(
-                    cfg,
-                    nombre,
-                    False
-                )
+
+                _guardar_estado_actuador_db(cfg, nombre, False)
 
         if ok_aire:
 
-            _guardar_estado_actuador_db(
-                cfg,
-                "aire_fresco",
-                False
-            )
+            _guardar_estado_actuador_db(cfg, "aire_fresco", False)
 
         util.logging.info(
             f"[ALL_OFF] "
-            f"MODBUS={'OK' if ok else 'FALLO'} | "
+            f"MODBUS={'OK' if ok_modbus else 'FALLO'} | "
             f"AIRE_FRESCO={'OFF' if ok_aire else 'FALLO'}"
         )
 
-        return bool(ok and ok_aire)
+        return bool(ok_modbus and ok_aire)
 #-----------------------------------------------------------------------------------------------------------
 #Rele interno que activa la sirena 
 #-----------------------------------------------------------------------------------------------------------
