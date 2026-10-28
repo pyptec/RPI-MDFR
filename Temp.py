@@ -151,6 +151,62 @@ def _cfg_relays():
     cfg = util.cargar_configuracion(RELAY_YAML, RELAY_KEY)
     util.logging.info(f"[RELAYS] {cfg.get('device_name')} port={cfg.get('port')} slave={cfg.get('slave_id')}")
     return cfg
+
+#-----------------------------------------------------------------
+# Actualiza inmediatamente en SQLite el estado de un actuador.
+#
+# IMPORTANTE:
+# - Para relés Modbus se llama SOLO después de que relay_set()
+#   retorna True, es decir, después de confirmación FC01.
+# - Para aire_fresco se llama después de escribir GPIO10.
+# - NO agrega lecturas Modbus adicionales.
+#-----------------------------------------------------------------
+def _guardar_estado_actuador_db(cfg, actuator_name: str, on: bool) -> bool:
+
+    try:
+
+        reg = next(
+            (
+                r
+                for r in cfg.get("registers", [])
+                if str(r.get("name")) == str(actuator_name)
+            ),
+            None
+        )
+
+        if reg is None:
+            util.logging.warning(
+                f"[DB][ACTUADOR] '{actuator_name}' no existe en YAML; "
+                "no se guarda estado."
+            )
+            return False
+
+        ok = db_service.guardar_medicion(
+            sensor=str(cfg["device_name"]),
+            variable=str(actuator_name),
+            valor=1 if bool(on) else 0,
+            unidad=reg.get("unit"),
+            timestamp_utc=util.get__time_utc()
+        )
+
+        if ok:
+            util.logging.info(
+                f"[DB][ACTUADOR] {actuator_name}="
+                f"{'ON' if on else 'OFF'} guardado inmediatamente."
+            )
+
+        return bool(ok)
+
+    except Exception as e:
+
+        # La persistencia para la web jamás debe interferir
+        # con el control físico del proceso.
+        util.logging.error(
+            f"[DB][ACTUADOR] Error guardando '{actuator_name}': "
+            f"{type(e).__name__}: {e}"
+        )
+
+        return False
 #-----------------------------------------------------------------
 #
 #-----------------------------------------------------------------
@@ -213,8 +269,12 @@ def setgas(on: bool):
 
         cfg = _cfg_relays()
 
-        return modbusdevices.relay_set(cfg, 'etileno', bool(on))
-
+        ok = modbusdevices.relay_set(cfg, 'etileno', bool(on))
+        
+        if ok:
+            _guardar_estado_actuador_db(cfg, "etileno", bool(on))
+        
+        return ok
 
 #-----------------------------------------------------------------------------------------------------------
 # rele extractor abre una ventana
@@ -230,7 +290,12 @@ def setextractor(on: bool):
 
         cfg = _cfg_relays()
 
-        return modbusdevices.relay_set(cfg, 'extractor', bool(on))
+        ok = modbusdevices.relay_set(cfg, 'extractor', bool(on))
+        
+        if ok:
+            _guardar_estado_actuador_db(cfg, "extractor", bool(on))
+        
+        return ok
 
 
 #-----------------------------------------------------------------------------------------------------------
@@ -244,8 +309,13 @@ def setrecircular(on: bool):
             return False
 
         cfg = _cfg_relays()
+        
+        ok = modbusdevices.relay_set(cfg, 'recircular', bool(on))
+        
+        if ok:
+            _guardar_estado_actuador_db(cfg, "recircular", bool(on))
 
-        return modbusdevices.relay_set(cfg, 'recircular', bool(on))
+        return ok
 
 
 #-----------------------------------------------------------------------------------------------------------
@@ -260,7 +330,13 @@ def sethumidificador(on: bool):
 
         cfg = _cfg_relays()
 
-        return modbusdevices.relay_set(cfg, 'humidificador', bool(on))
+        ok = modbusdevices.relay_set(cfg, 'humidificador', bool(on))
+        
+        if ok:
+            _guardar_estado_actuador_db(cfg, "humidificador", bool(on))
+
+        return ok
+        
 
 
 #-----------------------------------------------------------------------------------------------------------
@@ -269,13 +345,68 @@ def sethumidificador(on: bool):
 def all_relay():
 
     # OFF siempre está permitido.
-    # Queda serializado con cualquier intento de ON.
+    # Apaga los 4 relés DIOUSTOU + aire fresco GPIO10.
 
     with _safety_actuation_lock:
 
         cfg = _cfg_relays()
+        
+        # =====================================================
+        # 1. APAGAR TODOS LOS RELÉS MODBUS
+        # =====================================================
 
-        return modbusdevices.relay_set(cfg, 'all_off')
+        ok = modbusdevices.relay_set(cfg, 'all_off')
+        # =====================================================
+        # 2. APAGAR AIRE FRESCO GPIO10
+        # =====================================================
+
+        try:
+
+            GPIO.output(GPIO10_RELAY_AIRE_FRESCO, False)
+
+            ok_aire = True
+
+        except Exception as e:
+
+            ok_aire = False
+
+            util.logging.error(
+                f"[ALL_OFF] Error apagando aire fresco: "
+                f"{type(e).__name__}: {e}"
+            )
+        # =====================================================
+        # 3. ACTUALIZAR SQLITE
+        # =====================================================
+
+
+        if ok:
+            for nombre in (
+                "recircular",
+                "extractor",
+                "humidificador",
+                "etileno"
+            ):
+                _guardar_estado_actuador_db(
+                    cfg,
+                    nombre,
+                    False
+                )
+
+        if ok_aire:
+
+            _guardar_estado_actuador_db(
+                cfg,
+                "aire_fresco",
+                False
+            )
+
+        util.logging.info(
+            f"[ALL_OFF] "
+            f"MODBUS={'OK' if ok_modbus else 'FALLO'} | "
+            f"AIRE_FRESCO={'OFF' if ok_aire else 'FALLO'}"
+        )
+
+        return bool(ok and ok_aire)
 #-----------------------------------------------------------------------------------------------------------
 #Rele interno que activa la sirena 
 #-----------------------------------------------------------------------------------------------------------
@@ -302,6 +433,11 @@ def setairefresco(on: bool):
             return False
 
         GPIO.output(GPIO10_RELAY_AIRE_FRESCO, bool(on))
+        # El estado GPIO puede persistirse inmediatamente sin
+        # realizar ninguna lectura Modbus adicional.
+        cfg = _cfg_relays()
+        _guardar_estado_actuador_db(cfg, "aire_fresco", bool(on))
+
 
         return True
 #-----------------------------------------------------------------------------------------------------------

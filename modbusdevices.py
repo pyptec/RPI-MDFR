@@ -847,6 +847,8 @@ def relay_read_states(config) -> dict:
             relay_regs = [
                 reg for reg in config.get('registers', [])
                 if reg.get('type') != 'gpio'
+                and int(reg.get('fc_read', 0) or 0) == 1
+                and int(reg.get('fc_write', 0) or 0) == 5
             ]
             try:
                 start_addr, quantity, data_bytes = _relay_read_packed_locked(inst, config)
