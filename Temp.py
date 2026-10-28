@@ -402,7 +402,7 @@ def all_relay():
 
         util.logging.info(
             f"[ALL_OFF] "
-            f"MODBUS={'OK' if ok_modbus else 'FALLO'} | "
+            f"MODBUS={'OK' if ok else 'FALLO'} | "
             f"AIRE_FRESCO={'OFF' if ok_aire else 'FALLO'}"
         )
 
