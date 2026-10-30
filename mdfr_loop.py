@@ -378,12 +378,8 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                             )
 
                         elif evento_ciclo == "CICLO_COMPLETO":
-                            low_high_s = float(
-                                resultado_ciclo.get("co2_low_high_time", 0) or 0
-                            )
-                            purga_s = float(
-                                resultado_ciclo.get("co2_purge_time", 0) or 0
-                            )
+                            low_high_s = float(resultado_ciclo.get("co2_low_high_time", 0) or 0)
+                            purga_s = float(resultado_ciclo.get("co2_purge_time", 0) or 0)
                             intervalo_s = resultado_ciclo.get("co2_cycle_interval")
 
                             util.logging.warning(
@@ -396,7 +392,15 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                                 f"CO2 inicio={resultado_ciclo.get('co2_purge_start_ppm')} ppm | "
                                 f"CO2 fin={resultado_ciclo.get('co2_purge_end_ppm')} ppm"
                             )
+                            # Enviar el resumen completo del ciclo a la cola AWS/iotrack.
+                            queue_id = encolar_mdfr_process(resultado_ciclo)
 
+                            if queue_id is None:
+                                util.logging.warning(
+                                    "[MDFR_PROCESS] "
+                                    "CICLO_COMPLETO no pudo encolarse."
+                                )
+                            
                     except Exception as e:
                         # El registro histórico jamás debe interferir
                         # con el control físico de la cámara.
@@ -409,9 +413,7 @@ def ejecutar_mdfr(tempMdfr, TIMER_MDFR, obtener_datos_medidores_y_sensor):
                     # =========================================================
                     # CONFIGURACIÓN DEL AIRE FRESCO
                     # =========================================================
-                    minutos_aire = float(
-                        ctl_co2.get('aire_fresco_minutos', 2)
-                    )
+                    minutos_aire = float(ctl_co2.get('aire_fresco_minutos', 2))
                     duracion_s = minutos_aire * 60
                     now = time.monotonic()
 
